@@ -233,4 +233,4 @@ Apple Silicon is reliably ID 1 in practice, but `discoverBuiltInID` uses
 
 ## License
 
-GPL-3.0-or-later. See `LICENSE`.
+GPL-3.0-or-later. See [`LICENSES/GPL-3.0-or-later.txt`](LICENSES/GPL-3.0-or-later.txt).

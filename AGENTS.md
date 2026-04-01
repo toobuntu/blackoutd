@@ -5,13 +5,14 @@ blackoutd is an Objective-C macOS LaunchAgent daemon with a menu bar GUI.
 It blacks out the built-in display when an external display is connected.
 
 ## Architecture
-- `main.m` — CLI dispatch and daemon entry point (`blackoutd daemon` subcommand)
-- `AppDelegate.m/.h` — NSApplication delegate; menu bar item, signal handlers,
+- `src/main.m` — CLI dispatch and daemon entry point (`blackoutd daemon` subcommand)
+- `src/AppDelegate.m/.h` — NSApplication delegate; menu bar item, signal handlers,
   WindowServer readiness, state restoration
-- `DisplayController.m/.h` — All CoreGraphics display operations; reconfiguration
+- `src/DisplayController.m/.h` — All CoreGraphics display operations; reconfiguration
   callback; blackout state machine
-- `local.blackoutd.plist` — LaunchAgent descriptor (invokes `blackoutd daemon`)
-- `Info.plist` — Embedded bundle metadata (required for WindowServer connection)
+- `blackoutd.plist.template` — LaunchAgent plist template ({{BUNDLE_ID}} {{HOME}}
+  substituted at install time by `make postinstall`)
+- `src/Info.plist` — Embedded bundle metadata (required for WindowServer connection)
 
 ## Key constraints
 - Target: macOS 13+, Apple Silicon
@@ -20,7 +21,8 @@ It blacks out the built-in display when an external display is connected.
 - Uses private symbol `CGSConfigureDisplayEnabled` (extern declaration only —
   resolved at runtime from CoreGraphics/SkyLight)
 - Ad-hoc codesigned only (no Developer ID)
-- LaunchAgent label: `local.blackoutd` (subject to change for public release)
+- Bundle ID: `io.github.toobuntu.blackoutd`
+- LaunchAgent label: same as bundle ID
 
 ## Safety invariant
 The built-in display MUST be restored when the last external display disconnects.
@@ -37,7 +39,7 @@ gated on `_applyingChange` or any other guard.
 | SIGKILL | Cannot be caught — see README Known Issues |
 
 ## NSUserDefaults suite
-`local.blackoutd.prefs` (distinct from bundle ID to avoid macOS warning)
+`blackoutd` (distinct from bundle ID to avoid macOS warning)
 
 Keys:
 - `autoBlackoutOnExternalConnect` (BOOL, default YES)

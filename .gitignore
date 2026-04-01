@@ -1,4 +1,6 @@
-blackoutd
+build/
+*.plist.local
+.DS_Store
+_CodeSignature/
 *.o
 *.dSYM/
-.DS_Store

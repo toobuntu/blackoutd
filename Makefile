@@ -17,6 +17,7 @@ CFLAGS = \
     -fobjc-arc \
     -Wall \
     -Wextra \
+    -Os \
     -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
     -framework Cocoa \
     -framework CoreGraphics \
@@ -30,6 +31,7 @@ all: $(TARGET)
 $(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDIR)/Info.plist
 	mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -o $@ $(SRCS)
+	strip $@
 	codesign --sign - --force $@
 
 clean:
