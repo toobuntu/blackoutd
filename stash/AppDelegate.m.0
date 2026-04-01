@@ -1,0 +1,169 @@
+#import "AppDelegate.h"
+
+static NSString * const kSuiteName           = @"local.blackoutd";
+static NSString * const kAutoBlackoutKey     = @"autoBlackoutOnExternalConnect";
+static NSString * const kBlackoutActiveKey   = @"blackoutActive";
+static NSString * const kPidFilePath         = @"/tmp/blackoutd.pid";
+
+@implementation AppDelegate {
+    DisplayController *_displayController;
+    NSStatusItem      *_statusItem;
+    NSMenuItem        *_toggleItem;
+    NSMenuItem        *_autoItem;
+    NSUserDefaults    *_defaults;
+    dispatch_source_t  _sigusr1Source;
+    dispatch_source_t  _sigusr2Source;
+    dispatch_source_t  _sigtermSource;
+}
+
+- (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+    _defaults = [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+
+    _displayController = [[DisplayController alloc] init];
+    _displayController.delegate = self;
+    _displayController.autoBlackoutOnExternalConnect =
+        [_defaults objectForKey:kAutoBlackoutKey] != nil
+            ? [_defaults boolForKey:kAutoBlackoutKey]
+            : YES;
+
+    [self setupMenuBar];
+    [self setupSignalHandlers];
+    [self writePidFile];
+    [self restorePersistedState];
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    [_displayController disableBlackout];
+    [self removePidFile];
+}
+
+// MARK: - State Restoration
+
+- (void)restorePersistedState {
+    if ([_defaults boolForKey:kBlackoutActiveKey] &&
+        [_displayController hasActiveExternalDisplay]) {
+        [_displayController enableBlackout];
+    }
+}
+
+// MARK: - Menu Bar
+
+- (void)setupMenuBar {
+    _statusItem = [NSStatusBar.systemStatusBar
+                   statusItemWithLength:NSVariableStatusItemLength];
+    _statusItem.button.action = nil;
+    [self updateMenuBarIcon];
+
+    NSMenu *menu = [[NSMenu alloc] init];
+
+    _toggleItem = [[NSMenuItem alloc]
+        initWithTitle:[self toggleItemTitle]
+               action:@selector(toggleBlackout:)
+        keyEquivalent:@""];
+    _toggleItem.target = self;
+    [menu addItem:_toggleItem];
+
+    [menu addItem:NSMenuItem.separatorItem];
+
+    _autoItem = [[NSMenuItem alloc]
+        initWithTitle:@"Auto-blackout on External Connect"
+               action:@selector(toggleAutoBlackout:)
+        keyEquivalent:@""];
+    _autoItem.target = self;
+    _autoItem.state = _displayController.autoBlackoutOnExternalConnect
+                          ? NSControlStateValueOn : NSControlStateValueOff;
+    [menu addItem:_autoItem];
+
+    [menu addItem:NSMenuItem.separatorItem];
+
+    NSMenuItem *quitItem = [[NSMenuItem alloc]
+        initWithTitle:@"Quit blackoutd"
+               action:@selector(terminate:)
+        keyEquivalent:@"q"];
+    [menu addItem:quitItem];
+
+    _statusItem.menu = menu;
+}
+
+- (NSString *)toggleItemTitle {
+    return _displayController.isBlackedOut
+               ? @"Restore Built-in Display"
+               : @"Black Out Built-in Display";
+}
+
+- (void)updateMenuBarIcon {
+    NSString *symbol = _displayController.isBlackedOut
+                           ? @"laptopcomputer.slash"
+                           : @"laptopcomputer";
+    NSImage *image = [NSImage imageWithSystemSymbolName:symbol
+                               accessibilityDescription:nil];
+    image.template = YES;
+    _statusItem.button.image = image;
+    _toggleItem.title = [self toggleItemTitle];
+}
+
+- (void)toggleBlackout:(id)sender {
+    if (_displayController.isBlackedOut)
+        [_displayController disableBlackout];
+    else
+        [_displayController enableBlackout];
+}
+
+- (void)toggleAutoBlackout:(id)sender {
+    BOOL newValue = !_displayController.autoBlackoutOnExternalConnect;
+    _displayController.autoBlackoutOnExternalConnect = newValue;
+    [_defaults setBool:newValue forKey:kAutoBlackoutKey];
+    _autoItem.state = newValue ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+// MARK: - DisplayControllerDelegate
+
+- (void)displayController:(DisplayController *)controller
+      blackoutStateChanged:(BOOL)isBlackedOut {
+    [_defaults setBool:isBlackedOut forKey:kBlackoutActiveKey];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self updateMenuBarIcon];
+    });
+}
+
+// MARK: - Signal Handling
+
+- (void)setupSignalHandlers {
+    signal(SIGUSR1, SIG_IGN);
+    signal(SIGUSR2, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    _sigusr1Source = [self dispatchSourceForSignal:SIGUSR1 handler:^{
+        [self->_displayController enableBlackout];
+    }];
+    _sigusr2Source = [self dispatchSourceForSignal:SIGUSR2 handler:^{
+        [self->_displayController disableBlackout];
+    }];
+    _sigtermSource = [self dispatchSourceForSignal:SIGTERM handler:^{
+        [NSApp terminate:nil];
+    }];
+}
+
+- (dispatch_source_t)dispatchSourceForSignal:(int)sig handler:(dispatch_block_t)handler {
+    dispatch_source_t source = dispatch_source_create(
+        DISPATCH_SOURCE_TYPE_SIGNAL, sig, 0, dispatch_get_main_queue());
+    dispatch_source_set_event_handler(source, handler);
+    dispatch_resume(source);
+    return source;
+}
+
+// MARK: - PID File
+
+- (void)writePidFile {
+    [[NSString stringWithFormat:@"%d", getpid()]
+        writeToFile:kPidFilePath atomically:YES
+           encoding:NSUTF8StringEncoding error:nil];
+}
+
+- (void)removePidFile {
+    [NSFileManager.defaultManager removeItemAtPath:kPidFilePath error:nil];
+}
+
+@end

@@ -1,0 +1,25 @@
+#import <Foundation/Foundation.h>
+#import <CoreGraphics/CoreGraphics.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@class DisplayController;
+
+@protocol DisplayControllerDelegate <NSObject>
+- (void)displayController:(DisplayController *)controller
+      blackoutStateChanged:(BOOL)isBlackedOut;
+@end
+
+@interface DisplayController : NSObject
+
+@property (nonatomic, weak, nullable) id<DisplayControllerDelegate> delegate;
+@property (nonatomic, readonly) BOOL isBlackedOut;
+@property (nonatomic, assign) BOOL autoBlackoutOnExternalConnect;
+
+- (BOOL)enableBlackout;
+- (BOOL)disableBlackout;
+- (BOOL)hasActiveExternalDisplay;
+
+@end
+
+NS_ASSUME_NONNULL_END

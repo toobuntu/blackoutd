@@ -1,0 +1,262 @@
+// Private APIs used in this file:
+//
+//   CGSConfigureDisplayEnabled  — enables/disables a display in a CGDisplayConfigRef.
+//                                 No public equivalent exists.
+//
+//   CGDisplayIOServicePort      — returns the IOKit service port for a CGDirectDisplayID.
+//                                 Deprecated macOS 10.9; no public replacement provided
+//                                 by Apple. Used to distinguish hardware-backed displays
+//                                 from virtual/placeholder displays. See
+//                                 displayIsHardwareBacked().
+
+#import "DisplayController.h"
+#import <IOKit/IOKitLib.h>
+
+extern CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef, CGDirectDisplayID, bool);
+
+// Returns YES if this CGDirectDisplayID is backed by real hardware.
+//
+// Primary check: CGDisplayIOServicePort returns MACH_PORT_NULL for virtual
+// and placeholder displays inserted by macOS during display transitions.
+// Deprecated since macOS 10.9 with no public replacement provided by Apple.
+//
+// Fallback: if the primary check returns null — either a virtual display or
+// the API has been removed — the FourCC heuristic applies. macOS assigns
+// pseudo-vendor IDs > 0xFFFF to virtual displays (e.g. "unkn" = 0x756E6B6E,
+// "virt" = 0x76697274). Real PCI vendor IDs are 16-bit. This is a macOS
+// convention, independent of any third-party software.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+static BOOL displayIsHardwareBacked(CGDirectDisplayID displayID) {
+    if (CGDisplayIOServicePort(displayID) != MACH_PORT_NULL) return YES;
+    return CGDisplayVendorNumber(displayID) <= 0xFFFF;
+}
+#pragma clang diagnostic pop
+
+// Returns a human-readable vendor name for common PCI vendor IDs,
+// or a decoded FourCC string for macOS virtual display pseudo-IDs.
+static NSString *vendorDescription(uint32_t vendor) {
+    if (vendor > 0xFFFF) {
+        char fourcc[5] = {
+            (char)(vendor >> 24), (char)(vendor >> 16),
+            (char)(vendor >> 8),  (char)(vendor),
+            '\0'
+        };
+        return [NSString stringWithFormat:@"0x%x \"%s\" (virtual)", vendor, fourcc];
+    }
+    switch (vendor) {
+        case 0x0000: return @"0x0000 (unknown)";
+        case 0x05AC: return @"0x05ac (Apple)";
+        case 0x0610: return @"0x0610 (Apple)";
+        case 0x0614: return @"0x0614 (Apple)";
+        case 0x0618: return @"0x0618 (Apple)";
+        case 0x10AC: return @"0x10ac (Dell)";
+        case 0x1028: return @"0x1028 (Dell)";
+        case 0x1E6D: return @"0x1e6d (LG)";
+        case 0x038A: return @"0x038a (LG Philips)";
+        case 0x0492: return @"0x0492 (Samsung)";
+        case 0x1152: return @"0x1152 (Samsung)";
+        case 0x0410: return @"0x0410 (Sharp)";
+        case 0x0430: return @"0x0430 (Fujitsu)";
+        case 0x04CA: return @"0x04ca (Lite-On)";
+        case 0x06B3: return @"0x06b3 (Sunrex)";
+        default:     return [NSString stringWithFormat:@"0x%04x", vendor];
+    }
+}
+
+// Returns a string decoding the meaningful bits of CGDisplayChangeSummaryFlags.
+static NSString *flagsDescription(CGDisplayChangeSummaryFlags flags) {
+    NSMutableArray *names = [NSMutableArray array];
+    if (flags & kCGDisplayAddFlag)                 [names addObject:@"add"];
+    if (flags & kCGDisplayRemoveFlag)              [names addObject:@"remove"];
+    if (flags & kCGDisplayEnabledFlag)             [names addObject:@"enabled"];
+    if (flags & kCGDisplayDisabledFlag)            [names addObject:@"disabled"];
+    if (flags & kCGDisplayMovedFlag)               [names addObject:@"moved"];
+    if (flags & kCGDisplaySetMainFlag)             [names addObject:@"setMain"];
+    if (flags & kCGDisplaySetModeFlag)             [names addObject:@"setMode"];
+    if (flags & kCGDisplayMirrorFlag)              [names addObject:@"mirror"];
+    if (flags & kCGDisplayUnMirrorFlag)            [names addObject:@"unmirror"];
+    if (flags & kCGDisplayDesktopShapeChangedFlag) [names addObject:@"desktopShapeChanged"];
+    return names.count > 0
+        ? [NSString stringWithFormat:@"0x%x (%@)", flags, [names componentsJoinedByString:@"|"]]
+        : [NSString stringWithFormat:@"0x%x", flags];
+}
+
+static void displayReconfigCallback(CGDirectDisplayID displayID,
+                                    CGDisplayChangeSummaryFlags flags,
+                                    void *userInfo) {
+    DisplayController *controller = (__bridge DisplayController *)userInfo;
+    [controller handleReconfiguration:displayID flags:flags];
+}
+
+@implementation DisplayController {
+    CGDirectDisplayID _builtInID;
+    BOOL _isBlackedOut;
+    BOOL _actionInProgress;
+}
+
+- (instancetype)init {
+    if (!(self = [super init])) return nil;
+    _builtInID = [self discoverBuiltInID];
+    _autoBlackoutOnExternalConnect = YES;
+    NSLog(@"[startup] new session started — built-in display id=%u", _builtInID);
+    NSLog(@"[startup] API deprecation warning: "
+          @"CGDisplayIOServicePort (deprecated macOS 10.9) and "
+          @"CGSConfigureDisplayEnabled (private) are in use; "
+          @"if either breaks, audit DisplayController.m");
+    CGDisplayRegisterReconfigurationCallback(displayReconfigCallback,
+                                             (__bridge void *)self);
+    return self;
+}
+
+- (void)dealloc {
+    CGDisplayRemoveReconfigurationCallback(displayReconfigCallback,
+                                           (__bridge void *)self);
+}
+
+- (BOOL)isBlackedOut { return _isBlackedOut; }
+
+// MARK: - Public
+
+- (BOOL)enableBlackout {
+    if (_isBlackedOut) return YES;
+    if (![self hasActiveExternalDisplay]) {
+        NSLog(@"[builtin] id=%u action=blackout result=refused — no active external display",
+              _builtInID);
+        return NO;
+    }
+    [self applyEnable:NO];
+    return _isBlackedOut;
+}
+
+- (BOOL)disableBlackout {
+    if (!_isBlackedOut) return YES;
+    [self applyEnable:YES];
+    return !_isBlackedOut;
+}
+
+// Returns YES only for physically connected external displays.
+// Relies on IOKit service presence (with FourCC fallback) to exclude
+// virtual/placeholder displays inserted by macOS during display transitions.
+- (BOOL)hasActiveExternalDisplay {
+    CGDirectDisplayID displays[8];
+    uint32_t count = 0;
+    CGGetActiveDisplayList(8, displays, &count);
+    BOOL found = NO;
+    for (uint32_t i = 0; i < count; i++) {
+        CGDirectDisplayID d = displays[i];
+        if (CGDisplayIsBuiltin(d)) continue;
+        uint32_t vendor = CGDisplayVendorNumber(d);
+        if (displayIsHardwareBacked(d)) {
+            NSLog(@"[external] id=%u vendor=%@ — hardware display detected",
+                  d, vendorDescription(vendor));
+            found = YES;
+        } else {
+            NSLog(@"[external] id=%u vendor=%@ — skipped, virtual display",
+                  d, vendorDescription(vendor));
+        }
+    }
+    return found;
+}
+
+- (BOOL)builtInIsOnline {
+    CGDirectDisplayID displays[8];
+    uint32_t count = 0;
+    CGGetOnlineDisplayList(8, displays, &count);
+    for (uint32_t i = 0; i < count; i++) {
+        if (CGDisplayIsBuiltin(displays[i])) return YES;
+    }
+    return NO;
+}
+
+- (void)adoptBlackedOutState {
+    _isBlackedOut = YES;
+}
+
+// MARK: - Private
+
+- (void)applyEnable:(BOOL)enable {
+    NSString *action = enable ? @"restore" : @"blackout";
+    NSLog(@"[builtin] id=%u action=%@", _builtInID, action);
+    _actionInProgress = YES;
+    CGError err = [self setDisplay:_builtInID enabled:enable];
+    if (err != kCGErrorSuccess) {
+        // kCGErrorIllegalArgument (1001) means the display is already in the
+        // requested state — another process changed it before we could. Treat
+        // as success and sync internal state accordingly.
+        if (err == kCGErrorIllegalArgument) {
+            NSLog(@"[builtin] id=%u action=%@ result=synced — already in desired state",
+                  _builtInID, action);
+        } else {
+            NSLog(@"[builtin] id=%u action=%@ result=failed err=%d",
+                  _builtInID, action, err);
+            _actionInProgress = NO;
+            return;
+        }
+    }
+    _isBlackedOut = !enable;
+    NSLog(@"[builtin] id=%u action=%@ result=complete isBlackedOut=%d",
+          _builtInID, action, _isBlackedOut);
+    [_delegate displayController:self blackoutStateChanged:_isBlackedOut];
+    dispatch_after(
+        dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(),
+        ^{ self->_actionInProgress = NO; });
+}
+
+- (CGDirectDisplayID)discoverBuiltInID {
+    CGDirectDisplayID displays[8];
+    uint32_t count = 0;
+    CGGetOnlineDisplayList(8, displays, &count);
+    for (uint32_t i = 0; i < count; i++) {
+        if (CGDisplayIsBuiltin(displays[i])) return displays[i];
+    }
+    return 1;
+}
+
+- (CGError)setDisplay:(CGDirectDisplayID)display enabled:(BOOL)enabled {
+    CGDisplayConfigRef config;
+    CGError err = CGBeginDisplayConfiguration(&config);
+    if (err != kCGErrorSuccess) return err;
+    err = CGSConfigureDisplayEnabled(config, display, enabled);
+    if (err != kCGErrorSuccess) {
+        CGCancelDisplayConfiguration(config);
+        return err;
+    }
+    return CGCompleteDisplayConfiguration(config, kCGConfigurePermanently);
+}
+
+- (void)handleReconfiguration:(CGDirectDisplayID)displayID
+                         flags:(CGDisplayChangeSummaryFlags)flags {
+    if (flags & kCGDisplayBeginConfigurationFlag) return;
+
+    NSLog(@"[reconfig] id=%u flags=%@ isBlackedOut=%d actionInProgress=%d",
+          displayID, flagsDescription(flags), _isBlackedOut, _actionInProgress);
+
+    const CGDisplayChangeSummaryFlags connectivity =
+        kCGDisplayAddFlag | kCGDisplayRemoveFlag |
+        kCGDisplayEnabledFlag | kCGDisplayDisabledFlag;
+    if (!(flags & connectivity)) {
+        NSLog(@"[reconfig] id=%u ignored — no connectivity change", displayID);
+        return;
+    }
+
+    if (_actionInProgress) {
+        NSLog(@"[reconfig] id=%u ignored — triggered by our own action in progress", displayID);
+        return;
+    }
+
+    BOOL hasExternal = [self hasActiveExternalDisplay];
+    NSLog(@"[state] hasExternal=%d isBlackedOut=%d", hasExternal, _isBlackedOut);
+
+    // Safety invariant: restore built-in whenever no real external is present.
+    if (!hasExternal && _isBlackedOut) {
+        NSLog(@"[state] no external display — restoring built-in display");
+        [self applyEnable:YES];
+    } else if (hasExternal && _autoBlackoutOnExternalConnect && !_isBlackedOut) {
+        NSLog(@"[state] external display connected — blacking out built-in display");
+        [self applyEnable:NO];
+    }
+}
+
+@end

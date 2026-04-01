@@ -1,0 +1,160 @@
+// displayprobe — persistent display state watcher for wake diagnostics.
+//
+// Compile: clang -fobjc-arc -framework Cocoa -framework IOKit \
+//                -o displayprobe displayprobe.m
+// Usage:   ./displayprobe [--log path]
+//
+// Captures display state at sleep and at wake (with repeated samples),
+// writing timestamped snapshots to stdout or a log file. Run before
+// sleeping; the process survives sleep and captures the bad state
+// automatically on wake without requiring interaction.
+//
+// Ctrl-C to stop.
+
+#import <Cocoa/Cocoa.h>
+#import <IOKit/graphics/IOGraphicsLib.h>
+
+static NSFileHandle *gOutput = nil;
+
+static void emit(NSString *line) {
+    NSString *stamped = [NSString stringWithFormat:@"%@  %@\n",
+        [[NSDate date] descriptionWithLocale:nil], line];
+    if (gOutput) {
+        [gOutput writeData:[stamped dataUsingEncoding:NSUTF8StringEncoding]];
+    } else {
+        fputs(stamped.UTF8String, stdout);
+        fflush(stdout);
+    }
+}
+
+static NSString *vendorName(uint32_t vendor) {
+    switch (vendor) {
+    case 0x0610: return @"Apple";
+    case 0x10AC: return @"Dell";
+    case 0x1E6D: return @"LG";
+    default:     return [NSString stringWithFormat:@"0x%04x", vendor];
+    }
+}
+
+static NSString *modeDescription(CGDisplayModeRef mode) {
+    if (!mode) return @"(no mode)";
+    return [NSString stringWithFormat:@"%zux%zu @%.0fHz ioflags=0x%08x",
+            CGDisplayModeGetWidth(mode),
+            CGDisplayModeGetHeight(mode),
+            CGDisplayModeGetRefreshRate(mode),
+            CGDisplayModeGetIOFlags(mode)];
+}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+static BOOL hasIOService(CGDirectDisplayID displayID) {
+    io_service_t svc = CGDisplayIOServicePort(displayID);
+    if (svc != MACH_PORT_NULL) {
+        IOObjectRelease(svc);
+        return YES;
+    }
+    return NO;
+}
+#pragma clang diagnostic pop
+
+static void snapshotDisplays(NSString *label) {
+    CGDirectDisplayID all[16];
+    uint32_t count = 0;
+    CGGetOnlineDisplayList(16, all, &count);
+
+    emit([NSString stringWithFormat:@"--- %@ (%u display%s) ---",
+          label, count, count == 1 ? "" : "s"]);
+
+    for (uint32_t i = 0; i < count; i++) {
+        CGDirectDisplayID d = all[i];
+        CGRect bounds = CGDisplayBounds(d);
+        CGDisplayModeRef mode = CGDisplayCopyDisplayMode(d);
+
+        emit([NSString stringWithFormat:
+            @"  id=%-4u vendor=%-6s model=0x%04x  "
+             "builtin=%-3s active=%-3s online=%-3s asleep=%-3s mirror=%-3s main=%-3s  "
+             "bounds=(%.0f,%.0f %.0fx%.0f) pixels=(%zux%zu)  "
+             "mode=%@  iokit=%@",
+            d,
+            vendorName(CGDisplayVendorNumber(d)).UTF8String,
+            CGDisplayModelNumber(d),
+            CGDisplayIsBuiltin(d)     ? "Y" : "N",
+            CGDisplayIsActive(d)      ? "Y" : "N",
+            CGDisplayIsOnline(d)      ? "Y" : "N",
+            CGDisplayIsAsleep(d)      ? "Y" : "N",
+            CGDisplayIsInMirrorSet(d) ? "Y" : "N",
+            CGDisplayIsMain(d)        ? "Y" : "N",
+            bounds.origin.x, bounds.origin.y,
+            bounds.size.width, bounds.size.height,
+            mode ? CGDisplayModeGetPixelWidth(mode)  : 0,
+            mode ? CGDisplayModeGetPixelHeight(mode) : 0,
+            modeDescription(mode),
+            hasIOService(d) ? @"present" : @"absent"
+        ]);
+
+        if (mode) CGDisplayModeRelease(mode);
+    }
+}
+
+@interface Watcher : NSObject
+@end
+
+@implementation Watcher
+
+- (instancetype)init {
+    if (!(self = [super init])) return nil;
+    NSNotificationCenter *nc = NSWorkspace.sharedWorkspace.notificationCenter;
+    [nc addObserver:self selector:@selector(willSleep:)
+               name:NSWorkspaceWillSleepNotification object:nil];
+    [nc addObserver:self selector:@selector(didWake:)
+               name:NSWorkspaceDidWakeNotification object:nil];
+    return self;
+}
+
+- (void)willSleep:(NSNotification *)note {
+    snapshotDisplays(@"pre-sleep");
+}
+
+- (void)didWake:(NSNotification *)note {
+    // Sample at 0s, 1s, 3s, 6s after wake to catch delayed negotiation.
+    NSArray *delays = @[@0.0, @1.0, @3.0, @6.0];
+    for (NSNumber *delay in delays) {
+        dispatch_after(
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
+            dispatch_get_main_queue(),
+            ^{
+                snapshotDisplays([NSString stringWithFormat:@"post-wake +%.0fs", delay.doubleValue]);
+            });
+    }
+}
+
+@end
+
+int main(int argc, const char *argv[]) {
+    @autoreleasepool {
+        NSString *logPath = nil;
+        for (int i = 1; i < argc - 1; i++) {
+            if (strcmp(argv[i], "--log") == 0) {
+                logPath = @(argv[i + 1]);
+            }
+        }
+
+        if (logPath) {
+            [[NSFileManager defaultManager] createFileAtPath:logPath
+                                                    contents:nil attributes:nil];
+            gOutput = [NSFileHandle fileHandleForWritingAtPath:logPath];
+            [gOutput seekToEndOfFile];
+            fprintf(stdout, "displayprobe: logging to %s\n", logPath.UTF8String);
+            fflush(stdout);
+        }
+
+        emit(@"displayprobe started — waiting for sleep/wake events");
+        snapshotDisplays(@"initial");
+
+        __unused Watcher *watcher = [[Watcher alloc] init];
+        [NSApplication sharedApplication];
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+        [NSApp run];
+    }
+    return 0;
+}

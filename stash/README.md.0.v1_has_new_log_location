@@ -1,0 +1,123 @@
+# blackoutd
+
+A macOS menu bar daemon that blacks out the built-in display when an external
+display is connected, preserving screen real estate and reducing distraction.
+
+## Requirements
+
+- macOS 13 or later
+- Apple Silicon Mac (tested on M2 MacBook Air)
+- Xcode Command Line Tools: `xcode-select --install`
+
+## Installation
+
+```sh
+make
+sudo make install
+```
+
+This builds the binary, installs it to `/usr/local/bin/blackoutd`, installs the
+LaunchAgent plist, and bootstraps the agent for the current user.
+
+## Usage
+
+```
+blackoutd on                  Black out built-in display
+blackoutd off                 Restore built-in display
+blackoutd status              Show daemon and display status
+blackoutd auto on|off         Enable/disable auto-blackout on external connect
+blackoutd daemon start        Start daemon via launchctl
+blackoutd daemon stop         Stop daemon and restore built-in display
+```
+
+## Upgrade
+
+```sh
+make clean; make; make reinstall
+```
+
+## Uninstall
+
+```sh
+make uninstall
+```
+
+## Logging
+
+blackoutd writes structured logs to stderr, captured to `/tmp/blackoutd.log`
+via the LaunchAgent plist. Log lines are tagged by subsystem:
+
+```
+[startup]   session init and state restoration
+[change]    display connectivity events
+[external]  external display evaluation results
+[builtin]   built-in display actions and outcomes
+[state]     decision logic and conclusions
+```
+
+Verbosity is level 1 by default (semantic logs only). Level 2 adds
+`[verbose=2]`-tagged lines with raw CGDisplayChangeSummaryFlags values and
+decoded connectivity details, useful for diagnosing unexpected display events.
+
+Enable verbose logging at runtime without restarting the daemon:
+
+```sh
+defaults write local.blackoutd.prefs verbosityLevel -int 2
+killall -HUP blackoutd
+```
+
+Reset to default:
+
+```sh
+defaults delete local.blackoutd.prefs verbosityLevel
+killall -HUP blackoutd
+```
+
+## How it works
+
+blackoutd uses the private `CGSConfigureDisplayEnabled` symbol (re-exported from
+SkyLight.framework through CoreGraphics) to disable the built-in display at the
+compositor level. The display is fully off — not just dimmed — while the daemon
+process holds a live WindowServer connection that maintains the enabled state.
+
+On external display disconnect, the built-in is unconditionally restored
+regardless of user intent. Leaving a Mac with no usable display is never
+acceptable.
+
+## Known issues
+
+**SIGKILL**: If the daemon is killed with `SIGKILL` while the built-in is blacked
+out, the display cannot be restored programmatically until the WindowServer
+re-enumerates displays. Disconnect and reconnect the external display, or log out
+and back in. Use `blackoutd daemon stop` or the menu bar Quit option instead of
+`kill -9`.
+
+**Coexistence with BetterDisplay/Lunar**: If another display manager is running
+with its own disconnect-on-external feature enabled, the two daemons will fight.
+Disable that feature in the other app before using blackoutd.
+
+## Tech notes
+
+### SMAppService (future)
+If blackoutd is ever packaged as `Blackout.app`, the `launchctl bootstrap/bootout`
+subprocess calls in `main.m` should be replaced with
+`[SMAppService mainAppService]` register/unregister. This requires the LaunchAgent
+plist to live at `Blackout.app/Contents/Library/LaunchAgents/local.blackoutd.plist`
+and the binary to run from inside the bundle. See `man SMAppService` and
+[Apple Developer docs](https://developer.apple.com/documentation/servicemanagement/smappservice).
+
+### Mach port presence detection (planned)
+Currently `blackoutd status` queries `launchctl print`, whose output is explicitly
+documented as unstable (`man launchctl`: "This output is NOT API"). The planned
+replacement is a named Mach port (`com.github.toobuntu.blackoutd`) registered on
+daemon startup. The CLI checks for port existence via `bootstrap_look_up()` —
+stable, synchronous, no subprocess.
+
+### Display ID stability
+`CGDirectDisplayID` values can change across reboots. The built-in display on
+Apple Silicon is reliably ID 1 in practice, but `discoverBuiltInID` uses
+`CGDisplayIsBuiltin()` enumeration for correctness.
+
+## License
+
+MIT

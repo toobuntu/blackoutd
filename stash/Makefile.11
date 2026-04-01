@@ -1,0 +1,55 @@
+BINARY       = blackoutd
+AGENT_LABEL  = local.blackoutd
+INSTALL_BIN  = /usr/local/bin/$(BINARY)
+AGENT_DIR    = $(HOME)/Library/LaunchAgents
+AGENT_PLIST  = $(AGENT_LABEL).plist
+AGENT_DST    = $(AGENT_DIR)/$(AGENT_PLIST)
+UID          = $(shell id -u)
+
+SRCS   = main.m AppDelegate.m DisplayController.m
+CC     = clang
+CFLAGS = \
+    -fobjc-arc \
+    -Wall \
+    -Wextra \
+    -framework Cocoa \
+    -framework CoreGraphics \
+    -sectcreate __TEXT __info_plist Info.plist
+
+.PHONY: all clean install reinstall uninstall load unload
+
+all: $(BINARY)
+
+$(BINARY): $(SRCS) AppDelegate.h DisplayController.h Info.plist
+	$(CC) $(CFLAGS) -o $@ $(SRCS)
+	codesign --sign - --force $(BINARY)
+
+clean:
+	rm -f $(BINARY)
+
+# Install binary + plist and bootstrap agent.
+# Run once after initial build: make; sudo make install
+install: $(BINARY)
+	sudo install -d /usr/local/bin
+	sudo install -m 755 $(BINARY) $(INSTALL_BIN)
+	install -d $(AGENT_DIR)
+	install -m 644 $(AGENT_PLIST) $(AGENT_DST)
+	launchctl bootstrap gui/$(UID) $(AGENT_DST)
+
+# Reinstall binary only — plist unchanged, agent restarted.
+# Typical dev cycle: make clean; make; make reinstall
+reinstall: unload
+	sudo install -m 755 $(BINARY) $(INSTALL_BIN)
+	launchctl bootstrap gui/$(UID) $(AGENT_DST)
+
+# Remove agent and all installed files.
+uninstall: unload
+	sudo rm -f $(INSTALL_BIN)
+	rm -f $(AGENT_DST)
+
+# Bootstrap / bootout without reinstalling.
+load:
+	launchctl bootstrap gui/$(UID) $(AGENT_DST)
+
+unload:
+	-launchctl bootout gui/$(UID)/$(AGENT_LABEL) 2>/dev/null

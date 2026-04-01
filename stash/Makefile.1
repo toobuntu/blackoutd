@@ -1,0 +1,42 @@
+BINARY      = blackoutd
+INSTALL_BIN = /usr/local/bin/$(BINARY)
+AGENT_DIR   = $(HOME)/Library/LaunchAgents
+AGENT_PLIST = local.blackoutd.plist
+AGENT_DST   = $(AGENT_DIR)/$(AGENT_PLIST)
+
+SRCS = main.m AppDelegate.m DisplayController.m
+CC   = clang
+CFLAGS = \
+    -fobjc-arc \
+    -Wall \
+    -Wextra \
+    -framework Cocoa \
+    -framework CoreGraphics
+
+.PHONY: all clean install uninstall load unload reinstall
+
+all: $(BINARY)
+
+$(BINARY): $(SRCS) AppDelegate.h DisplayController.h
+	$(CC) $(CFLAGS) -o $@ $(SRCS)
+
+clean:
+	rm -f $(BINARY)
+
+install: $(BINARY)
+	install -d /usr/local/bin
+	install -m 755 $(BINARY) $(INSTALL_BIN)
+	install -d $(AGENT_DIR)
+	install -m 644 $(AGENT_PLIST) $(AGENT_DST)
+
+uninstall: unload
+	rm -f $(INSTALL_BIN)
+	rm -f $(AGENT_DST)
+
+load: install
+	launchctl bootstrap gui/$(shell id -u) $(AGENT_DST)
+
+unload:
+	-launchctl bootout gui/$(shell id -u)/local.blackoutd 2>/dev/null
+
+reinstall: unload clean all load
