@@ -4,6 +4,16 @@
 blackoutd is an Objective-C macOS LaunchAgent daemon with a menu bar GUI.
 It blacks out the built-in display when an external display is connected.
 
+## Build and lint
+```sh
+make                # build to build/blackoutd
+make clean && make  # clean rebuild
+# clang-format check
+find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
+# clang-format fix
+find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
+```
+
 ## Architecture
 - `src/main.m` — CLI dispatch and daemon entry point (`blackoutd daemon` subcommand)
 - `src/AppDelegate.m/.h` — NSApplication delegate; menu bar item, signal handlers,
