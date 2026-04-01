@@ -297,6 +297,16 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 }
 
 - (CGError)setDisplay:(CGDirectDisplayID)display enabled:(BOOL)enabled {
+    // When re-enabling the built-in, issue a no-op CGConfig transaction first.
+    // This ensures the compositor is healthy before the display is turned on,
+    // preventing cursor-on-black when the compositor was in a broken state
+    // (e.g., after a USB-C Alt Mode dropout).
+    if (enabled) {
+        CGDisplayConfigRef noop;
+        CGError noopErr = CGBeginDisplayConfiguration(&noop);
+        if (noopErr == kCGErrorSuccess)
+            CGCompleteDisplayConfiguration(noop, kCGConfigureForSession);
+    }
     CGDisplayConfigRef config;
     CGError err = CGBeginDisplayConfiguration(&config);
     if (err != kCGErrorSuccess) return err;

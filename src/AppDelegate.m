@@ -231,8 +231,6 @@ static NSString * const kAgentLabel        = @BD_BUNDLE_ID;
     // Clear stale in-process state. If a hardware external disconnect was
     // observed during sleep, restore the built-in now — the display system
     // is still settling at wake time so a live hardware query is unreliable.
-    // If the external is still connected, its re-announcement callback will
-    // re-apply blackout without any action here.
     NSLog(@"[wake] — resuming display change monitoring");
     _displayController.systemSleeping = NO;
     BOOL externalUnplugged = [_displayController invalidateDisplayState];
@@ -240,6 +238,27 @@ static NSString * const kAgentLabel        = @BD_BUNDLE_ID;
         NSLog(@"[wake] — external disconnected during sleep — disabling blackout");
         [_defaults setBool:NO forKey:kBlackoutActiveKey];
         [_displayController disableBlackout];
+        return;
+    }
+
+    // The display system may have already settled while systemSleeping was YES,
+    // meaning the external's re-announcement callback was dropped. Schedule a
+    // deferred check: after 2 seconds (display pipeline settle time), if
+    // auto-blackout is enabled, an external is present, and we are not blacked
+    // out, re-apply blackout. If the callback path handles it first, the guard
+    // in enableBlackout prevents a duplicate action.
+    if (_displayController.autoBlackoutOnExternalConnect) {
+        dispatch_after(
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(),
+            ^{
+                if (!self->_displayController.isBlackedOut &&
+                    self->_displayController.autoBlackoutOnExternalConnect &&
+                    [self->_displayController hasActiveExternalDisplay]) {
+                    NSLog(@"[wake] — deferred check: external present, re-applying blackout");
+                    [self->_displayController enableBlackout];
+                }
+            });
     }
 }
 
