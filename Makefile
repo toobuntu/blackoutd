@@ -24,7 +24,7 @@ CFLAGS = \
     -framework IOKit \
     -sectcreate __TEXT __info_plist $(SRCDIR)/Info.plist
 
-.PHONY: all clean install postinstall reinstall uninstall load unload
+.PHONY: all clean install postinstall reinstall uninstall load unload print-bundle-id
 
 all: $(TARGET)
 
@@ -70,3 +70,6 @@ load:
 
 unload:
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL) || true
+
+print-bundle-id:
+	@echo $(BUNDLE_ID)

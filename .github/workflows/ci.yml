@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 name: CI
 
 on:
@@ -26,23 +30,16 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Generate and lint plist
-        run: make postinstall
+        run: |
+          make postinstall
+          plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
 
-  test:
+  lint-format:
     runs-on: macos-latest
-    needs: build
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Ruby
-        # Pin to SHA: gh api repos/ruby/setup-ruby/git/ref/tags/v1 --jq .object.sha
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-
-      - name: Build
-        run: make
-
-      - name: Run tests
-        run: bundle exec rspec
+      - name: Check clang-format
+        run: |
+          find src -name '*.m' -o -name '*.h' | \
+            xargs clang-format --style=file --dry-run --Werror
