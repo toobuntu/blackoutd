@@ -19,7 +19,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 ## v0.2 — Stability
 - [ ] Fix wake auto-blackout (P0 bug)
 - [ ] CGConfig no-op before restore (P1 safety invariant fix)
-- [ ] USB-C Alt Mode wake recovery (from displayrecommitd)
+- [ ] USB-C Alt Mode wake recovery — CGConfig no-op after display pipeline settles (P2)
 - [ ] Mach port presence detection (replaces launchctl list parsing)
 - [ ] `make clean; make; make reinstall` dev cycle without sudo for reinstall
 - [ ] Verified SIGKILL recovery path documented in onboarding

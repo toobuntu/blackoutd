@@ -47,6 +47,14 @@ These tests require a MacBook with an external display connected via USB-C.
 - [ ] `pmset sleepnow`: auto-blackout works on wake
 - [ ] Lid-close sleep: auto-blackout works on wake
 
+## USB-C Alt Mode Wake Recovery (P2)
+
+- [ ] Sleep with USB-C→HDMI external, wake: external recovers within 5 seconds
+- [ ] No visible flicker during recovery
+- [ ] Works on battery power
+- [ ] Works on AC power
+- [ ] External does not go black ~30s after wake (the pre-fix failure mode)
+
 ## Build/Install Cycle
 
 - [ ] `make clean; make; make reinstall` succeeds

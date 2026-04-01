@@ -99,3 +99,15 @@ When the compositor is in a broken state, `disableBlackout` restores the
 built-in but it shows cursor-on-black. Fix: issue a no-op
 CGBeginDisplayConfiguration/CGCompleteDisplayConfiguration before
 CGSConfigureDisplayEnabled(..., YES). File: `src/DisplayController.m`.
+
+### P2: USB-C Alt Mode wake recovery
+With built-in suppressed and USB-C→HDMI as the sole display path, the USB-C
+controller drops Alt Mode negotiation ~30 seconds after wake. The external
+display goes black; the user must unplug/replug the cable. Fix from
+displayrecommitd: on `systemDidWake:`, arm a 2-second quiet timer that fires
+after display callbacks settle. On fire, issue a no-op CGConfig transaction
+(CGBeginDisplayConfiguration/CGCompleteDisplayConfiguration) so WindowServer
+absorbs the reconnected display. This is already partially implemented in the
+P9 deferred wake check in `AppDelegate.m`; the remaining work is the quiet-
+timer approach (reset on each callback) in `DisplayController` for more
+reliable timing. Files: `src/DisplayController.m`, `src/AppDelegate.m`.
