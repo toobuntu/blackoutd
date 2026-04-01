@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Bug report
+description: Report a display or daemon issue
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log output
+      description: |
+        Paste relevant lines from `~/Library/Logs/blackoutd.log` or
+        `log show --last 5m --predicate 'process == "blackoutd"'`
+      render: text
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "e.g., 26.3 Tahoe"
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model and external display
+      placeholder: "e.g., MacBook Air M2, Dell SP2309W via USB-C→HDMI"
