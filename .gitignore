@@ -1,0 +1,4 @@
+blackoutd
+*.o
+*.dSYM/
+.DS_Store
