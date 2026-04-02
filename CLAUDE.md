@@ -26,10 +26,12 @@ Build requirements: Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 # clang-format check (no write)
-find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file --dry-run --Werror
+# On macOS, prefix with xcrun if clang-format is not in PATH.
+# On Linux (agent sandbox), use bare clang-format.
+find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
 
 # clang-format fix
-find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file -i
+find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
 
 # plist lint
 make postinstall && plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"

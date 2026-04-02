@@ -301,7 +301,12 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 - (BOOL)recommitDisplayConfiguration {
     CGDisplayConfigRef config;
     if (CGBeginDisplayConfiguration(&config) != kCGErrorSuccess) return NO;
-    return CGCompleteDisplayConfiguration(config, kCGConfigureForSession) == kCGErrorSuccess;
+    CGError result = CGCompleteDisplayConfiguration(config, kCGConfigureForSession);
+    if (result != kCGErrorSuccess) {
+        CGCancelDisplayConfiguration(config);
+        return NO;
+    }
+    return YES;
 }
 
 - (CGError)setDisplay:(CGDirectDisplayID)display enabled:(BOOL)enabled {

@@ -16,9 +16,7 @@ if [ "$branch" = "main" ]; then
 fi
 
 # Check clang-format on staged .m and .h files.
-staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.m' '*.h')
-if [ -n "$staged" ]; then
-    if xcrun --find clang-format >/dev/null 2>&1; then
-        echo "$staged" | xargs xcrun clang-format --style=file --dry-run --Werror
-    fi
+if xcrun --find clang-format >/dev/null 2>&1; then
+    git diff --cached --name-only --diff-filter=ACM -z -- '*.m' '*.h' \
+        | xargs -0 xcrun clang-format --style=file --dry-run --Werror
 fi
