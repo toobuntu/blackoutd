@@ -296,16 +296,23 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
     return 1;
 }
 
+// Forces WindowServer to re-evaluate the display configuration graph.
+// Matches the recommit pattern from displayrecommitd. No visible flicker.
+- (BOOL)recommitDisplayConfiguration {
+    CGDisplayConfigRef config;
+    if (CGBeginDisplayConfiguration(&config) != kCGErrorSuccess) return NO;
+    return CGCompleteDisplayConfiguration(config, kCGConfigureForSession) == kCGErrorSuccess;
+}
+
 - (CGError)setDisplay:(CGDirectDisplayID)display enabled:(BOOL)enabled {
     // When re-enabling the built-in, issue a no-op CGConfig transaction first.
     // This ensures the compositor is healthy before the display is turned on,
     // preventing cursor-on-black when the compositor was in a broken state
     // (e.g., after a USB-C Alt Mode dropout).
+    // See displayrecommitd for the standalone implementation of this pattern.
     if (enabled) {
-        CGDisplayConfigRef noop;
-        CGError noopErr = CGBeginDisplayConfiguration(&noop);
-        if (noopErr == kCGErrorSuccess)
-            CGCompleteDisplayConfiguration(noop, kCGConfigureForSession);
+        BOOL ok = [self recommitDisplayConfiguration];
+        NSLog(@"[builtin] recommit before restore: %s", ok ? "ok" : "failed");
     }
     CGDisplayConfigRef config;
     CGError err = CGBeginDisplayConfiguration(&config);
@@ -325,6 +332,7 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
         BOOL isDisconnect = flags & (kCGDisplayRemoveFlag | kCGDisplayDisabledFlag);
         BOOL isExternal   = displayID != _builtInID;
         if (isDisconnect && isExternal && _isBlackedOut) {
+            _externalDisconnectedDuringSleep = YES;
             BDLog(1, @"[change] id=%u event=%@ — external disconnect noted during sleep",
                   displayID, displayEventName(flags));
         } else {

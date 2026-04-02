@@ -9,9 +9,9 @@ It blacks out the built-in display when an external display is connected.
 make                # build to build/blackoutd
 make clean && make  # clean rebuild
 # clang-format check
-find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
+find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file --dry-run --Werror
 # clang-format fix
-find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
+find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file -i
 ```
 
 ## Architecture

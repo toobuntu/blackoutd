@@ -138,7 +138,7 @@ static int bootstrap(void) {
     NSString *plist = agentPlistPath();
     if (![NSFileManager.defaultManager fileExistsAtPath:plist]) {
         fprintf(stderr, "blackoutd: agent plist not found: %s\n", plist.UTF8String);
-        fprintf(stderr, "  Run 'make install' or './install.sh' first.\n");
+        fprintf(stderr, "  Run 'make install' first.\n");
         return 1;
     }
     int rc = runLaunchctl(@[@"bootstrap", agentDomain(), plist]);

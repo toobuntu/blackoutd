@@ -13,12 +13,12 @@ Defer to those files for authoritative detail.
 
 - **Language**: Objective-C, ARC, AppKit. No Swift.
 - **Build**: `make` (requires Xcode Command Line Tools)
-- **Lint**: `find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror`
+- **Lint**: `find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file --dry-run --Werror`
 - **Test**: No automated tests yet. See AGENTS.md for manual checklist.
 
 ## Before committing
 
-1. Run `clang-format --style=file -i` on any changed `.m` or `.h` files.
+1. Run `xcrun clang-format --style=file -i` on any changed `.m` or `.h` files.
 2. Verify the build still succeeds: `make clean && make`
 3. Verify plist generation: `make postinstall`
 

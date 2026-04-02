@@ -26,10 +26,10 @@ Build requirements: Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 # clang-format check (no write)
-find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
+find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file --dry-run --Werror
 
 # clang-format fix
-find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
+find src -name '*.m' -o -name '*.h' | xargs xcrun clang-format --style=file -i
 
 # plist lint
 make postinstall && plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
@@ -94,11 +94,13 @@ does not auto-black out. Suspected root cause: `systemDidWake:` →
 `invalidateDisplayState` flow does not re-arm auto-blackout when the external
 re-announces. Files: `src/AppDelegate.m`, `src/DisplayController.m`.
 
-### P1: Safety invariant on restore
+### P1: Safety invariant on restore (MITIGATED)
 When the compositor is in a broken state, `disableBlackout` restores the
-built-in but it shows cursor-on-black. Fix: issue a no-op
-CGBeginDisplayConfiguration/CGCompleteDisplayConfiguration before
-CGSConfigureDisplayEnabled(..., YES). File: `src/DisplayController.m`.
+built-in but it shows cursor-on-black. Fix: a no-op CGConfig recommit
+(`recommitDisplayConfiguration`) before `CGSConfigureDisplayEnabled(..., YES)`.
+Implemented in `setDisplay:enabled:`. Pattern matches displayrecommitd
+(`recommitDisplayConfiguration` in `displayrecommitd.m`).
+File: `src/DisplayController.m`.
 
 ### P2: USB-C Alt Mode wake recovery
 With built-in suppressed and USB-C→HDMI as the sole display path, the USB-C
@@ -108,6 +110,27 @@ displayrecommitd: on `systemDidWake:`, arm a 2-second quiet timer that fires
 after display callbacks settle. On fire, issue a no-op CGConfig transaction
 (CGBeginDisplayConfiguration/CGCompleteDisplayConfiguration) so WindowServer
 absorbs the reconnected display. This is already partially implemented in the
-P9 deferred wake check in `AppDelegate.m`; the remaining work is the quiet-
-timer approach (reset on each callback) in `DisplayController` for more
-reliable timing. Files: `src/DisplayController.m`, `src/AppDelegate.m`.
+deferred wake check in `AppDelegate.m`; the remaining work is the quiet-timer
+approach (reset on each callback) in `DisplayController` for more reliable
+timing. See `displayrecommitd.m` in the displayrecommitd repo for the
+reference implementation. Files: `src/DisplayController.m`, `src/AppDelegate.m`.
+
+### P5: _externalDisconnectedDuringSleep never set (FIXED)
+In `handleReconfiguration:flags:`, the sleep branch detected an external
+disconnect but never set `_externalDisconnectedDuringSleep = YES`. The ivar
+was read in `invalidateDisplayState` and returned to `systemDidWake:` but was
+always NO. This meant unplugging the external during sleep would leave the
+built-in blacked out at wake — a safety invariant violation. Fixed by adding
+the assignment at the detection site. File: `src/DisplayController.m`.
+
+## Related Projects
+
+### displayrecommitd
+Standalone LaunchAgent that fixes the USB-C Alt Mode wake recovery issue.
+Repository: <https://github.com/toobuntu/displayrecommitd/>
+- `main` branch: production daemon (`displayrecommitd.m`)
+- `stash` branch: development artifacts including `displayprobe2.m` (IOKit
+  service probing tool) and research logs
+
+The `displayprobe.m` that was in this repo is superseded by displayrecommitd's
+`displayrecommitd.m` and `scripts/displayprobe2.m`.

@@ -18,7 +18,7 @@ fi
 # Check clang-format on staged .m and .h files.
 staged=$(git diff --cached --name-only --diff-filter=ACM -- '*.m' '*.h')
 if [ -n "$staged" ]; then
-    if command -v clang-format >/dev/null 2>&1; then
-        echo "$staged" | xargs clang-format --style=file --dry-run --Werror
+    if xcrun --find clang-format >/dev/null 2>&1; then
+        echo "$staged" | xargs xcrun clang-format --style=file --dry-run --Werror
     fi
 fi

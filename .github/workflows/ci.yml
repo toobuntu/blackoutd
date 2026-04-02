@@ -45,4 +45,4 @@ jobs:
       - name: Check clang-format
         run: |
           find src -name '*.m' -o -name '*.h' | \
-            xargs clang-format --style=file --dry-run --Werror
+            xargs xcrun clang-format --style=file --dry-run --Werror
