@@ -16,7 +16,16 @@ if [ "$branch" = "main" ]; then
 fi
 
 # Check clang-format on staged .m and .h files.
-if xcrun --find clang-format >/dev/null 2>&1; then
-    git diff --cached --name-only --diff-filter=ACM -z -- '*.m' '*.h' \
-        | xargs -0 xcrun clang-format --style=file --dry-run --Werror
+# On macOS, use xcrun to find clang-format from Xcode toolchain.
+# On Linux, use bare clang-format (e.g., from brew install clang-format).
+if [ "$(uname -s)" = "Darwin" ]; then
+    if xcrun --find clang-format >/dev/null 2>&1; then
+        git diff --cached --name-only --diff-filter=ACM -z -- '*.m' '*.h' \
+            | xargs -0 xcrun clang-format --style=file --dry-run --Werror
+    fi
+else
+    if command -v clang-format >/dev/null 2>&1; then
+        git diff --cached --name-only --diff-filter=ACM -z -- '*.m' '*.h' \
+            | xargs -0 clang-format --style=file --dry-run --Werror
+    fi
 fi
