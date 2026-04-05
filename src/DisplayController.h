@@ -4,16 +4,15 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class DisplayController;
 
 @protocol DisplayControllerDelegate <NSObject>
-- (void)displayController:(DisplayController *)controller
-      blackoutStateChanged:(BOOL)isBlackedOut;
+- (void)displayController:(DisplayController *)controller blackoutStateChanged:(BOOL)isBlackedOut;
 @end
 
 @interface DisplayController : NSObject
@@ -55,8 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)invalidateDisplayState;
 
 // Called by the CGDisplay reconfiguration callback — not for external use.
-- (void)handleReconfiguration:(CGDirectDisplayID)displayID
-                         flags:(CGDisplayChangeSummaryFlags)flags;
+- (void)handleReconfiguration:(CGDirectDisplayID)displayID flags:(CGDisplayChangeSummaryFlags)flags;
 
 @end
 

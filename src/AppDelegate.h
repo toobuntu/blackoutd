@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#import <Cocoa/Cocoa.h>
 #import "DisplayController.h"
+#import <Cocoa/Cocoa.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
