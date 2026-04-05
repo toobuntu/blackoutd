@@ -96,6 +96,33 @@ static BOOL builtInIsOnline(void) {
     return NO;
 }
 
+// Runs an executable with arguments, capturing stdout to a file.
+// Returns the process exit code, or -1 on launch failure.
+static int runToFile(NSString *filePath, NSString *path, NSArray<NSString *> *args) {
+    [[NSFileManager defaultManager] createFileAtPath:filePath contents:nil attributes:nil];
+    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:filePath];
+    if (!fh)
+        return -1;
+    NSTask *task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:path];
+    task.arguments = args;
+    task.standardOutput = fh;
+    task.standardError = fh;
+    NSError *err = nil;
+    if (![task launchAndReturnError:&err]) {
+        [fh closeFile];
+        return -1;
+    }
+    [task waitUntilExit];
+    [fh closeFile];
+    return (int)task.terminationStatus;
+}
+
+// Runs a shell pipeline via /bin/sh -c, capturing stdout to a file.
+static int runShellToFile(NSString *filePath, NSString *command) {
+    return runToFile(filePath, @"/bin/sh", @[ @"-c", command ]);
+}
+
 // Runs an executable with arguments, prints its stdout to our stdout.
 // Returns the process exit code, or -1 on launch failure.
 static int runAndPrint(NSString *path, NSArray<NSString *> *args) {
@@ -109,8 +136,31 @@ static int runAndPrint(NSString *path, NSArray<NSString *> *args) {
     return (int)task.terminationStatus;
 }
 
-// Runs a shell pipeline via /bin/sh -c, prints its stdout to our stdout.
-static int runShell(NSString *command) { return runAndPrint(@"/bin/sh", @[ @"-c", command ]); }
+static void printDisplays(void) {
+    CGDirectDisplayID displays[8];
+    uint32_t count = 0;
+    CGGetOnlineDisplayList(8, displays, &count);
+    printf("\n--- Displays (%u online) ---\n", count);
+    for (uint32_t i = 0; i < count; i++) {
+        CGDirectDisplayID d = displays[i];
+        BOOL builtin = CGDisplayIsBuiltin(d);
+        BOOL active = CGDisplayIsActive(d);
+        uint32_t vendor = CGDisplayVendorNumber(d);
+        uint32_t model = CGDisplayModelNumber(d);
+        uint32_t serial = CGDisplaySerialNumber(d);
+        CGRect bounds = CGDisplayBounds(d);
+        CGSize size = CGDisplayScreenSize(d);
+
+        printf("\nDisplay %u (%s)\n", d, builtin ? "built-in" : "external");
+        printf("  Active          : %s\n", active ? "yes" : "no");
+        printf("  Vendor          : 0x%04x\n", vendor);
+        printf("  Model           : 0x%04x\n", model);
+        if (serial != 0)
+            printf("  Serial          : 0x%08x\n", serial);
+        printf("  Resolution      : %.0f x %.0f\n", bounds.size.width, bounds.size.height);
+        printf("  Physical size   : %.1fmm x %.1fmm\n", size.width, size.height);
+    }
+}
 
 static int printConfig(void) {
     NSProcessInfo *info = [NSProcessInfo processInfo];
@@ -121,7 +171,6 @@ static int printConfig(void) {
 
     printf("--- blackoutd diagnostic info ---\n\n");
 
-    // Daemon status
     pid_t pid = daemonPid();
     printf("daemon          : %s\n", pid > 0 ? "running" : "not running");
     if (pid > 0)
@@ -130,45 +179,62 @@ static int printConfig(void) {
     printf("auto-blackout   : %s\n", autoMode ? "enabled" : "disabled");
     printf("bundle-id       : %s\n", kBundleID.UTF8String);
 
-    // macOS version (API)
     NSOperatingSystemVersion ver = info.operatingSystemVersion;
     printf("macOS           : %ld.%ld.%ld\n", (long)ver.majorVersion, (long)ver.minorVersion,
            (long)ver.patchVersion);
 
-    // Architecture (API — sysctl via uname is simpler)
-    printf("\n");
+    printf("arch            : ");
     runAndPrint(@"/usr/bin/uname", @[ @"-m" ]);
 
-    // Hardware and display info
+    printDisplays();
+
     printf("\n--- system_profiler ---\n");
     runAndPrint(@"/usr/sbin/system_profiler",
                 @[ @"SPHardwareDataType", @"SPDisplaysDataType", @"-detailLevel", @"mini" ]);
 
-    // Recent sleep/wake events
-    printf("\n--- pmset sleep/wake log (last 30 entries) ---\n");
-    runShell(@"pmset -g log | grep -E 'Sleep|Wake|Clamshell' | tail -30");
+    // Collect logs into a temp directory to avoid flooding stdout.
+    NSDateFormatter *fmt = [[NSDateFormatter alloc] init];
+    fmt.dateFormat = @"yyyyMMdd-HHmmss";
+    NSString *stamp = [fmt stringFromDate:[NSDate date]];
+    NSString *dir = [NSString stringWithFormat:@"/tmp/blackoutd-diag-%@", stamp];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
 
-    // Recent daemon logs
-    printf("\n--- blackoutd log (last 5 minutes) ---\n");
-    runShell(@"log show --last 5m --predicate 'process == \"blackoutd\"' --style compact");
+    NSString *logFile =
+        [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/blackoutd.log"];
+    if ([fm fileExistsAtPath:logFile]) {
+        runShellToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
+                       [NSString stringWithFormat:@"tail -500 '%@'", logFile]);
+    }
+
+    runShellToFile(
+        [dir stringByAppendingPathComponent:@"system-log.txt"],
+        @"log show --last 5m --predicate 'process == \"blackoutd\"' --style compact 2>&1");
+
+    runShellToFile([dir stringByAppendingPathComponent:@"sleep-wake.txt"],
+                   @"pmset -g log 2>/dev/null | grep -E 'Sleep|Wake|Clamshell' | tail -30");
+
+    printf("\nLog files collected in %s/\n", dir.UTF8String);
+    printf("  daemon-log.txt  — blackoutd.log (last 500 lines)\n");
+    printf("  system-log.txt  — unified log (last 5 minutes)\n");
+    printf("  sleep-wake.txt  — pmset sleep/wake events (last 30)\n");
 
     return 0;
 }
 
 static int printStatus(void) {
-    if (!daemonIsRunning()) {
-        printf("blackoutd: not running\n");
-        return 1;
-    }
     pid_t pid = daemonPid();
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
     BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                         ? [defaults boolForKey:kAutoBlackoutKey]
                         : YES;
-    printf("blackoutd: running (pid %d)\n", pid);
+    if (pid > 0)
+        printf("blackoutd: running (pid %d)\n", pid);
+    else
+        printf("blackoutd: not running\n");
     printf("  built-in display : %s\n", builtInIsOnline() ? "active" : "blacked out");
     printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
-    return 0;
+    return pid > 0 ? 0 : 1;
 }
 
 static int setAutoBlackout(const char *value) {

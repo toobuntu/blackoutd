@@ -239,10 +239,12 @@ NSUserDefaults. When the daemon is not running it reports "not running" and
 exits with code 1; when running it prints the PID, display state, and
 auto-blackout setting.
 
-`blackoutd --config` prints comprehensive diagnostic info for bug reports:
-daemon state, macOS version, hardware/display info via system_profiler,
-recent sleep/wake events, and the last 5 minutes of daemon logs. This
-output corresponds to the fields requested in the bug report issue template.
+`blackoutd --config` prints diagnostic info for bug reports: daemon state,
+macOS version, per-display CoreGraphics info (vendor, model, resolution,
+physical size), and hardware info via system_profiler. Log data (daemon log,
+unified log, pmset sleep/wake events) is collected into a timestamped
+directory under `/tmp/blackoutd-diag-*/` to avoid flooding the terminal.
+The output prints the path to this directory.
 
 ## License
 
