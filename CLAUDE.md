@@ -26,6 +26,8 @@ Build requirements: Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 # clang-format check (no write)
+# On macOS (contributors), use: xcrun clang-format ...
+# In agent sandbox (Ubuntu), use bare clang-format as shown below.
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
 
 # clang-format fix

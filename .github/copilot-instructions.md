@@ -19,6 +19,7 @@ Defer to those files for authoritative detail.
 ## Before committing
 
 1. Run `clang-format --style=file -i` on any changed `.m` or `.h` files.
+   (On macOS, prefix with `xcrun` if clang-format is not in PATH.)
 2. Verify the build still succeeds: `make clean && make`
 3. Verify plist generation: `make postinstall`
 

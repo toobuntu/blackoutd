@@ -29,6 +29,7 @@ blackoutd on                  Black out built-in display
 blackoutd off                 Restore built-in display
 blackoutd status              Show daemon and display status (even if not running)
 blackoutd auto on|off         Enable/disable auto-blackout on external connect
+blackoutd --config            Print diagnostic info for bug reports
 blackoutd daemon start        Start daemon via launchctl
 blackoutd daemon stop         Stop daemon and restore built-in display
 ```
@@ -230,6 +231,18 @@ stable, synchronous, no subprocess.
 `CGDirectDisplayID` values can change across reboots. The built-in display on
 Apple Silicon is reliably ID 1 in practice, but `discoverBuiltInID` uses
 `CGDisplayIsBuiltin()` enumeration for correctness.
+
+### CLI status and diagnostics
+`blackoutd status` works even when the daemon is not running — it queries
+display state directly via CoreGraphics and reads preferences from
+NSUserDefaults. When the daemon is not running it reports "not running" and
+exits with code 1; when running it prints the PID, display state, and
+auto-blackout setting.
+
+`blackoutd --config` prints comprehensive diagnostic info for bug reports:
+daemon state, macOS version, hardware/display info via system_profiler,
+recent sleep/wake events, and the last 5 minutes of daemon logs. This
+output corresponds to the fields requested in the bug report issue template.
 
 ## License
 

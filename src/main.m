@@ -96,16 +96,76 @@ static BOOL builtInIsOnline(void) {
     return NO;
 }
 
+// Runs an executable with arguments, prints its stdout to our stdout.
+// Returns the process exit code, or -1 on launch failure.
+static int runAndPrint(NSString *path, NSArray<NSString *> *args) {
+    NSTask *task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:path];
+    task.arguments = args;
+    NSError *err = nil;
+    if (![task launchAndReturnError:&err])
+        return -1;
+    [task waitUntilExit];
+    return (int)task.terminationStatus;
+}
+
+// Runs a shell pipeline via /bin/sh -c, prints its stdout to our stdout.
+static int runShell(NSString *command) { return runAndPrint(@"/bin/sh", @[ @"-c", command ]); }
+
+static int printConfig(void) {
+    NSProcessInfo *info = [NSProcessInfo processInfo];
+    NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+    BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
+                        ? [defaults boolForKey:kAutoBlackoutKey]
+                        : YES;
+
+    printf("--- blackoutd diagnostic info ---\n\n");
+
+    // Daemon status
+    pid_t pid = daemonPid();
+    printf("daemon          : %s\n", pid > 0 ? "running" : "not running");
+    if (pid > 0)
+        printf("daemon pid      : %d\n", pid);
+    printf("built-in display: %s\n", builtInIsOnline() ? "active" : "blacked out");
+    printf("auto-blackout   : %s\n", autoMode ? "enabled" : "disabled");
+    printf("bundle-id       : %s\n", kBundleID.UTF8String);
+
+    // macOS version (API)
+    NSOperatingSystemVersion ver = info.operatingSystemVersion;
+    printf("macOS           : %ld.%ld.%ld\n", (long)ver.majorVersion, (long)ver.minorVersion,
+           (long)ver.patchVersion);
+
+    // Architecture (API — sysctl via uname is simpler)
+    printf("\n");
+    runAndPrint(@"/usr/bin/uname", @[ @"-m" ]);
+
+    // Hardware and display info
+    printf("\n--- system_profiler ---\n");
+    runAndPrint(@"/usr/sbin/system_profiler",
+                @[ @"SPHardwareDataType", @"SPDisplaysDataType", @"-detailLevel", @"mini" ]);
+
+    // Recent sleep/wake events
+    printf("\n--- pmset sleep/wake log (last 30 entries) ---\n");
+    runShell(@"pmset -g log | grep -E 'Sleep|Wake|Clamshell' | tail -30");
+
+    // Recent daemon logs
+    printf("\n--- blackoutd log (last 5 minutes) ---\n");
+    runShell(@"log show --last 5m --predicate 'process == \"blackoutd\"' --style compact");
+
+    return 0;
+}
+
 static int printStatus(void) {
+    if (!daemonIsRunning()) {
+        printf("blackoutd: not running\n");
+        return 1;
+    }
     pid_t pid = daemonPid();
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
     BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                         ? [defaults boolForKey:kAutoBlackoutKey]
                         : YES;
-    if (pid > 0)
-        printf("blackoutd: running (pid %d)\n", pid);
-    else
-        printf("blackoutd: not running\n");
+    printf("blackoutd: running (pid %d)\n", pid);
     printf("  built-in display : %s\n", builtInIsOnline() ? "active" : "blacked out");
     printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
     return 0;
@@ -134,8 +194,12 @@ static int bootout(void) {
 }
 
 // launchctl bootstrap exit code 5 (EIO) means the service is already
-// bootstrapped. Attempt bootout+bootstrap to restart it.
+// bootstrapped. Surface a clear message rather than a cryptic exit code.
 static int bootstrap(void) {
+    if (daemonIsRunning()) {
+        fprintf(stderr, "blackoutd: already running\n");
+        return 1;
+    }
     NSString *plist = agentPlistPath();
     if (![NSFileManager.defaultManager fileExistsAtPath:plist]) {
         fprintf(stderr, "blackoutd: agent plist not found: %s\n", plist.UTF8String);
@@ -144,11 +208,9 @@ static int bootstrap(void) {
     }
     int rc = runLaunchctl(@[ @"bootstrap", agentDomain(), plist ]);
     if (rc == 5) {
-        fprintf(stderr, "blackoutd: already bootstrapped, restarting\n");
-        int bout = runLaunchctl(@[ @"bootout", agentService() ]);
-        if (bout != 0 && bout != 3)
-            return bout;
-        rc = runLaunchctl(@[ @"bootstrap", agentDomain(), plist ]);
+        fprintf(stderr, "blackoutd: already bootstrapped (not running). "
+                        "Use 'daemon stop' then 'daemon start'.\n");
+        return 1;
     }
     if (rc == 0)
         printf("blackoutd: started\n");
@@ -163,6 +225,7 @@ static void printUsage(void) {
                     "  off             Restore built-in display\n"
                     "  status          Show daemon and display status (even if not running)\n"
                     "  auto on|off     Enable or disable auto-blackout on external connect\n"
+                    "  --config        Print diagnostic info for bug reports\n"
                     "  daemon start    Start the background daemon via launchctl\n"
                     "  daemon stop     Stop the daemon and restore built-in display\n"
                     "\n"
@@ -186,6 +249,8 @@ int main(int argc, const char *argv[]) {
             return sendSignalToDaemon(SIGUSR2);
         if (strcmp(cmd, "status") == 0)
             return printStatus();
+        if (strcmp(cmd, "--config") == 0)
+            return printConfig();
         if (strcmp(cmd, "daemon") == 0) {
             if (argc >= 3) {
                 if (strcmp(argv[2], "start") == 0)
