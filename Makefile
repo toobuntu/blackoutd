@@ -69,7 +69,7 @@ load:
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
 unload:
-	-launchctl bootout gui/$(UID)/$(AGENT_LABEL) || true
+	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
 
 print-bundle-id:
 	@echo $(BUNDLE_ID)

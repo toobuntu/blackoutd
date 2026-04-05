@@ -27,7 +27,7 @@ LaunchAgent plist, and bootstraps the agent for the current user.
 ```
 blackoutd on                  Black out built-in display
 blackoutd off                 Restore built-in display
-blackoutd status              Show daemon and display status
+blackoutd status              Show daemon and display status (even if not running)
 blackoutd auto on|off         Enable/disable auto-blackout on external connect
 blackoutd daemon start        Start daemon via launchctl
 blackoutd daemon stop         Stop daemon and restore built-in display

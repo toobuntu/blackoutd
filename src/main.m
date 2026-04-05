@@ -97,16 +97,15 @@ static BOOL builtInIsOnline(void) {
 }
 
 static int printStatus(void) {
-    if (!daemonIsRunning()) {
-        printf("blackoutd: not running\n");
-        return 1;
-    }
     pid_t pid = daemonPid();
     NSUserDefaults *defaults = [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
     BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                         ? [defaults boolForKey:kAutoBlackoutKey]
                         : YES;
-    printf("blackoutd: running (pid %d)\n", pid);
+    if (pid > 0)
+        printf("blackoutd: running (pid %d)\n", pid);
+    else
+        printf("blackoutd: not running\n");
     printf("  built-in display : %s\n", builtInIsOnline() ? "active" : "blacked out");
     printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
     return 0;
@@ -125,13 +124,18 @@ static int setAutoBlackout(const char *value) {
     return sendSignalToDaemon(SIGHUP);
 }
 
-static int bootout(void) { return runLaunchctl(@[ @"bootout", agentService() ]); }
+// launchctl bootout exit code 3 (ESRCH) means the service was not loaded —
+// inconsequential when stopping. All other non-zero exit codes are real errors.
+static int bootout(void) {
+    int rc = runLaunchctl(@[ @"bootout", agentService() ]);
+    if (rc == 3)
+        return 0;
+    return rc;
+}
 
+// launchctl bootstrap exit code 5 (EIO) means the service is already
+// bootstrapped. Attempt bootout+bootstrap to restart it.
 static int bootstrap(void) {
-    if (daemonIsRunning()) {
-        fprintf(stderr, "blackoutd: already running\n");
-        return 1;
-    }
     NSString *plist = agentPlistPath();
     if (![NSFileManager.defaultManager fileExistsAtPath:plist]) {
         fprintf(stderr, "blackoutd: agent plist not found: %s\n", plist.UTF8String);
@@ -139,6 +143,13 @@ static int bootstrap(void) {
         return 1;
     }
     int rc = runLaunchctl(@[ @"bootstrap", agentDomain(), plist ]);
+    if (rc == 5) {
+        fprintf(stderr, "blackoutd: already bootstrapped, restarting\n");
+        int bout = runLaunchctl(@[ @"bootout", agentService() ]);
+        if (bout != 0 && bout != 3)
+            return bout;
+        rc = runLaunchctl(@[ @"bootstrap", agentDomain(), plist ]);
+    }
     if (rc == 0)
         printf("blackoutd: started\n");
     return rc;

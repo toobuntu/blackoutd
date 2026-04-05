@@ -26,8 +26,6 @@ Build requirements: Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 # clang-format check (no write)
-# On macOS, prefix with xcrun if clang-format is not in PATH.
-# On Linux (agent sandbox), use bare clang-format.
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
 
 # clang-format fix
@@ -132,7 +130,10 @@ Standalone LaunchAgent that fixes the USB-C Alt Mode wake recovery issue.
 Repository: <https://github.com/toobuntu/displayrecommitd/>
 - `main` branch: production daemon (`displayrecommitd.m`)
 - `stash` branch: development artifacts including `displayprobe2.m` (IOKit
-  service probing tool) and research logs
+  DCP device proxy probing tool) and research logs
 
-The `displayprobe.m` that was in this repo is superseded by displayrecommitd's
-`displayrecommitd.m` and `scripts/displayprobe2.m`.
+The `displayprobe.m` that was previously in this repo was a sleep/wake display
+state watcher used for development. `displayprobe2.m` in the displayrecommitd
+stash branch probes DCP device proxy paths — a different diagnostic concern.
+Neither probe is meant for production; both were development-only tools
+serving distinct purposes.

@@ -17,5 +17,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
 <!-- How was this tested? Include log output or screenshots if applicable. -->
 
 - [ ] `make clean && make` succeeds
-- [ ] `xcrun clang-format --style=file --dry-run --Werror` passes on changed `.m`/`.h` files
+- [ ] `clang-format --style=file --dry-run --Werror` passes on changed `.m`/`.h` files
 - [ ] Manual testing on hardware (if display behavior changed)

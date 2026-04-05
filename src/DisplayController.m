@@ -339,16 +339,13 @@ static void displayReconfigCallback(CGDirectDisplayID displayID, CGDisplayChange
 
 // Forces WindowServer to re-evaluate the display configuration graph.
 // Matches the recommit pattern from displayrecommitd. No visible flicker.
+// CGCompleteDisplayConfiguration consumes the config object on both success
+// and failure, so CGCancelDisplayConfiguration must not be called after it.
 - (BOOL)recommitDisplayConfiguration {
     CGDisplayConfigRef config;
     if (CGBeginDisplayConfiguration(&config) != kCGErrorSuccess)
         return NO;
-    CGError result = CGCompleteDisplayConfiguration(config, kCGConfigureForSession);
-    if (result != kCGErrorSuccess) {
-        CGCancelDisplayConfiguration(config);
-        return NO;
-    }
-    return YES;
+    return CGCompleteDisplayConfiguration(config, kCGConfigureForSession) == kCGErrorSuccess;
 }
 
 - (CGError)setDisplay:(CGDirectDisplayID)display enabled:(BOOL)enabled {
