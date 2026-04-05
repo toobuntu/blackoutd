@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Bug report
+description: Report a display or daemon issue
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic output
+      description: |
+        Run these commands immediately after the issue occurs and paste the output:
+        ```sh
+        system_profiler SPHardwareDataType SPDisplaysDataType -detailLevel mini
+        sw_vers
+        uname -m
+        pmset -g log | grep -E "Sleep|Wake|Clamshell" | tail -30
+        log show --last 5m --predicate 'process == "blackoutd"'
+        ```
+      render: text
+    validations:
+      required: true

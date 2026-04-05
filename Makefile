@@ -17,19 +17,21 @@ CFLAGS = \
     -fobjc-arc \
     -Wall \
     -Wextra \
+    -Os \
     -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
     -framework Cocoa \
     -framework CoreGraphics \
     -framework IOKit \
     -sectcreate __TEXT __info_plist $(SRCDIR)/Info.plist
 
-.PHONY: all clean install postinstall reinstall uninstall load unload
+.PHONY: all clean install postinstall reinstall uninstall load unload print-bundle-id
 
 all: $(TARGET)
 
 $(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDIR)/Info.plist
 	mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -o $@ $(SRCS)
+	strip $@
 	codesign --sign - --force $@
 
 clean:
@@ -68,3 +70,6 @@ load:
 
 unload:
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL) || true
+
+print-bundle-id:
+	@echo $(BUNDLE_ID)

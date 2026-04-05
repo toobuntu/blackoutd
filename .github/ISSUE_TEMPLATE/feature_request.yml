@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Feature request
+description: Suggest a new feature or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What would you like blackoutd to do?
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: Why is this useful? What problem does it solve?

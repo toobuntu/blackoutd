@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2026–Present Todd Schulman
+ * SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
@@ -138,7 +138,7 @@ static int bootstrap(void) {
     NSString *plist = agentPlistPath();
     if (![NSFileManager.defaultManager fileExistsAtPath:plist]) {
         fprintf(stderr, "blackoutd: agent plist not found: %s\n", plist.UTF8String);
-        fprintf(stderr, "  Run 'make install' or './install.sh' first.\n");
+        fprintf(stderr, "  Run 'make install' first.\n");
         return 1;
     }
     int rc = runLaunchctl(@[@"bootstrap", agentDomain(), plist]);
