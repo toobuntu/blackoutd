@@ -184,8 +184,8 @@ static int setAutoBlackout(const char *value) {
     return sendSignalToDaemon(SIGHUP);
 }
 
-// launchctl bootout exit code 3 (ESRCH) means the service was not loaded —
-// inconsequential when stopping. All other non-zero exit codes are real errors.
+// launchctl bootout exit code 3 means the service was not loaded (launchctl
+// maps this to ESRCH). Inconsequential when stopping; suppress it.
 static int bootout(void) {
     int rc = runLaunchctl(@[ @"bootout", agentService() ]);
     if (rc == 3)
