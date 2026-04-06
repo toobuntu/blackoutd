@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
@@ -77,12 +77,35 @@ compile time via `-DBD_BUNDLE_ID`. The LaunchAgent label equals the bundle ID.
 - **CGDisplaySleep/CGDisplayWake** for recovery: visible flicker on the external.
 - **IOServiceRequestProbe on DCPDPDeviceProxy**: returns 0xe00002c7
   (kIOReturnUnsupported) on Apple Silicon. Confirmed in displayrecommitd.
+  See `displayprobe2.m` on the displayrecommitd stash branch.
 - **pmset displaysleepnow** in the restore path: visible flicker.
 - **Battery-at-sleep condition** for wake recovery: found to be coincidental
   during displayrecommitd investigation. Not a reliable predictor.
 - **CGVirtualDisplay**: the handoff prompt claims blackoutd "already uses
   CGVirtualDisplay API for the mirror display" — this is false. No virtual
   display creation exists in the codebase. It was planned but never implemented.
+
+## BetterDisplay Research (Reference)
+
+`ipsw class-dump --arch arm64 BetterDisplay` + `otool -L` revealed:
+
+- Uses `CoreDisplay.framework` (public, undocumented),
+  `DisplayServices.framework` (private), `IOMobileFramebuffer.framework`
+  (private), `SkyLight.framework` (private).
+- Key properties: `_disconnectReconnectedDisplaysAfterWake`,
+  `_reinitializeOnWake`, `_reconnectAfterSleep`.
+- Their wake recovery is an explicit virtual display disconnect/reconnect
+  cycle, which is a stronger intervention than the CGConfig no-op used by
+  displayrecommitd. This informs the P2 fix direction.
+
+## Development Hardware
+
+- Machine: MacBook Air M2 (Mac14,2), macOS 26 Tahoe, arm64
+- Built-in: displayID=1, vendor=0x0610 (Apple), `CGDisplayIsBuiltin`=YES
+- External: Dell SP2309W, vendor=0x10AC, model=0xD01D, USB-C→HDMI adapter
+- Virtual placeholder: vendor=0x756E6B6E ("unkn") or 0x76697274 ("virt")
+- External DCP IOService path: contains `dcpext` —
+  `IOService:/AppleARMPE/arm-io@10F00000/AppleT811xIO/dcpext@71C00000/.../DCPDPDeviceProxy`
 
 ## Development Conventions
 

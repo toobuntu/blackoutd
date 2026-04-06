@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
@@ -139,21 +139,10 @@ no version bumping workflow.
 
 ---
 
-## P6 — HANDOFF.md consolidation
+## ~~P6 — HANDOFF.md consolidation~~ (DONE)
 
-**Problem**: HANDOFF.md is a large (~22 KB) prompt document from early
-development that partially overlaps with CLAUDE.md, AGENTS.md, and now
-docs/architecture.md and docs/technical-debt.md. Information is duplicated
-and risks diverging.
-
-**Acceptance criteria**:
-- [ ] All unique technical content from HANDOFF.md migrated to the
-      appropriate doc (architecture.md, technical-debt.md, CLAUDE.md)
-- [ ] HANDOFF.md removed or reduced to a pointer file
-- [ ] No duplicate bug descriptions across docs
-
-**Files**: `HANDOFF.md`, `CLAUDE.md`, `docs/architecture.md`,
-`docs/technical-debt.md`
+Unique content migrated to CLAUDE.md (BetterDisplay research, development
+hardware, displayprobe2.m reference). HANDOFF.md removed.
 
 ---
 

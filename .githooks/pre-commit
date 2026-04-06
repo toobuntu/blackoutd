@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -11,7 +11,7 @@ set -e
 # Block direct commits to main.
 branch=$(git branch --show-current)
 if [ "$branch" = "main" ]; then
-    echo "error: direct commits to main are not allowed. Create a feature branch." >&2
+    printf 'error: direct commits to main are not allowed. Create a feature branch.\n' >&2
     exit 1
 fi
 
@@ -24,31 +24,32 @@ fi
 # Check clang-format on staged .m and .h files.
 # On macOS, use xcrun to find clang-format from Xcode toolchain.
 # On Linux, use bare clang-format (e.g., from apt install clang-format).
-if [ "$(uname -s)" = "Darwin" ]; then
+if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
     if xcrun --find clang-format >/dev/null 2>&1; then
-        echo "$staged" | xargs -0 xcrun clang-format --style=file --dry-run --Werror
+        printf '%s' "$staged" | xargs -0 xcrun clang-format --style=file --dry-run --Werror
     fi
 else
     if command -v clang-format >/dev/null 2>&1; then
-        echo "$staged" | xargs -0 clang-format --style=file --dry-run --Werror
+        printf '%s' "$staged" | xargs -0 clang-format --style=file --dry-run --Werror
     fi
 fi
 
 # Run clang-tidy on staged .m files (macOS only — requires SDK headers).
-if [ "$(uname -s)" = "Darwin" ]; then
+if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
     TIDY=""
     if command -v clang-tidy >/dev/null 2>&1; then
         TIDY="clang-tidy"
     else
-        LLVM_PREFIX="$(ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null | sort -V | tail -1)"
+        LLVM_PREFIX="$(/bin/ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null \
+            | /usr/bin/sort -V | /usr/bin/tail -1)"
         if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
             TIDY="$LLVM_PREFIX/bin/clang-tidy"
         fi
     fi
     if [ -n "$TIDY" ]; then
-        m_files=$(echo "$staged" | tr '\0' '\n' | grep '\.m$' || true)
+        m_files=$(printf '%s' "$staged" | /usr/bin/tr '\0' '\n' | /usr/bin/grep '\.m$' || true)
         if [ -n "$m_files" ]; then
-            echo "$m_files" | xargs "$TIDY" -- \
+            printf '%s\n' "$m_files" | xargs "$TIDY" -- \
                 -fobjc-arc \
                 -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
                 -framework Cocoa \

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -55,14 +55,16 @@ jobs:
 
       - name: Locate clang-tidy
         run: |
-          # Xcode ships clang-format but not clang-tidy. The Homebrew llvm
-          # package (pulled in by rust) provides it alongside clang.
-          LLVM_PREFIX="$(brew --prefix llvm 2>/dev/null || true)"
-          if [ -z "$LLVM_PREFIX" ] || [ ! -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
-            LLVM_PREFIX="$(ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null | sort -V | tail -1)"
-          fi
+          # Xcode ships clang-format but not clang-tidy.  The Homebrew llvm
+          # package provides it.  Find the highest-versioned llvm@NN keg
+          # rather than relying on `brew --prefix llvm` (which prints a
+          # path even when the unversioned formula is not installed).
+          LLVM_PREFIX="$(/bin/ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null \
+            | /usr/bin/sort -V | /usr/bin/tail -1)"
           if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
             echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+          elif command -v clang-tidy >/dev/null 2>&1; then
+            : # already on PATH
           else
             echo "::warning::clang-tidy not found; skipping lint-tidy"
             echo "SKIP_TIDY=1" >> "$GITHUB_ENV"
