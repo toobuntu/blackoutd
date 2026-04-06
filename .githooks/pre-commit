@@ -39,8 +39,13 @@ if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
         if command -v clang-tidy >/dev/null 2>&1; then
             TIDY="clang-tidy"
         else
-            LLVM_PREFIX="$(/bin/ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null \
-                | /usr/bin/sort -V | /usr/bin/tail -1)"
+            LLVM_MAX_VERSION="$(
+              brew list --formula --versions |
+                grep --extended-regexp '^llvm(@[0-9]+)?[[:space:]]' |
+                sort --key=2 --version-sort |
+                awk 'END{print $1}'
+            )"
+            LLVM_PREFIX="$(brew --prefix)/opt/${LLVM_MAX_VERSION}"
             if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
                 TIDY="$LLVM_PREFIX/bin/clang-tidy"
             fi

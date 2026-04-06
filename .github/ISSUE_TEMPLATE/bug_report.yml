@@ -24,7 +24,7 @@ body:
       label: Diagnostic output
       description: |
         Run `blackoutd --config` immediately after the issue occurs and paste the output.
-        Log files are collected in `/tmp/blackoutd-diag-*/` — attach those too if relevant.
+        Log files are collected in `/tmp/blackoutd-diag-*/` — attach the contents of that directory.
         If the binary is not available, run these commands manually:
         ```sh
         system_profiler SPHardwareDataType SPDisplaysDataType -detailLevel mini

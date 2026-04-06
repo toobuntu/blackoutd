@@ -233,7 +233,8 @@ static int printConfig(void) {
 
   printf("\nLog files collected in %s/\n", dir.UTF8String);
   printf("  daemon-log.txt  — blackoutd.log (last 500 lines)\n");
-  printf("  system-log.txt  — unified log (last 5 minutes)\n");
+  printf("  system-log.txt  — system log filtered by blackoutd "
+         "(last 5 minutes)\n");
   printf("  sleep-wake.txt  — pmset sleep/wake events (last 30)\n");
 
   return 0;

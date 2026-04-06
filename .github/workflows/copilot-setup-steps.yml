@@ -28,5 +28,5 @@ jobs:
 
       - uses: Homebrew/actions/cache-homebrew-prefix@main
         with:
-          install: actionlint llvm reuse jq shellcheck zizmor
+          install: actionlint pinact reuse shellcheck zizmor curl jq gh llvm
           workflow-key: copilot-setup-steps
