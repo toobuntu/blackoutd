@@ -47,3 +47,34 @@ jobs:
         run: |
           find src -name '*.m' -o -name '*.h' | \
             xargs clang-format --style=file --dry-run --Werror
+
+  lint-tidy:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Locate clang-tidy
+        run: |
+          # Xcode ships clang-format but not clang-tidy. The Homebrew llvm
+          # package (pulled in by rust) provides it alongside clang.
+          LLVM_PREFIX="$(brew --prefix llvm 2>/dev/null || true)"
+          if [ -z "$LLVM_PREFIX" ] || [ ! -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
+            LLVM_PREFIX="$(ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null | sort -V | tail -1)"
+          fi
+          if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
+            echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+          else
+            echo "::warning::clang-tidy not found; skipping lint-tidy"
+            echo "SKIP_TIDY=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run clang-tidy
+        if: env.SKIP_TIDY != '1'
+        run: |
+          clang-tidy src/*.m -- \
+            -fobjc-arc \
+            -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+            -framework Cocoa \
+            -framework CoreGraphics \
+            -framework IOKit \
+            -I src
