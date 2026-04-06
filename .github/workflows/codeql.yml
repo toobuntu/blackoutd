@@ -17,7 +17,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     if: github.repository_owner == 'toobuntu'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runs-on }}
     concurrency:
       group: "codeql-${{ github.ref }}-${{ matrix.language }}"
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -30,11 +30,13 @@ jobs:
         include:
           - language: actions
             build-mode: none
-          # Objective-C requires macOS SDK headers to compile.  Use
-          # build-mode: none so CodeQL analyses the source without
-          # attempting a build (works on ubuntu-latest).
+            runs-on: ubuntu-latest
+          # Objective-C requires macOS SDK headers to compile.  Run on
+          # macos-latest with autobuild so CodeQL can trace clang
+          # invocations and analyse the source correctly.
           - language: c-cpp
-            build-mode: none
+            build-mode: autobuild
+            runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
