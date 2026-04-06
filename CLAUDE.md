@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
@@ -26,12 +26,17 @@ Build requirements: Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
 # clang-format check (no write)
-# On macOS, prefix with xcrun if clang-format is not in PATH.
-# On Linux (agent sandbox), use bare clang-format.
+# On macOS (contributors), use: xcrun clang-format ...
+# In agent sandbox (Ubuntu), use bare clang-format as shown below.
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
 
 # clang-format fix
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
+
+# clang-tidy (macOS only — requires SDK headers; on macOS, prefix with xcrun or
+# use $(brew --prefix llvm@NN)/bin/clang-tidy if not in PATH)
+clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+  -framework Cocoa -framework CoreGraphics -framework IOKit -I src
 
 # plist lint
 make postinstall && plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
@@ -72,6 +77,7 @@ compile time via `-DBD_BUNDLE_ID`. The LaunchAgent label equals the bundle ID.
 - **CGDisplaySleep/CGDisplayWake** for recovery: visible flicker on the external.
 - **IOServiceRequestProbe on DCPDPDeviceProxy**: returns 0xe00002c7
   (kIOReturnUnsupported) on Apple Silicon. Confirmed in displayrecommitd.
+  See `displayprobe2.m` on the displayrecommitd stash branch.
 - **pmset displaysleepnow** in the restore path: visible flicker.
 - **Battery-at-sleep condition** for wake recovery: found to be coincidental
   during displayrecommitd investigation. Not a reliable predictor.
@@ -79,14 +85,37 @@ compile time via `-DBD_BUNDLE_ID`. The LaunchAgent label equals the bundle ID.
   CGVirtualDisplay API for the mirror display" — this is false. No virtual
   display creation exists in the codebase. It was planned but never implemented.
 
+## BetterDisplay Research (Reference)
+
+`ipsw class-dump --arch arm64 BetterDisplay` + `otool -L` revealed:
+
+- Uses `CoreDisplay.framework` (public, undocumented),
+  `DisplayServices.framework` (private), `IOMobileFramebuffer.framework`
+  (private), `SkyLight.framework` (private).
+- Key properties: `_disconnectReconnectedDisplaysAfterWake`,
+  `_reinitializeOnWake`, `_reconnectAfterSleep`.
+- Their wake recovery is an explicit virtual display disconnect/reconnect
+  cycle, which is a stronger intervention than the CGConfig no-op used by
+  displayrecommitd. This informs the P2 fix direction.
+
+## Development Hardware
+
+- Machine: MacBook Air M2 (Mac14,2), macOS 26 Tahoe, arm64
+- Built-in: displayID=1, vendor=0x0610 (Apple), `CGDisplayIsBuiltin`=YES
+- External: Dell SP2309W, vendor=0x10AC, model=0xD01D, USB-C→HDMI adapter
+- Virtual placeholder: vendor=0x756E6B6E ("unkn") or 0x76697274 ("virt")
+- External DCP IOService path: contains `dcpext` —
+  `IOService:/AppleARMPE/arm-io@10F00000/AppleT811xIO/dcpext@71C00000/.../DCPDPDeviceProxy`
+
 ## Development Conventions
 
-- Objective-C, ARC, AppKit. No Swift.
+- Objective-C, ARC, AppKit. No Swift. (See `docs/architecture.md` for rationale.)
 - Minimal comments; self-documenting names. No first-person in code comments.
 - Long options in shell (`--extended-regexp` not `-E`).
 - Commit subject ≤ 50 chars; body wraps at 72; `Closes #N` in body.
 - No verbose AI commentary in PRs. Note AI assistance and manual verification.
-- `.clang-format`: LLVM style, 4-space indent, 100-column limit.
+- `.clang-format`: LLVM base style, 2-space indent, 80-column limit.
+- `.clang-tidy`: bugprone-*, clang-analyzer-*, select readability checks.
 
 ## Open Bugs
 
@@ -132,7 +161,10 @@ Standalone LaunchAgent that fixes the USB-C Alt Mode wake recovery issue.
 Repository: <https://github.com/toobuntu/displayrecommitd/>
 - `main` branch: production daemon (`displayrecommitd.m`)
 - `stash` branch: development artifacts including `displayprobe2.m` (IOKit
-  service probing tool) and research logs
+  DCP device proxy probing tool) and research logs
 
-The `displayprobe.m` that was in this repo is superseded by displayrecommitd's
-`displayrecommitd.m` and `scripts/displayprobe2.m`.
+The `displayprobe.m` that was previously in this repo was a sleep/wake display
+state watcher used for development. `displayprobe2.m` in the displayrecommitd
+stash branch probes DCP device proxy paths — a different diagnostic concern.
+Neither probe is meant for production; both were development-only tools
+serving distinct purposes.

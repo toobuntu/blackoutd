@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -9,6 +9,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,11 +39,80 @@ jobs:
           plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
 
   lint-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+        with:
+          core: false
+          cask: false
+
+      # install Homebrew formulae we might need
+      # llvm provides clang-format and clang-tidy
+      - uses: Homebrew/actions/cache-homebrew-prefix@main
+        with:
+          install: llvm
+          workflow-key: homebrew-llvm
+
+      - name: Check clang-format
+        run: |
+          LLVM_MAX_VERSION="$(
+            brew list --formula --versions |
+              grep --extended-regexp '^llvm(@[0-9]+)?[[:space:]]' |
+              sort --key=2 --version-sort |
+              awk 'END{print $1}'
+          )"
+          LLVM_PREFIX="$(brew --prefix)/opt/${LLVM_MAX_VERSION}"
+          find src -name '*.m' -o -name '*.h' | \
+            xargs "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
+
+  lint-tidy:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Check clang-format
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+        with:
+          core: false
+          cask: false
+
+      # install Homebrew formulae we might need
+      # llvm provides clang-format and clang-tidy
+      - uses: Homebrew/actions/cache-homebrew-prefix@main
+        with:
+          install: llvm
+          workflow-key: homebrew-llvm
+
+      - name: Locate clang-tidy
         run: |
-          find src -name '*.m' -o -name '*.h' | \
-            xargs xcrun clang-format --style=file --dry-run --Werror
+          LLVM_MAX_VERSION="$(
+            brew list --formula --versions |
+              grep --extended-regexp '^llvm(@[0-9]+)?[[:space:]]' |
+              sort --key=2 --version-sort |
+              awk 'END{print $1}'
+          )"
+          LLVM_PREFIX="$(brew --prefix)/opt/${LLVM_MAX_VERSION}"
+          if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
+            echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+          elif command -v clang-tidy >/dev/null 2>&1; then
+            : # already on PATH
+          else
+            echo "::warning::clang-tidy not found; skipping lint-tidy"
+            echo "SKIP_TIDY=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run clang-tidy
+        if: env.SKIP_TIDY != '1'
+        run: |
+          clang-tidy src/*.m -- \
+            -fobjc-arc \
+            -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+            -framework Cocoa \
+            -framework CoreGraphics \
+            -framework IOKit \
+            -I src

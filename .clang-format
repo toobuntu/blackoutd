@@ -1,11 +1,4 @@
 BasedOnStyle: LLVM
-IndentWidth: 4
-ColumnLimit: 100
-ObjCBlockIndentWidth: 4
-ObjCSpaceAfterProperty: true
-ObjCSpaceBeforeProtocolList: true
-AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations: false
-BreakBeforeBraces: Attach
-SpaceBeforeParens: ControlStatements
-IndentCaseLabels: false
+IndentWidth: 2
+ColumnLimit: 80
+UseTab: Never

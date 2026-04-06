@@ -3,6 +3,49 @@
 A macOS menu bar daemon that blacks out the built-in display when an external
 display is connected, preserving screen real estate and reducing distraction.
 
+## Table of Contents
+
+- [Background](#background)
+- [Requirements](#requirements)
+- [Install](#install)
+- [Usage](#usage)
+- [Upgrade](#upgrade)
+- [Uninstall](#uninstall)
+- [Logging](#logging)
+- [How it works](#how-it-works)
+- [Known issues](#known-issues)
+- [Tech notes](#tech-notes)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Background
+
+blackoutd exists for MacBook users who work primarily on an external display but
+use the built-in keyboard and trackpad. macOS mirrors or extends the desktop to
+the built-in display whenever it is active — which wastes energy and, more
+practically, means the built-in screen is visible to others nearby during video
+calls even when you are looking at the external.
+
+The tool was built specifically to suppress that. The built-in is fully disabled
+at the compositor level when an external is connected, and automatically restored
+when the external is disconnected, so the Mac is never left without a usable
+display.
+
+### Why not pmset?
+
+`pmset displaysleepnow` turns off all displays immediately but wakes them on any
+input and does not persist across sleep/wake. `pmset sleepnow` puts the whole
+system to sleep.
+
+Neither does what blackoutd does: keep the external display live and active while
+suppressing only the built-in, persistently, with automatic re-application after
+sleep/wake cycles and display reconnects.
+
+Clamshell mode (lid closed) achieves a similar result but requires a power
+connection and an external keyboard and mouse. blackoutd is designed for the
+opposite situation — lid open, using the built-in keyboard and trackpad, external
+display only.
+
 ## Requirements
 
 **Runtime:**
@@ -12,7 +55,7 @@ display is connected, preserving screen real estate and reducing distraction.
 **Build:**
 - Xcode Command Line Tools: `xcode-select --install`
 
-## Installation
+## Install
 
 ```sh
 make
@@ -29,6 +72,7 @@ blackoutd on                  Black out built-in display
 blackoutd off                 Restore built-in display
 blackoutd status              Show daemon and display status
 blackoutd auto on|off         Enable/disable auto-blackout on external connect
+blackoutd --config            Print diagnostic info for bug reports
 blackoutd daemon start        Start daemon via launchctl
 blackoutd daemon stop         Stop daemon and restore built-in display
 ```
@@ -134,34 +178,6 @@ defaults delete blackoutd verbosityLevel
 killall -HUP blackoutd
 ```
 
-## Motivation
-
-blackoutd exists for MacBook users who work primarily on an external display but
-use the built-in keyboard and trackpad. macOS mirrors or extends the desktop to
-the built-in display whenever it is active — which wastes energy and, more
-practically, means the built-in screen is visible to others nearby during video
-calls even when you are looking at the external.
-
-The tool was built specifically to suppress that. The built-in is fully disabled
-at the compositor level when an external is connected, and automatically restored
-when the external is disconnected, so the Mac is never left without a usable
-display.
-
-## Why not pmset?
-
-`pmset displaysleepnow` turns off all displays immediately but wakes them on any
-input and does not persist across sleep/wake. `pmset sleepnow` puts the whole
-system to sleep.
-
-Neither does what blackoutd does: keep the external display live and active while
-suppressing only the built-in, persistently, with automatic re-application after
-sleep/wake cycles and display reconnects.
-
-Clamshell mode (lid closed) achieves a similar result but requires a power
-connection and an external keyboard and mouse. blackoutd is designed for the
-opposite situation — lid open, using the built-in keyboard and trackpad, external
-display only.
-
 ## How it works
 
 blackoutd uses the private `CGSConfigureDisplayEnabled` symbol (re-exported from
@@ -231,6 +247,34 @@ stable, synchronous, no subprocess.
 Apple Silicon is reliably ID 1 in practice, but `discoverBuiltInID` uses
 `CGDisplayIsBuiltin()` enumeration for correctness.
 
+### CLI status and diagnostics
+`blackoutd status` works even when the daemon is not running — it queries
+display state directly via CoreGraphics and reads preferences from
+NSUserDefaults. When the daemon is not running it reports "not running" and
+exits with code 1; when running it prints the PID, display state, and
+auto-blackout setting.
+
+`blackoutd --config` prints diagnostic info for bug reports: daemon state,
+macOS version, per-display CoreGraphics info (vendor, model, resolution,
+physical size), and hardware info via system_profiler. Log data (daemon log,
+system log filtered by the blackoutd predicate, pmset sleep/wake events) is
+collected into a timestamped directory under `/tmp/blackoutd-diag-*/` to
+avoid flooding the terminal. The output prints the path to this directory.
+
+## Contributing
+
+PRs are welcome. Please open an issue first to discuss significant changes.
+
+For development setup:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+Run `make clean && make` to verify the build, and ensure `reuse lint` and
+`clang-format --style=file --dry-run --Werror` pass on changed files before
+submitting.
+
 ## License
 
-GPL-3.0-or-later. See [`LICENSES/GPL-3.0-or-later.txt`](LICENSES/GPL-3.0-or-later.txt).
+[GPL-3.0-or-later](LICENSES/GPL-3.0-or-later.txt) © Todd Schulman

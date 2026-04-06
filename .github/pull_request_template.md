@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
@@ -18,4 +18,5 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 - [ ] `make clean && make` succeeds
 - [ ] `xcrun clang-format --style=file --dry-run --Werror` passes on changed `.m`/`.h` files
+- [ ] `clang-tidy` passes on changed `.m` files (macOS only)
 - [ ] Manual testing on hardware (if display behavior changed)

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2026-Present Todd Schulman
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -19,7 +19,14 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+        with:
+          core: false
+          cask: false
 
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - uses: Homebrew/actions/cache-homebrew-prefix@main
+        with:
+          install: actionlint pinact reuse shellcheck zizmor curl jq gh llvm
+          workflow-key: copilot-setup-steps
