@@ -63,12 +63,12 @@ if [ -n "$workflow_files" ]; then
     if command -v actionlint >/dev/null 2>&1; then
         printf '%s\n' "$workflow_files" | xargs actionlint
     else
-        echo "warning: actionlint not found — skipping workflow lint (brew install actionlint)"
+        echo "warning: actionlint not found — skipping workflow lint (brew install actionlint)" >&2
     fi
     if command -v zizmor >/dev/null 2>&1; then
         zizmor .
     else
-        echo "warning: zizmor not found — skipping workflow security scan (brew install zizmor)"
+        echo "warning: zizmor not found — skipping workflow security scan (brew install zizmor)" >&2
     fi
 fi
 
@@ -86,5 +86,5 @@ HINT
         exit 1
     fi
 else
-    echo "warning: reuse not found — skipping REUSE compliance check (brew install reuse)"
+    echo "warning: reuse not found — skipping REUSE compliance check (brew install reuse)" >&2
 fi

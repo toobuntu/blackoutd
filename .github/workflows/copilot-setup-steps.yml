@@ -19,11 +19,14 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+        with:
+          core: false
+          cask: false
 
-      - name: Install tools
-        run: |
-          sudo apt-get update && sudo apt-get install -y clang-format clang-tidy jq
-          pip install reuse
-          go install github.com/rhysd/actionlint/cmd/actionlint@latest
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      - uses: Homebrew/actions/cache-homebrew-prefix@main
+        with:
+          install: actionlint llvm reuse jq shellcheck zizmor
+          workflow-key: copilot-setup-steps
