@@ -21,7 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Install clang-format, clang-tidy, and reuse
+      - name: Install tools
         run: |
-          sudo apt-get update && sudo apt-get install -y clang-format clang-tidy
+          sudo apt-get update && sudo apt-get install -y clang-format clang-tidy jq
           pip install reuse
+          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"

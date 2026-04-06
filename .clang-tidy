@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 # Clang-tidy checks for Objective-C / C code.
 # Run: clang-tidy src/*.m -- -fobjc-arc -framework Cocoa -framework CoreGraphics -framework IOKit
 # On macOS, prefix with xcrun if clang-tidy is not in PATH.

@@ -8,6 +8,8 @@
 
 set -e
 
+staged() { git diff --cached --name-only --diff-filter=ACM | /usr/bin/grep -E "$1" || true; }
+
 # Block direct commits to main.
 branch=$(git branch --show-current)
 if [ "$branch" = "main" ]; then
@@ -15,40 +17,35 @@ if [ "$branch" = "main" ]; then
     exit 1
 fi
 
-# Collect staged .m and .h files (NUL-delimited for safe xargs).
-staged=$(git diff --cached --name-only --diff-filter=ACM -z -- '*.m' '*.h')
-if [ -z "$staged" ]; then
-    exit 0
-fi
-
-# Check clang-format on staged .m and .h files.
-# On macOS, use xcrun to find clang-format from Xcode toolchain.
-# On Linux, use bare clang-format (e.g., from apt install clang-format).
-if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
-    if xcrun --find clang-format >/dev/null 2>&1; then
-        printf '%s' "$staged" | xargs -0 xcrun clang-format --style=file --dry-run --Werror
-    fi
-else
-    if command -v clang-format >/dev/null 2>&1; then
-        printf '%s' "$staged" | xargs -0 clang-format --style=file --dry-run --Werror
-    fi
-fi
-
-# Run clang-tidy on staged .m files (macOS only — requires SDK headers).
-if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
-    TIDY=""
-    if command -v clang-tidy >/dev/null 2>&1; then
-        TIDY="clang-tidy"
+# --- clang-format on staged .m and .h files ---
+objc_files=$(staged '\.(m|h)$')
+if [ -n "$objc_files" ]; then
+    if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
+        if xcrun --find clang-format >/dev/null 2>&1; then
+            printf '%s\n' "$objc_files" | xargs xcrun clang-format --style=file --dry-run --Werror
+        fi
     else
-        LLVM_PREFIX="$(/bin/ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null \
-            | /usr/bin/sort -V | /usr/bin/tail -1)"
-        if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
-            TIDY="$LLVM_PREFIX/bin/clang-tidy"
+        if command -v clang-format >/dev/null 2>&1; then
+            printf '%s\n' "$objc_files" | xargs clang-format --style=file --dry-run --Werror
         fi
     fi
-    if [ -n "$TIDY" ]; then
-        m_files=$(printf '%s' "$staged" | /usr/bin/tr '\0' '\n' | /usr/bin/grep '\.m$' || true)
-        if [ -n "$m_files" ]; then
+fi
+
+# --- clang-tidy on staged .m files (macOS only — requires SDK headers) ---
+if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
+    m_files=$(staged '\.m$')
+    if [ -n "$m_files" ]; then
+        TIDY=""
+        if command -v clang-tidy >/dev/null 2>&1; then
+            TIDY="clang-tidy"
+        else
+            LLVM_PREFIX="$(/bin/ls -d "$(brew --prefix)"/opt/llvm@* 2>/dev/null \
+                | /usr/bin/sort -V | /usr/bin/tail -1)"
+            if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
+                TIDY="$LLVM_PREFIX/bin/clang-tidy"
+            fi
+        fi
+        if [ -n "$TIDY" ]; then
             printf '%s\n' "$m_files" | xargs "$TIDY" -- \
                 -fobjc-arc \
                 -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
@@ -58,4 +55,36 @@ if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
                 -I src
         fi
     fi
+fi
+
+# --- Lint staged workflow files with actionlint and zizmor ---
+workflow_files=$(staged '\.github/workflows/.*\.yml$')
+if [ -n "$workflow_files" ]; then
+    if command -v actionlint >/dev/null 2>&1; then
+        printf '%s\n' "$workflow_files" | xargs actionlint
+    else
+        echo "warning: actionlint not found — skipping workflow lint (brew install actionlint)"
+    fi
+    if command -v zizmor >/dev/null 2>&1; then
+        zizmor .
+    else
+        echo "warning: zizmor not found — skipping workflow security scan (brew install zizmor)"
+    fi
+fi
+
+# --- REUSE compliance ---
+if command -v reuse >/dev/null 2>&1; then
+    if ! reuse lint --quiet; then
+        reuse lint
+        cat >&2 <<'HINT'
+
+To annotate unannotated files, run:
+
+  scripts/annotate.sh
+
+HINT
+        exit 1
+    fi
+else
+    echo "warning: reuse not found — skipping REUSE compliance check (brew install reuse)"
 fi
