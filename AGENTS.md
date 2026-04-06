@@ -3,6 +3,9 @@
 ## Project summary
 blackoutd is an Objective-C macOS LaunchAgent daemon with a menu bar GUI.
 It blacks out the built-in display when an external display is connected.
+Written in Objective-C for direct access to private CoreGraphics C symbols
+and deprecated IOKit APIs without Swift bridging overhead (see
+`docs/architecture.md`).
 
 ## Build and lint
 ```sh
@@ -12,6 +15,8 @@ make clean && make  # clean rebuild
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror
 # clang-format fix
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
+# clang-tidy (macOS only — requires SDK headers)
+clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' -framework Cocoa -framework CoreGraphics -framework IOKit -I src
 ```
 
 ## Architecture

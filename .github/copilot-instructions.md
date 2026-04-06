@@ -11,16 +11,18 @@ Defer to those files for authoritative detail.
 
 ## Quick reference
 
-- **Language**: Objective-C, ARC, AppKit. No Swift.
+- **Language**: Objective-C, ARC, AppKit. No Swift. See `docs/architecture.md`.
 - **Build**: `make` (requires Xcode Command Line Tools)
 - **Lint**: `find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run --Werror`
+- **Tidy**: `clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' -framework Cocoa -framework CoreGraphics -framework IOKit -I src` (macOS only)
 - **Test**: No automated tests yet. See AGENTS.md for manual checklist.
 
 ## Before committing
 
 1. Run `clang-format --style=file -i` on any changed `.m` or `.h` files.
-2. Verify the build still succeeds: `make clean && make`
-3. Verify plist generation: `make postinstall`
+2. Run `clang-tidy` on changed `.m` files (macOS only).
+3. Verify the build still succeeds: `make clean && make`
+4. Verify plist generation: `make postinstall`
 
 ## Safety invariant
 

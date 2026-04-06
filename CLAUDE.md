@@ -33,6 +33,11 @@ find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run 
 # clang-format fix
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
 
+# clang-tidy (macOS only — requires SDK headers; on macOS, prefix with xcrun or
+# use $(brew --prefix llvm@NN)/bin/clang-tidy if not in PATH)
+clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+  -framework Cocoa -framework CoreGraphics -framework IOKit -I src
+
 # plist lint
 make postinstall && plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
 ```
@@ -81,12 +86,13 @@ compile time via `-DBD_BUNDLE_ID`. The LaunchAgent label equals the bundle ID.
 
 ## Development Conventions
 
-- Objective-C, ARC, AppKit. No Swift.
+- Objective-C, ARC, AppKit. No Swift. (See `docs/architecture.md` for rationale.)
 - Minimal comments; self-documenting names. No first-person in code comments.
 - Long options in shell (`--extended-regexp` not `-E`).
 - Commit subject ≤ 50 chars; body wraps at 72; `Closes #N` in body.
 - No verbose AI commentary in PRs. Note AI assistance and manual verification.
-- `.clang-format`: LLVM style, 4-space indent, 100-column limit.
+- `.clang-format`: LLVM base style, 2-space indent, 80-column limit.
+- `.clang-tidy`: bugprone-*, clang-analyzer-*, select readability checks.
 
 ## Open Bugs
 
