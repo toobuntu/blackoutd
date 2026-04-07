@@ -22,7 +22,7 @@ find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file --dry-run 
 # clang-format fix
 find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
 # clang-tidy (macOS only — requires SDK headers)
-clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' -framework Cocoa -framework CoreGraphics -framework IOKit -I src
+clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' -framework Cocoa -framework CoreGraphics -framework IOKit -I src
 ```
 
 ## Architecture

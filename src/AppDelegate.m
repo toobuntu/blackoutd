@@ -13,6 +13,29 @@ static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
 static NSString *const kBlackoutActiveKey = @"blackoutActive";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
+// Localization helper.  Searches for a blackoutd.bundle resource bundle
+// at the installed location first, then next to the running binary
+// (development), and falls back to mainBundle (returns the English key).
+static NSBundle *BDResourceBundle(void) {
+  static NSBundle *bundle;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    bundle = [NSBundle bundleWithPath:@BD_RESOURCES_BUNDLE];
+    if (!bundle) {
+      NSString *execDir = [NSProcessInfo.processInfo.arguments
+                               .firstObject stringByDeletingLastPathComponent];
+      bundle = [NSBundle bundleWithPath:[execDir stringByAppendingPathComponent:
+                                                     @"blackoutd.bundle"]];
+    }
+    if (!bundle)
+      bundle = [NSBundle mainBundle];
+  });
+  return bundle;
+}
+
+#define BDLocalizedString(key)                                                 \
+  NSLocalizedStringFromTableInBundle((key), nil, BDResourceBundle(), @"")
+
 @implementation AppDelegate {
   DisplayController *_displayController;
   NSStatusItem *_statusItem;
@@ -131,10 +154,10 @@ static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
   [menu addItem:NSMenuItem.separatorItem];
 
-  _autoItem =
-      [[NSMenuItem alloc] initWithTitle:@"Auto-blackout on External Connect"
-                                 action:@selector(toggleAutoBlackout:)
-                          keyEquivalent:@""];
+  _autoItem = [[NSMenuItem alloc]
+      initWithTitle:BDLocalizedString(@"Auto-blackout on External Connect")
+             action:@selector(toggleAutoBlackout:)
+      keyEquivalent:@""];
   _autoItem.target = self;
   _autoItem.state = _displayController.autoBlackoutOnExternalConnect
                         ? NSControlStateValueOn
@@ -144,7 +167,7 @@ static NSString *const kAgentLabel = @BD_BUNDLE_ID;
   [menu addItem:NSMenuItem.separatorItem];
 
   NSMenuItem *quitItem =
-      [[NSMenuItem alloc] initWithTitle:@"Quit blackoutd"
+      [[NSMenuItem alloc] initWithTitle:BDLocalizedString(@"Quit blackoutd")
                                  action:@selector(bootoutAndQuit)
                           keyEquivalent:@"q"];
   quitItem.target = self;
@@ -154,8 +177,9 @@ static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 }
 
 - (NSString *)toggleItemTitle {
-  return _displayController.isBlackedOut ? @"Restore Built-in Display"
-                                         : @"Black Out Built-in Display";
+  return _displayController.isBlackedOut
+             ? BDLocalizedString(@"Restore Built-in Display")
+             : BDLocalizedString(@"Black Out Built-in Display");
 }
 
 - (void)updateMenuBarIcon {

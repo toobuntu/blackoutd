@@ -36,6 +36,7 @@ find src -name '*.m' -o -name '*.h' | xargs clang-format --style=file -i
 # clang-tidy (macOS only — requires SDK headers; on macOS, prefix with xcrun or
 # use $(brew --prefix llvm@NN)/bin/clang-tidy if not in PATH)
 clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+  -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \
   -framework Cocoa -framework CoreGraphics -framework IOKit -I src
 
 # plist lint
