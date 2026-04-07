@@ -54,6 +54,7 @@ if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
             printf '%s\n' "$m_files" | xargs "$TIDY" -- \
                 -fobjc-arc \
                 -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+                -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \
                 -framework Cocoa \
                 -framework CoreGraphics \
                 -framework IOKit \

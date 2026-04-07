@@ -15,26 +15,19 @@ permissions: {}
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
+    name: Analyze (actions)
     if: github.repository_owner == 'toobuntu'
     runs-on: ubuntu-latest
     concurrency:
-      group: "codeql-${{ github.ref }}-${{ matrix.language }}"
+      group: "codeql-${{ github.ref }}"
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       security-events: write
       packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: actions
-            build-mode: none
-          # Objective-C requires macOS SDK headers to compile.  Use
-          # build-mode: none so CodeQL analyses the source without
-          # attempting a build (works on ubuntu-latest).
-          - language: c-cpp
-            build-mode: none
+    # Note: Objective-C is not supported by CodeQL (removed in
+    # github/codeql#14923).  Only GitHub Actions workflow scanning
+    # remains.  clang-tidy in the CI workflow provides the static
+    # analysis coverage for the Objective-C source.
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -44,10 +37,10 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          languages: actions
+          build-mode: none
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:actions"

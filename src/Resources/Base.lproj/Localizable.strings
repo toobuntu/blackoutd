@@ -1,0 +1,17 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/* Menu item: restore the built-in display after blackout */
+"Restore Built-in Display" = "Restore Built-in Display";
+
+/* Menu item: black out the built-in display */
+"Black Out Built-in Display" = "Black Out Built-in Display";
+
+/* Menu item: toggle automatic blackout when an external display connects */
+"Auto-blackout on External Connect" = "Auto-blackout on External Connect";
+
+/* Menu item: quit the daemon */
+"Quit blackoutd" = "Quit blackoutd";

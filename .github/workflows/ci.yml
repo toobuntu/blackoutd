@@ -66,8 +66,8 @@ jobs:
               awk 'END{print $1}'
           )"
           LLVM_PREFIX="$(brew --prefix)/opt/${LLVM_MAX_VERSION}"
-          find src -name '*.m' -o -name '*.h' | \
-            xargs "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
+          find src \( -name '*.m' -o -name '*.h' \) -print0 | \
+            xargs -0 "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
 
   lint-tidy:
     runs-on: macos-latest
@@ -87,6 +87,7 @@ jobs:
         with:
           install: llvm
           workflow-key: homebrew-llvm
+          uninstall: true
 
       - name: Locate clang-tidy
         run: |
@@ -112,6 +113,7 @@ jobs:
           clang-tidy src/*.m -- \
             -fobjc-arc \
             -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+            -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \
             -framework Cocoa \
             -framework CoreGraphics \
             -framework IOKit \

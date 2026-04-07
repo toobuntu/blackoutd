@@ -10,6 +10,11 @@ AGENT_DST      = $(AGENT_DIR)/$(AGENT_PLIST)
 AGENT_TEMPLATE = blackoutd.plist.template
 UID            = $(shell id -u)
 
+RESOURCES_SRC  = $(SRCDIR)/Resources
+BUNDLE_NAME    = $(BINARY).bundle
+BUILD_BUNDLE   = $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Resources
+SHARE_BUNDLE   = /usr/local/share/$(BUNDLE_NAME)
+
 SRCS   = $(SRCDIR)/main.m $(SRCDIR)/AppDelegate.m $(SRCDIR)/DisplayController.m
 TARGET = $(BUILDDIR)/$(BINARY)
 CC     = clang
@@ -19,6 +24,7 @@ CFLAGS = \
     -Wextra \
     -Os \
     -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
+    -DBD_RESOURCES_BUNDLE='"$(SHARE_BUNDLE)"' \
     -framework Cocoa \
     -framework CoreGraphics \
     -framework IOKit \
@@ -33,6 +39,9 @@ $(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDI
 	$(CC) $(CFLAGS) -o $@ $(SRCS)
 	strip $@
 	codesign --sign - --force $@
+	mkdir -p $(BUILD_BUNDLE)
+	cp $(RESOURCES_SRC)/Info.plist $(BUILDDIR)/$(BUNDLE_NAME)/Contents/
+	cp -R $(RESOURCES_SRC)/*.lproj $(BUILD_BUNDLE)/
 
 clean:
 	rm -rf $(BUILDDIR)
@@ -40,6 +49,9 @@ clean:
 install: $(TARGET) postinstall
 	sudo install -d /usr/local/bin
 	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
+	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
+	sudo cp $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Info.plist $(SHARE_BUNDLE)/Contents/
+	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
 # Expand {{BUNDLE_ID}} and {{HOME}} in plist template and install to LaunchAgents.
@@ -57,11 +69,15 @@ postinstall:
 reinstall: $(TARGET) postinstall
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
 	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
+	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
+	sudo cp $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Info.plist $(SHARE_BUNDLE)/Contents/
+	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
 # Remove agent and all installed files.
 uninstall: unload
 	sudo rm -f $(INSTALL_BIN)
+	sudo rm -rf $(SHARE_BUNDLE)
 	rm -f $(AGENT_DST)
 
 # Bootstrap / bootout without reinstalling.
