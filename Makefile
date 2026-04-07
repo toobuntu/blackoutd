@@ -40,6 +40,7 @@ $(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDI
 	strip $@
 	codesign --sign - --force $@
 	mkdir -p $(BUILD_BUNDLE)
+	cp $(RESOURCES_SRC)/Info.plist $(BUILDDIR)/$(BUNDLE_NAME)/Contents/
 	cp -R $(RESOURCES_SRC)/*.lproj $(BUILD_BUNDLE)/
 
 clean:
@@ -49,6 +50,7 @@ install: $(TARGET) postinstall
 	sudo install -d /usr/local/bin
 	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
 	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
+	sudo cp $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Info.plist $(SHARE_BUNDLE)/Contents/
 	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
@@ -68,6 +70,7 @@ reinstall: $(TARGET) postinstall
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
 	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
 	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
+	sudo cp $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Info.plist $(SHARE_BUNDLE)/Contents/
 	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
