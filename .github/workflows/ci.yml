@@ -69,6 +69,40 @@ jobs:
           find src \( -name '*.m' -o -name '*.h' \) -print0 | \
             xargs -0 "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
 
+  lint-unicode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check for invisible Unicode characters
+        run: |
+          python3 - <<'EOF'
+          import sys, pathlib
+          BAD = (
+              set(range(0x202A, 0x202F)) |
+              set(range(0x2066, 0x206A)) |
+              {0x200B, 0x200C, 0x200D, 0x200F, 0xFEFF}
+          )
+          SKIP_DIRS = {'.git'}
+          failures = []
+          for path in pathlib.Path('.').rglob('*'):
+              if not path.is_file():
+                  continue
+              if SKIP_DIRS & set(path.parts):
+                  continue
+              try:
+                  text = path.read_bytes().decode('utf-8', errors='replace')
+                  if any(ord(c) in BAD for c in text):
+                      failures.append(str(path))
+              except Exception:
+                  pass
+          if failures:
+              print('Invisible Unicode characters found:', file=sys.stderr)
+              for f in failures:
+                  print(f'  {f}', file=sys.stderr)
+              sys.exit(1)
+          EOF
+
   lint-tidy:
     runs-on: macos-latest
     steps:

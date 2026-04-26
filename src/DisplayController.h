@@ -54,6 +54,16 @@ NS_ASSUME_NONNULL_BEGIN
 /// sleep — the caller should restore the built-in in that case.
 - (BOOL)invalidateDisplayState;
 
+/// Arm the post-wake display-settle timer. Call on every system wake when the
+/// external was NOT disconnected during sleep.
+///
+/// The timer resets on each CGDisplay reconfiguration callback and fires when
+/// the display pipeline has been quiet for 2 seconds. On fire:
+///   - Issues a no-op CGConfig recommit (P2: USB-C Alt Mode wake recovery).
+///   - Re-applies auto-blackout if external is present and not blacked out
+///     (P0: wake auto-blackout).
+- (void)handleSystemWake;
+
 // Called by the CGDisplay reconfiguration callback — not for external use.
 - (void)handleReconfiguration:(CGDirectDisplayID)displayID
                         flags:(CGDisplayChangeSummaryFlags)flags;

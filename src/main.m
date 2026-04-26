@@ -9,6 +9,8 @@
 #import "AppDelegate.h"
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <servers/bootstrap.h>
+#import <sys/sysctl.h>
 
 static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
@@ -46,35 +48,49 @@ static int runLaunchctl(NSArray<NSString *> *args) {
 }
 
 // Returns the daemon's PID if running, 0 otherwise.
-// Uses `launchctl list` with no arguments — its tab-separated output
-// (PID\tStatus\tLabel) is the stable legacy format per man launchctl.
-// The PID field is '-' when the agent is registered but not running.
+//
+// Presence is detected via bootstrap_look_up(): if the Mach service port is
+// not registered, the daemon cannot be running as a launchd-managed agent.
+// The actual PID is obtained by enumerating processes via sysctl — no
+// subprocess is spawned (replaces the launchctl list parsing approach).
+//
+// p_comm is limited to MAXCOMLEN (16) characters; "blackoutd" (9) fits.
 static pid_t daemonPid(void) {
-  NSTask *task = [[NSTask alloc] init];
-  task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
-  task.arguments = @[ @"list" ];
-  NSPipe *pipe = [NSPipe pipe];
-  task.standardOutput = pipe;
-  task.standardError = [NSPipe pipe];
-  NSError *err = nil;
-  if (![task launchAndReturnError:&err])
+  // Fast rejection: if the Mach service is not registered, the daemon is not
+  // running as a bootstrapped launchd agent.
+  mach_port_t port = MACH_PORT_NULL;
+  kern_return_t kr =
+      bootstrap_look_up(bootstrap_port, kAgentLabel.UTF8String, &port);
+  if (kr != BOOTSTRAP_SUCCESS) {
     return 0;
-  NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-  [task waitUntilExit];
-  if (task.terminationStatus != 0)
-    return 0;
-  NSString *output = [[NSString alloc] initWithData:data
-                                           encoding:NSUTF8StringEncoding];
-  for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
-    if (![line containsString:kAgentLabel])
-      continue;
-    NSString *firstField =
-        [[line componentsSeparatedByString:@"\t"] firstObject];
-    if (!firstField || [firstField hasPrefix:@"-"])
-      return 0;
-    return (pid_t)[firstField intValue];
   }
-  return 0;
+  if (port != MACH_PORT_NULL) {
+    mach_port_deallocate(mach_task_self(), port);
+  }
+
+  // Enumerate running processes to find the daemon PID.
+  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
+  size_t size = 0;
+  if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0)
+    return 0;
+  struct kinfo_proc *procs = (struct kinfo_proc *)malloc(size);
+  if (!procs)
+    return 0;
+  if (sysctl(mib, 4, procs, &size, NULL, 0) != 0) {
+    free(procs);
+    return 0;
+  }
+  int count = (int)(size / sizeof(struct kinfo_proc));
+  pid_t found = 0;
+  pid_t self_pid = getpid();
+  for (int i = 0; i < count && !found; i++) {
+    if (procs[i].kp_proc.p_pid == self_pid)
+      continue;
+    if (strcmp(procs[i].kp_proc.p_comm, "blackoutd") == 0)
+      found = procs[i].kp_proc.p_pid;
+  }
+  free(procs);
+  return found;
 }
 
 static BOOL daemonIsRunning(void) { return daemonPid() > 0; }
@@ -315,11 +331,21 @@ static void printUsage(void) {
       "  status          Show daemon and display status (even if not running)\n"
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
       "  --config        Print diagnostic info for bug reports\n"
+      "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
+}
+
+static int printVersion(void) {
+  // Version is embedded in the binary's __TEXT,__info_plist section.
+  NSBundle *main = [NSBundle mainBundle];
+  NSString *ver =
+      [main objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+  printf("blackoutd %s\n", ver ? ver.UTF8String : "unknown");
+  return 0;
 }
 
 int main(int argc, const char *argv[]) {
@@ -340,6 +366,8 @@ int main(int argc, const char *argv[]) {
       return printStatus();
     if (strcmp(cmd, "--config") == 0)
       return printConfig();
+    if (strcmp(cmd, "--version") == 0)
+      return printVersion();
     if (strcmp(cmd, "daemon") == 0) {
       if (argc >= 3) {
         if (strcmp(argv[2], "start") == 0)

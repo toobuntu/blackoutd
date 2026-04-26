@@ -54,24 +54,29 @@ install: $(TARGET) postinstall
 	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
-# Expand {{BUNDLE_ID}} and {{HOME}} in plist template and install to LaunchAgents.
-# Creates ~/Library/Logs if absent.
+# Expand {{BUNDLE_ID}}, {{HOME}}, and {{INSTALL_BIN}} in plist template
+# and install to LaunchAgents. Creates ~/Library/Logs if absent.
 postinstall:
 	install -d $(AGENT_DIR)
 	install -d $(HOME)/Library/Logs
 	sed -e 's|{{BUNDLE_ID}}|$(BUNDLE_ID)|g' \
 	    -e 's|{{HOME}}|$(HOME)|g' \
+	    -e 's|{{INSTALL_BIN}}|$(INSTALL_BIN)|g' \
 	    $(AGENT_TEMPLATE) > $(AGENT_DST)
 	chmod 644 $(AGENT_DST)
 
-# Reinstall binary and plist, then restart agent.
-#   make clean; make; make reinstall
-reinstall: $(TARGET) postinstall
+# Dev-cycle reinstall: load daemon directly from build/ without sudo.
+# The LaunchAgent plist is regenerated pointing to the build directory binary.
+# Use 'make install' for a full production install to /usr/local/bin.
+reinstall: $(TARGET)
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
-	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
-	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
-	sudo cp $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Info.plist $(SHARE_BUNDLE)/Contents/
-	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
+	install -d $(AGENT_DIR)
+	install -d $(HOME)/Library/Logs
+	sed -e 's|{{BUNDLE_ID}}|$(BUNDLE_ID)|g' \
+	    -e 's|{{HOME}}|$(HOME)|g' \
+	    -e 's|{{INSTALL_BIN}}|$(abspath $(TARGET))|g' \
+	    $(AGENT_TEMPLATE) > $(AGENT_DST)
+	chmod 644 $(AGENT_DST)
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
 # Remove agent and all installed files.

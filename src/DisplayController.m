@@ -184,6 +184,9 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   BOOL _systemSleeping;
   BOOL _externalDisconnectedDuringSleep;
   NSString *_currentAction;
+  // Post-wake settle timer. Arms on wake; resets on each display callback;
+  // fires when the pipeline has been quiet for 2 seconds (P0/P2 fix).
+  dispatch_source_t _wakeSettleTimer;
 }
 
 - (instancetype)init {
@@ -286,7 +289,55 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   BOOL disconnected = _externalDisconnectedDuringSleep;
   _actionInProgress = NO;
   _externalDisconnectedDuringSleep = NO;
+  if (_wakeSettleTimer) {
+    dispatch_source_cancel(_wakeSettleTimer);
+    _wakeSettleTimer = nil;
+  }
   return disconnected;
+}
+
+// MARK: - Wake Settle Timer (P0 / P2)
+
+- (void)handleSystemWake {
+  [self resetWakeSettleTimer];
+}
+
+// (Re-)arms the settle timer. Called on wake and on each reconfiguration
+// callback while the timer is running, so it fires only after the display
+// pipeline has been quiet for 2 seconds.
+- (void)resetWakeSettleTimer {
+  if (_wakeSettleTimer) {
+    dispatch_source_cancel(_wakeSettleTimer);
+    _wakeSettleTimer = nil;
+  }
+  dispatch_source_t timer = dispatch_source_create(
+      DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+  __weak typeof(self) weakSelf = self;
+  dispatch_source_set_event_handler(timer, ^{
+    [weakSelf wakeSettleTimerFired];
+  });
+  dispatch_source_set_timer(
+      timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+      DISPATCH_TIME_FOREVER, (int64_t)(100 * NSEC_PER_MSEC));
+  dispatch_resume(timer);
+  _wakeSettleTimer = timer;
+}
+
+// Fires when the display pipeline has gone quiet after wake.
+// P2: issues a no-op CGConfig recommit to absorb the reconnected display state.
+// P0: re-applies auto-blackout if external is present and not blacked out.
+- (void)wakeSettleTimerFired {
+  dispatch_source_cancel(_wakeSettleTimer);
+  _wakeSettleTimer = nil;
+  NSLog(@"[wake] — display pipeline settled");
+  BOOL ok = [self recommitDisplayConfiguration];
+  NSLog(@"[wake] — recommit after settle: %s", ok ? "ok" : "failed");
+  if (_autoBlackoutOnExternalConnect && !_isBlackedOut &&
+      [self hasActiveExternalDisplay]) {
+    NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
+          @"blackout action");
+    [self applyEnable:NO];
+  }
 }
 
 // MARK: - Private
@@ -391,6 +442,12 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
                         flags:(CGDisplayChangeSummaryFlags)flags {
   if (flags & kCGDisplayBeginConfigurationFlag)
     return;
+
+  // If the post-wake settle timer is armed, push it back — the display
+  // pipeline is still issuing callbacks. It fires only once things go quiet.
+  if (_wakeSettleTimer)
+    [self resetWakeSettleTimer];
+
   if (_systemSleeping) {
     BOOL isDisconnect = flags & (kCGDisplayRemoveFlag | kCGDisplayDisabledFlag);
     BOOL isExternal = displayID != _builtInID;

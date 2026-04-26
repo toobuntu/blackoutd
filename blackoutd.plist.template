@@ -7,9 +7,14 @@
     <string>{{BUNDLE_ID}}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/blackoutd</string>
+        <string>{{INSTALL_BIN}}</string>
         <string>daemon</string>
     </array>
+    <key>MachServices</key>
+    <dict>
+        <key>{{BUNDLE_ID}}</key>
+        <true/>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

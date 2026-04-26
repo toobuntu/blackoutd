@@ -83,6 +83,11 @@ blackoutd daemon stop         Stop daemon and restore built-in display
 make clean; make; make reinstall
 ```
 
+`make reinstall` does not require `sudo`. It regenerates the LaunchAgent plist
+pointing to the freshly built binary in `build/` and restarts the daemon. The
+CLI binary at `/usr/local/bin/blackoutd` is not updated by `reinstall`; run
+`sudo make install` to refresh it.
+
 ## Uninstall
 
 ```sh
@@ -232,15 +237,14 @@ plist to live at `Blackout.app/Contents/Library/LaunchAgents/io.github.toobuntu.
 and the binary to run from inside the bundle. See `man SMAppService` and
 [Apple Developer docs](https://developer.apple.com/documentation/servicemanagement/smappservice).
 
-### Mach port presence detection (planned)
-`blackoutd status` previously used `launchctl print` to detect whether the
-daemon was running, whose output is explicitly documented as unstable
-(`man launchctl`: "This output is NOT API"). This has been replaced with
-`launchctl list` (stable legacy format, tab-separated PID/Status/Label
-columns) filtered for the agent label. The planned longer-term replacement
-is a named Mach port (`io.github.toobuntu.blackoutd`) registered on daemon
-startup. The CLI checks for port existence via `bootstrap_look_up()` —
-stable, synchronous, no subprocess.
+### Mach port presence detection
+`blackoutd status` and other CLI commands detect whether the daemon is running
+via `bootstrap_look_up()` against the named Mach port
+`io.github.toobuntu.blackoutd`, registered in the LaunchAgent plist under
+`MachServices`. This is synchronous and requires no subprocess. The daemon calls
+`bootstrap_check_in()` at startup to hold the receive right; when the daemon is
+not running, the lookup fails and the CLI reports "not running". The daemon PID
+for signal delivery is obtained via sysctl process enumeration.
 
 ### Display ID stability
 `CGDirectDisplayID` values can change across reboots. The built-in display on

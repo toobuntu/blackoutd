@@ -17,6 +17,33 @@ if [ "$branch" = "main" ]; then
     exit 1
 fi
 
+# --- Invisible Unicode check (Trojan Source, CVE-2021-42574) ---
+# Block commits that contain Unicode bidirectional override characters or
+# zero-width characters. These can hide malicious code from reviewers.
+all_staged=$(staged '.')
+if [ -n "$all_staged" ]; then
+    bidi_found=$(printf '%s\n' "$all_staged" | xargs python3 -c "
+import sys, pathlib
+BAD = (
+    set(range(0x202A, 0x202F)) |   # U+202A-U+202E bidi overrides
+    set(range(0x2066, 0x206A)) |   # U+2066-U+2069 bidi isolates
+    {0x200B, 0x200C, 0x200D, 0x200F, 0xFEFF}  # zero-width chars
+)
+for p in sys.argv[1:]:
+    try:
+        t = pathlib.Path(p).read_bytes().decode('utf-8', errors='replace')
+        if any(ord(c) in BAD for c in t):
+            print(p)
+    except Exception:
+        pass
+" -- 2>/dev/null || true)
+    if [ -n "$bidi_found" ]; then
+        printf 'error: invisible Unicode character(s) in staged files:\n' >&2
+        printf '  %s\n' "$bidi_found" >&2
+        exit 1
+    fi
+fi
+
 # --- clang-format on staged .m and .h files ---
 objc_files=$(staged '\.(m|h)$')
 if [ -n "$objc_files" ]; then

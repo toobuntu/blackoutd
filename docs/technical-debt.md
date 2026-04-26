@@ -12,28 +12,14 @@ and pointers to files that need changes.
 
 ---
 
-## P0 — Wake auto-blackout broken
+## ~~P0 — Wake auto-blackout broken~~ (FIXED)
 
-**Problem**: After sleep/wake with the external display connected and
-auto-blackout enabled, the built-in display does not re-black out. The
-user must manually run `blackoutd on` or use the menu bar toggle.
+**Fix**: `systemDidWake:` now calls `[_displayController handleSystemWake]` to
+arm a quiet timer. The timer resets on every `CGDisplayReconfigurationCallback`
+and fires when the display pipeline has been quiet for 2 seconds. On fire it
+re-applies auto-blackout if external is present and not blacked out.
 
-**Root cause (suspected)**: The `systemDidWake:` → `invalidateDisplayState`
-flow clears stale state but does not re-arm auto-blackout. When the external
-re-announces via `CGDisplayReconfigurationCallback`, the display system is
-still settling and the callback may be suppressed by `_actionInProgress` or
-the state machine may not recognize the re-announcement as requiring action.
-A deferred 2-second check exists in `AppDelegate.m` but is unreliable.
-
-**Acceptance criteria**:
-- [ ] After any sleep/wake with external connected and auto-blackout ON,
-      built-in blacks out within 3 seconds of wake notification
-- [ ] Verified: short sleep (<1 min), long sleep (>8 hr), `pmset sleepnow`,
-      lid-close sleep
-- [ ] Log shows `[state] ... — initiating blackout action` within 5s of wake
-
-**Files**: `src/AppDelegate.m` (systemDidWake:), `src/DisplayController.m`
-(invalidateDisplayState, handleReconfiguration:flags:)
+**Files changed**: `src/DisplayController.m/.h`, `src/AppDelegate.m`
 
 ---
 
@@ -61,28 +47,13 @@ recommitDisplayConfiguration)
 
 ---
 
-## P2 — USB-C Alt Mode wake recovery
+## ~~P2 — USB-C Alt Mode wake recovery~~ (FIXED)
 
-**Problem**: With the built-in suppressed and USB-C→HDMI as the sole display
-path, the USB-C controller drops Alt Mode negotiation ~30 seconds after wake.
-The external display goes black; the user must unplug/replug the cable.
+**Fix**: The quiet timer in `handleSystemWake` (see P0 fix) also handles P2:
+when the timer fires, `recommitDisplayConfiguration` is called first, issuing a
+no-op CGConfig transaction so WindowServer absorbs the reconnected display state.
 
-**Fix (from displayrecommitd)**: On `systemDidWake:`, arm a quiet timer that
-resets on each `CGDisplayReconfigurationCallback`. When the timer fires (display
-pipeline has settled), issue a no-op CGConfig transaction so WindowServer absorbs
-the reconnected display. Partially implemented via the deferred wake check in
-`AppDelegate.m`; the remaining work is a proper quiet-timer in
-`DisplayController` for more reliable timing.
-
-**Acceptance criteria**:
-- [ ] External display recovers after sleep/wake without user intervention
-- [ ] No visible flicker during recovery
-- [ ] Works on both battery and AC power
-
-**Files**: `src/DisplayController.m`, `src/AppDelegate.m`
-
-**Reference**: `displayrecommitd.m` in
-[displayrecommitd](https://github.com/toobuntu/displayrecommitd/)
+**Files changed**: `src/DisplayController.m/.h`
 
 ---
 
@@ -105,37 +76,29 @@ harness), `Makefile` (test target), `.github/workflows/ci.yml`
 
 ---
 
-## P4 — Mach port IPC
+## ~~P4 — Mach port IPC~~ (PARTIAL — presence detection done)
 
-**Problem**: The CLI communicates with the daemon via Unix signals
-(SIGUSR1/SIGUSR2) and detects daemon presence by parsing `launchctl list`
-output. Signals are fire-and-forget (no return value), and `launchctl list`
-parsing is fragile.
+**Done (v0.2)**: Named Mach port registered via `MachServices` in the LaunchAgent
+plist. Daemon calls `bootstrap_check_in()` at startup to hold the receive right.
+CLI uses `bootstrap_look_up()` (synchronous, no subprocess) + sysctl process
+enumeration to find the daemon PID for signal delivery. `launchctl list` parsing
+removed.
 
-**Acceptance criteria**:
-- [ ] Named Mach port `io.github.toobuntu.blackoutd` registered at daemon
-      startup
-- [ ] `daemonPid()` replaced with `bootstrap_look_up()` — synchronous, no
-      subprocess
-- [ ] CLI commands return structured status from daemon via Mach message
-- [ ] `launchctl list` parsing removed
+**Remaining (v1.0)**: Replace signal-based CLI commands with Mach messages.
+`launchctl list` parsing is gone; full Mach IPC is a v1.0 item.
 
-**Files**: `src/main.m`, `src/AppDelegate.m`
+**Files changed**: `src/main.m`, `src/AppDelegate.m`, `blackoutd.plist.template`
 
 ---
 
-## P5 — Version infrastructure
+## ~~P5 — Version infrastructure~~ (PARTIAL — version sourced and --version flag added)
 
-**Problem**: `CFBundleShortVersionString` in Info.plist is `0.1.0` and
-`CFBundleVersion` is `1`. No `make release` target, no git tag convention,
-no version bumping workflow.
+**Done (v0.2)**: `CFBundleShortVersionString` bumped to `0.2.0`. `blackoutd --version`
+prints the version string sourced from the embedded Info.plist.
 
-**Acceptance criteria**:
-- [ ] Version sourced from a single location (Info.plist or Makefile variable)
-- [ ] `make release` target that tags, builds, and codesigns
-- [ ] `blackoutd --version` prints the version string
+**Remaining**: `make release` target, git tag convention.
 
-**Files**: `src/Info.plist`, `Makefile`, `src/main.m`
+**Files changed**: `src/Info.plist`, `src/main.m`
 
 ---
 
@@ -152,14 +115,15 @@ hardware, displayprobe2.m reference). HANDOFF.md removed.
 
 - `clang-tidy` job gracefully skips if the tool is not found, but should
   hard-fail once the macos-latest runner reliably provides it.
-- No invisible Unicode character check in pre-commit (supply chain attack
-  mitigation).
+- ~~No invisible Unicode character check in pre-commit (supply chain attack
+  mitigation).~~ **DONE**: Added to `.githooks/pre-commit` and CI `lint-unicode`
+  job.
 - `spec/manual/TESTING.md` referenced but may be stale.
 
 **Acceptance criteria**:
 - [ ] clang-tidy job is required (not soft-skip) once runner availability
       is confirmed
-- [ ] Pre-commit checks for invisible Unicode in staged files
+- [x] Pre-commit checks for invisible Unicode in staged files
 - [ ] Stale spec/ files cleaned up or completed
 
 **Files**: `.github/workflows/ci.yml`, `.githooks/pre-commit`, `spec/`
