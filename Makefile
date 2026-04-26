@@ -2,6 +2,7 @@ BINARY         = blackoutd
 SRCDIR         = src
 BUILDDIR       = build
 BUNDLE_ID      = $(shell /usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" $(SRCDIR)/Info.plist)
+VERSION        = $(shell /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" $(SRCDIR)/Info.plist)
 AGENT_LABEL    = $(BUNDLE_ID)
 INSTALL_BIN    = /usr/local/bin/$(BINARY)
 AGENT_DIR      = $(HOME)/Library/LaunchAgents
@@ -30,7 +31,7 @@ CFLAGS = \
     -framework IOKit \
     -sectcreate __TEXT __info_plist $(SRCDIR)/Info.plist
 
-.PHONY: all clean install postinstall reinstall uninstall load unload print-bundle-id
+.PHONY: all clean install postinstall reinstall uninstall load unload print-bundle-id release
 
 all: $(TARGET)
 
@@ -94,3 +95,23 @@ unload:
 
 print-bundle-id:
 	@echo $(BUNDLE_ID)
+
+# Create a release: tag, build, and package.
+# Git tag convention: v<VERSION> (e.g., v0.2.0)
+# Requires a clean working tree (no uncommitted changes).
+release: $(TARGET)
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "error: uncommitted changes in working tree" >&2; \
+		echo "Commit or stash changes before creating a release." >&2; \
+		exit 1; \
+	fi
+	@if git rev-parse "v$(VERSION)" >/dev/null 2>&1; then \
+		echo "error: tag v$(VERSION) already exists" >&2; \
+		exit 1; \
+	fi
+	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	@echo "Created tag v$(VERSION)"
+	@echo "Binary: $(TARGET)"
+	@echo "Version: $(VERSION)"
+	@echo ""
+	@echo "To push the tag: git push origin v$(VERSION)"

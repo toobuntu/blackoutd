@@ -14,12 +14,31 @@ and pointers to files that need changes.
 
 ## ~~P0 — Wake auto-blackout broken~~ (FIXED)
 
+**Problem**: After sleep/wake with the external display connected and
+auto-blackout enabled, the built-in display does not re-black out. The
+user must manually run `blackoutd on` or use the menu bar toggle.
+
+**Root cause (suspected)**: The `systemDidWake:` → `invalidateDisplayState`
+flow clears stale state but does not re-arm auto-blackout. When the external
+re-announces via `CGDisplayReconfigurationCallback`, the display system is
+still settling and the callback may be suppressed by `_actionInProgress` or
+the state machine may not recognize the re-announcement as requiring action.
+A deferred 2-second check exists in `AppDelegate.m` but is unreliable.
+
 **Fix**: `systemDidWake:` now calls `[_displayController handleSystemWake]` to
 arm a quiet timer. The timer resets on every `CGDisplayReconfigurationCallback`
 and fires when the display pipeline has been quiet for 2 seconds. On fire it
 re-applies auto-blackout if external is present and not blacked out.
 
-**Files changed**: `src/DisplayController.m/.h`, `src/AppDelegate.m`
+**Acceptance criteria**:
+- [x] After any sleep/wake with external connected and auto-blackout ON,
+      built-in blacks out within 3 seconds of wake notification
+- [ ] Verified: short sleep (<1 min), long sleep (>8 hr), `pmset sleepnow`,
+      lid-close sleep
+- [ ] Log shows `[state] ... — initiating blackout action` within 5s of wake
+
+**Files**: `src/AppDelegate.m` (systemDidWake:), `src/DisplayController.m`
+(invalidateDisplayState, handleReconfiguration:flags:)
 
 ---
 
@@ -49,11 +68,27 @@ recommitDisplayConfiguration)
 
 ## ~~P2 — USB-C Alt Mode wake recovery~~ (FIXED)
 
-**Fix**: The quiet timer in `handleSystemWake` (see P0 fix) also handles P2:
-when the timer fires, `recommitDisplayConfiguration` is called first, issuing a
-no-op CGConfig transaction so WindowServer absorbs the reconnected display state.
+**Problem**: With the built-in suppressed and USB-C→HDMI as the sole display
+path, the USB-C controller drops Alt Mode negotiation ~30 seconds after wake.
+The external display goes black; the user must unplug/replug the cable.
 
-**Files changed**: `src/DisplayController.m/.h`
+**Fix (from displayrecommitd)**: On `systemDidWake:`, arm a quiet timer that
+resets on each `CGDisplayReconfigurationCallback`. When the timer fires (display
+pipeline has settled), issue a no-op CGConfig transaction so WindowServer absorbs
+the reconnected display. The quiet timer in `handleSystemWake` (see P0 fix)
+handles this: when the timer fires, `recommitDisplayConfiguration` is called first,
+issuing a no-op CGConfig transaction so WindowServer absorbs the reconnected
+display state.
+
+**Acceptance criteria**:
+- [x] External display recovers after sleep/wake without user intervention
+- [ ] No visible flicker during recovery
+- [ ] Works on both battery and AC power
+
+**Files**: `src/DisplayController.m`, `src/AppDelegate.m`
+
+**Reference**: `displayrecommitd.m` in
+[displayrecommitd](https://github.com/toobuntu/displayrecommitd/)
 
 ---
 
@@ -78,6 +113,11 @@ harness), `Makefile` (test target), `.github/workflows/ci.yml`
 
 ## ~~P4 — Mach port IPC~~ (PARTIAL — presence detection done)
 
+**Problem**: The CLI communicates with the daemon via Unix signals
+(SIGUSR1/SIGUSR2) and detects daemon presence by parsing `launchctl list`
+output. Signals are fire-and-forget (no return value), and `launchctl list`
+parsing is fragile.
+
 **Done (v0.2)**: Named Mach port registered via `MachServices` in the LaunchAgent
 plist. Daemon calls `bootstrap_check_in()` at startup to hold the receive right.
 CLI uses `bootstrap_look_up()` (synchronous, no subprocess) + sysctl process
@@ -85,20 +125,50 @@ enumeration to find the daemon PID for signal delivery. `launchctl list` parsing
 removed.
 
 **Remaining (v1.0)**: Replace signal-based CLI commands with Mach messages.
-`launchctl list` parsing is gone; full Mach IPC is a v1.0 item.
+CLI commands should return structured status from daemon via Mach message.
 
-**Files changed**: `src/main.m`, `src/AppDelegate.m`, `blackoutd.plist.template`
+**Acceptance criteria**:
+- [x] Named Mach port `io.github.toobuntu.blackoutd` registered at daemon
+      startup
+- [x] `daemonPid()` replaced with `bootstrap_look_up()` — synchronous, no
+      subprocess
+- [ ] CLI commands return structured status from daemon via Mach message
+- [x] `launchctl list` parsing removed
+
+**Files**: `src/main.m`, `src/AppDelegate.m`, `blackoutd.plist.template`
 
 ---
 
 ## ~~P5 — Version infrastructure~~ (PARTIAL — version sourced and --version flag added)
 
+**Problem**: `CFBundleShortVersionString` in Info.plist is `0.1.0` and
+`CFBundleVersion` is `1`. No `make release` target, no git tag convention,
+no version bumping workflow.
+
 **Done (v0.2)**: `CFBundleShortVersionString` bumped to `0.2.0`. `blackoutd --version`
-prints the version string sourced from the embedded Info.plist.
+prints the version string sourced from the embedded Info.plist. `make release`
+target added for tagging and building releases.
 
-**Remaining**: `make release` target, git tag convention.
+**Git tag convention**: Tags follow semantic versioning with a `v` prefix:
+`v<MAJOR>.<MINOR>.<PATCH>` (e.g., `v0.2.0`, `v1.0.0`).
 
-**Files changed**: `src/Info.plist`, `src/main.m`
+**Version bumping workflow**:
+1. Update `CFBundleShortVersionString` in `src/Info.plist` (e.g., `0.3.0`)
+2. Update `CFBundleVersion` (increment by 1)
+3. Commit the version change: `git commit -m "chore: bump version to 0.3.0"`
+4. Run `make release` to create the tag and build
+5. Push the tag: `git push origin v<VERSION>`
+
+**Remaining**: Git tag convention and version bumping workflow are now documented
+above. The `make release` target creates annotated tags and ensures a clean
+working tree.
+
+**Acceptance criteria**:
+- [x] Version sourced from a single location (Info.plist or Makefile variable)
+- [x] `make release` target that tags, builds, and codesigns
+- [x] `blackoutd --version` prints the version string
+
+**Files**: `src/Info.plist`, `Makefile`, `src/main.m`
 
 ---
 
