@@ -21,21 +21,29 @@ fi
 # Checks staged blob content (not working tree) for Unicode bidi override
 # characters and zero-width chars that can hide malicious code from reviewers.
 # Uses od(1) (POSIX) for byte-level hex inspection — no Python required.
+#
+# Policy: project requires plain UTF-8 with no BOM anywhere in any file.
+# The following byte sequences are therefore blocked:
+#   E2 80 8B/8C/8D/8F  — U+200B/200C/200D/200F  zero-width chars
+#   E2 80 AA-AE        — U+202A-202E  bidi overrides
+#   E2 81 A6-A9        — U+2066-2069  bidi isolates
+#   EF BB BF           — U+FEFF  UTF-8 BOM (intentionally blocked; project
+#                        encodes all files as UTF-8 without BOM per CONTRIBUTING.md)
 all_staged=$(staged '.')
 if [ -n "$all_staged" ]; then
     bidi_found=""
     while IFS= read -r _bfile; do
         [ -z "$_bfile" ] && continue
-        # Read staged blob and scan for dangerous UTF-8 byte sequences.
-        # Pipe directly through od/tr/grep — avoids loading large blobs into
-        # a shell variable and correctly inspects staged content (not working tree).
-        # Dangerous sequences:
-        #   E2 80 8B/8C/8D/8F  — U+200B/200C/200D/200F  zero-width chars
-        #   E2 80 AA-AE        — U+202A-202E  bidi overrides
-        #   E2 81 A6-A9        — U+2066-2069  bidi isolates
-        #   EF BB BF           — U+FEFF  BOM / zero-width no-break space
-        if git show ":$_bfile" 2>/dev/null \
-            | od -An -tx1 | tr -d ' \n' \
+        # Read the staged blob once into a hex string.
+        # -v (verbose) prevents od from replacing repeated lines with '*'.
+        _hex=$(git show ":$_bfile" 2>/dev/null | od -An -tx1 -v | tr -d ' \n')
+        [ -z "$_hex" ] && continue
+        # Skip binary blobs: a NUL byte (hex 00) in a text file is invalid
+        # UTF-8 and indicates a binary object.  Scanning binary content for
+        # the dangerous-char patterns would produce false positives.
+        case "$_hex" in *00*) continue ;; esac
+        # Scan for dangerous UTF-8 byte sequences.
+        if printf '%s' "$_hex" \
             | LC_ALL=C grep -qE 'e2808[bcd]|e2808f|e280a[a-e]|e281a[6-9]|efbbbf'; then
             bidi_found="${bidi_found:+$bidi_found
 }$_bfile"
