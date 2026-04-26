@@ -18,28 +18,36 @@ if [ "$branch" = "main" ]; then
 fi
 
 # --- Invisible Unicode check (Trojan Source, CVE-2021-42574) ---
-# Block commits that contain Unicode bidirectional override characters or
-# zero-width characters. These can hide malicious code from reviewers.
+# Checks staged blob content (not working tree) for Unicode bidi override
+# characters and zero-width chars that can hide malicious code from reviewers.
+# Uses od(1) (POSIX) for byte-level hex inspection — no Python required.
 all_staged=$(staged '.')
 if [ -n "$all_staged" ]; then
-    bidi_found=$(printf '%s\n' "$all_staged" | xargs python3 -c "
-import sys, pathlib
-BAD = (
-    set(range(0x202A, 0x202F)) |   # U+202A-U+202E bidi overrides
-    set(range(0x2066, 0x206A)) |   # U+2066-U+2069 bidi isolates
-    {0x200B, 0x200C, 0x200D, 0x200F, 0xFEFF}  # zero-width chars
-)
-for p in sys.argv[1:]:
-    try:
-        t = pathlib.Path(p).read_bytes().decode('utf-8', errors='replace')
-        if any(ord(c) in BAD for c in t):
-            print(p)
-    except Exception:
-        pass
-" -- 2>/dev/null || true)
+    bidi_found=""
+    while IFS= read -r _bfile; do
+        [ -z "$_bfile" ] && continue
+        # Read staged blob and scan for dangerous UTF-8 byte sequences.
+        # Pipe directly through od/tr/grep — avoids loading large blobs into
+        # a shell variable and correctly inspects staged content (not working tree).
+        # Dangerous sequences:
+        #   E2 80 8B/8C/8D/8F  — U+200B/200C/200D/200F  zero-width chars
+        #   E2 80 AA-AE        — U+202A-202E  bidi overrides
+        #   E2 81 A6-A9        — U+2066-2069  bidi isolates
+        #   EF BB BF           — U+FEFF  BOM / zero-width no-break space
+        if git show ":$_bfile" 2>/dev/null \
+            | od -An -tx1 | tr -d ' \n' \
+            | LC_ALL=C grep -qE 'e2808[bcd]|e2808f|e280a[a-e]|e281a[6-9]|efbbbf'; then
+            bidi_found="${bidi_found:+$bidi_found
+}$_bfile"
+        fi
+    done <<_BIDI_EOF_
+$all_staged
+_BIDI_EOF_
     if [ -n "$bidi_found" ]; then
         printf 'error: invisible Unicode character(s) in staged files:\n' >&2
-        printf '  %s\n' "$bidi_found" >&2
+        printf '%s\n' "$bidi_found" | while IFS= read -r _bf; do
+            printf '  %s\n' "$_bf" >&2
+        done
         exit 1
     fi
 fi

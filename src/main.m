@@ -69,14 +69,33 @@ static pid_t daemonPid(void) {
   }
 
   // Enumerate running processes to find the daemon PID.
+  // The process table can grow between the sizing call and the data call,
+  // so retry with a larger buffer on ENOMEM.
   int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
   size_t size = 0;
-  if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0)
-    return 0;
-  struct kinfo_proc *procs = (struct kinfo_proc *)malloc(size);
-  if (!procs)
-    return 0;
-  if (sysctl(mib, 4, procs, &size, NULL, 0) != 0) {
+  struct kinfo_proc *procs = NULL;
+  BOOL sysctlOK = NO;
+  for (int attempt = 0; attempt < 5; attempt++) {
+    if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0)
+      return 0;
+    // Add headroom for processes that may appear between calls.
+    size += size / 8;
+    struct kinfo_proc *tmp = (struct kinfo_proc *)realloc(procs, size);
+    if (!tmp) {
+      free(procs);
+      return 0;
+    }
+    procs = tmp;
+    if (sysctl(mib, 4, procs, &size, NULL, 0) == 0) {
+      sysctlOK = YES;
+      break;
+    }
+    if (errno != ENOMEM) {
+      free(procs);
+      return 0;
+    }
+  }
+  if (!sysctlOK) {
     free(procs);
     return 0;
   }

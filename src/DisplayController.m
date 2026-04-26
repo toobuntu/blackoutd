@@ -314,7 +314,15 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
       DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
   __weak typeof(self) weakSelf = self;
   dispatch_source_set_event_handler(timer, ^{
-    [weakSelf wakeSettleTimerFired];
+    // Cancel this specific source (not via ivar, which may already be nil).
+    dispatch_source_cancel(timer);
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    // Guard: skip if self was deallocated or if the ivar was replaced/cleared
+    // (e.g. invalidateDisplayState ran before this queued handler executed).
+    if (!strongSelf || strongSelf->_wakeSettleTimer != timer)
+      return;
+    strongSelf->_wakeSettleTimer = nil;
+    [strongSelf wakeSettleTimerFired];
   });
   dispatch_source_set_timer(
       timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
@@ -326,9 +334,8 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 // Fires when the display pipeline has gone quiet after wake.
 // P2: issues a no-op CGConfig recommit to absorb the reconnected display state.
 // P0: re-applies auto-blackout if external is present and not blacked out.
+// _wakeSettleTimer is already cancelled and cleared by the handler block.
 - (void)wakeSettleTimerFired {
-  dispatch_source_cancel(_wakeSettleTimer);
-  _wakeSettleTimer = nil;
   NSLog(@"[wake] — display pipeline settled");
   BOOL ok = [self recommitDisplayConfiguration];
   NSLog(@"[wake] — recommit after settle: %s", ok ? "ok" : "failed");
