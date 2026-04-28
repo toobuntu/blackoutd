@@ -17,12 +17,12 @@ SPDX-License-Identifier: GPL-3.0-or-later
 - [x] Structured logging with verbosity levels
 
 ## v0.2 — Stability
-- [ ] Fix wake auto-blackout (P0 bug)
-- [ ] CGConfig no-op before restore (P1 safety invariant fix)
-- [ ] USB-C Alt Mode wake recovery — CGConfig no-op after display pipeline settles (P2)
-- [ ] Mach port presence detection (replaces launchctl list parsing)
-- [ ] `make clean; make; make reinstall` dev cycle without sudo for reinstall
-- [ ] Verified SIGKILL recovery path documented in onboarding
+- [x] Fix wake auto-blackout (P0 bug)
+- [x] CGConfig no-op before restore (P1 safety invariant fix)
+- [x] USB-C Alt Mode wake recovery — CGConfig no-op after display pipeline settles (P2)
+- [x] Mach port presence detection (replaces launchctl list parsing)
+- [x] `make clean; make; make dev` dev cycle without sudo for reload
+- [x] Verified SIGKILL recovery path documented in onboarding
 
 ## v0.3 — Display Control
 - [ ] F1/F2 brightness control for external display when built-in is blacked out
@@ -46,3 +46,4 @@ SPDX-License-Identifier: GPL-3.0-or-later
 - SMAppService migration if packaged as Blackout.app (see README tech notes)
 - Intel Mac support (untested; display ID assumptions may differ)
 - Non-technical user launcher (Blackout stub app in /Applications)
+- Homoglyph attack defense (CVE-2021-42694) via Unicode confusables tables

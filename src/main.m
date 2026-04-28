@@ -9,6 +9,9 @@
 #import "AppDelegate.h"
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <errno.h>
+#import <libproc.h>
+#import <sys/sysctl.h>
 
 static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
@@ -31,6 +34,21 @@ static NSString *agentService(void) {
   return [NSString stringWithFormat:@"gui/%d/%@", getuid(), kAgentLabel];
 }
 
+// Reads ProgramArguments[0] from the installed LaunchAgent plist.
+// Returns nil if the plist is missing or malformed. The result is the
+// canonical path to the daemon binary as registered with launchd, used
+// to disambiguate the daemon process from CLI invocations of the same
+// binary in daemonPid().
+static NSString *registeredDaemonPath(void) {
+  NSDictionary *plist =
+      [NSDictionary dictionaryWithContentsOfFile:agentPlistPath()];
+  NSArray *args = plist[@"ProgramArguments"];
+  if (![args isKindOfClass:[NSArray class]] || args.count == 0)
+    return nil;
+  NSString *path = args.firstObject;
+  return [path isKindOfClass:[NSString class]] ? path : nil;
+}
+
 static int runLaunchctl(NSArray<NSString *> *args) {
   NSTask *task = [[NSTask alloc] init];
   task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
@@ -46,35 +64,97 @@ static int runLaunchctl(NSArray<NSString *> *args) {
 }
 
 // Returns the daemon's PID if running, 0 otherwise.
-// Uses `launchctl list` with no arguments — its tab-separated output
-// (PID\tStatus\tLabel) is the stable legacy format per man launchctl.
-// The PID field is '-' when the agent is registered but not running.
+//
+// Liveness and PID discovery share one mechanism: enumerate processes via
+// sysctl and identify the daemon by four properties. A bootstrap_look_up()
+// fast path was considered and rejected because that call is documented as
+// potentially activating an on-demand service (see Apple's bootstrap_look_up
+// man page). Even with KeepAlive=true making activation harmless in practice,
+// it is a side-effect we do not need: sysctl alone is authoritative and the
+// cost is a single system call enumerating ~400 processes.
+//
+// A candidate process must satisfy ALL of:
+//
+//   1. p_comm matches "blackoutd" (cheap pre-filter).
+//   2. Effective UID matches the calling user. Defends against unusual
+//      gui/$UID configurations where another user's daemon might be visible.
+//   3. Parent process is launchd (pid 1) — LaunchAgents are direct children
+//      of the per-user launchd, so a match here excludes CLI processes
+//      launched from a shell (parent is the shell or its descendant).
+//   4. Executable path matches the path registered in the LaunchAgent plist
+//      (ProgramArguments[0]). Defends against an unrelated binary named
+//      "blackoutd" running in the same session.
+//
+// p_comm is limited to MAXCOMLEN (16) characters; "blackoutd" (9) fits.
+//
+// The daemon-side bootstrap_check_in() in AppDelegate is retained: it holds
+// the Mach service receive right for the v1.0 Mach IPC command channel
+// (which will replace signal-based commands). It is not used for liveness
+// from the CLI.
 static pid_t daemonPid(void) {
-  NSTask *task = [[NSTask alloc] init];
-  task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
-  task.arguments = @[ @"list" ];
-  NSPipe *pipe = [NSPipe pipe];
-  task.standardOutput = pipe;
-  task.standardError = [NSPipe pipe];
-  NSError *err = nil;
-  if (![task launchAndReturnError:&err])
-    return 0;
-  NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-  [task waitUntilExit];
-  if (task.terminationStatus != 0)
-    return 0;
-  NSString *output = [[NSString alloc] initWithData:data
-                                           encoding:NSUTF8StringEncoding];
-  for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
-    if (![line containsString:kAgentLabel])
-      continue;
-    NSString *firstField =
-        [[line componentsSeparatedByString:@"\t"] firstObject];
-    if (!firstField || [firstField hasPrefix:@"-"])
+  NSString *expectedPath = registeredDaemonPath();
+  uid_t self_uid = getuid();
+
+  // Enumerate running processes to find the daemon PID.
+  // The process table can grow between the sizing call and the data call,
+  // so retry with a larger buffer on ENOMEM.
+  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
+  size_t size = 0;
+  struct kinfo_proc *procs = NULL;
+  BOOL sysctlOK = NO;
+  for (int attempt = 0; attempt < 5; attempt++) {
+    if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0) {
+      free(procs);
       return 0;
-    return (pid_t)[firstField intValue];
+    }
+    // Add headroom for processes that may appear between calls.
+    size += size / 8;
+    struct kinfo_proc *tmp = (struct kinfo_proc *)realloc(procs, size);
+    if (!tmp) {
+      free(procs);
+      return 0;
+    }
+    procs = tmp;
+    if (sysctl(mib, 4, procs, &size, NULL, 0) == 0) {
+      sysctlOK = YES;
+      break;
+    }
+    if (errno != ENOMEM) {
+      free(procs);
+      return 0;
+    }
   }
-  return 0;
+  if (!sysctlOK) {
+    free(procs);
+    return 0;
+  }
+  int count = (int)(size / sizeof(struct kinfo_proc));
+  pid_t found = 0;
+  pid_t self_pid = getpid();
+  for (int i = 0; i < count && !found; i++) {
+    if (procs[i].kp_proc.p_pid == self_pid)
+      continue;
+    if (strcmp(procs[i].kp_proc.p_comm, "blackoutd") != 0)
+      continue;
+    // Effective UID must match the calling user.
+    if (procs[i].kp_eproc.e_ucred.cr_uid != self_uid)
+      continue;
+    // Parent must be launchd (pid 1) for a LaunchAgent.
+    if (procs[i].kp_eproc.e_ppid != 1)
+      continue;
+    // Executable path must match ProgramArguments[0] from the plist.
+    if (expectedPath) {
+      char path[PROC_PIDPATHINFO_MAXSIZE];
+      int n = proc_pidpath(procs[i].kp_proc.p_pid, path, sizeof(path));
+      if (n <= 0)
+        continue;
+      if (strcmp(path, expectedPath.UTF8String) != 0)
+        continue;
+    }
+    found = procs[i].kp_proc.p_pid;
+  }
+  free(procs);
+  return found;
 }
 
 static BOOL daemonIsRunning(void) { return daemonPid() > 0; }
@@ -315,11 +395,21 @@ static void printUsage(void) {
       "  status          Show daemon and display status (even if not running)\n"
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
       "  --config        Print diagnostic info for bug reports\n"
+      "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
+}
+
+static int printVersion(void) {
+  // Version is embedded in the binary's __TEXT,__info_plist section.
+  NSBundle *main = [NSBundle mainBundle];
+  NSString *ver =
+      [main objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+  printf("blackoutd %s\n", ver ? ver.UTF8String : "unknown");
+  return 0;
 }
 
 int main(int argc, const char *argv[]) {
@@ -340,6 +430,8 @@ int main(int argc, const char *argv[]) {
       return printStatus();
     if (strcmp(cmd, "--config") == 0)
       return printConfig();
+    if (strcmp(cmd, "--version") == 0)
+      return printVersion();
     if (strcmp(cmd, "daemon") == 0) {
       if (argc >= 3) {
         if (strcmp(argv[2], "start") == 0)

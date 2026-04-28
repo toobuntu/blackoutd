@@ -184,6 +184,9 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   BOOL _systemSleeping;
   BOOL _externalDisconnectedDuringSleep;
   NSString *_currentAction;
+  // Post-wake settle timer. Arms on wake; resets on each display callback;
+  // fires when the pipeline has been quiet for 2 seconds (P0/P2 fix).
+  dispatch_source_t _wakeSettleTimer;
 }
 
 - (instancetype)init {
@@ -191,7 +194,10 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
     return nil;
   _builtInID = [self discoverBuiltInID];
   _autoBlackoutOnExternalConnect = YES;
-  _verbosityLevel = 1;
+  // Initialize verbosity through the property setter so the file-static
+  // BDVerbosityLevel mirror stays in sync from the start. AppDelegate may
+  // overwrite this from NSUserDefaults shortly after init.
+  self.verbosityLevel = 1;
   NSLog(@"[startup] — session started with builtInId=%u", _builtInID);
   NSLog(@"[startup] — API deprecation: CGDisplayIOServicePort (deprecated "
         @"macOS 10.9), "
@@ -208,11 +214,14 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 }
 
 - (void)setVerbosityLevel:(NSInteger)verbosityLevel {
-  if (verbosityLevel == _verbosityLevel)
-    return;
+  // The init path passes the same value as the default (1); skipping the
+  // duplicate-set log in that case keeps startup logs clean. The setter is
+  // still authoritative for the BDVerbosityLevel mirror.
+  BOOL changed = (verbosityLevel != _verbosityLevel);
   _verbosityLevel = verbosityLevel;
   BDVerbosityLevel = verbosityLevel;
-  NSLog(@"[prefs] verbosityLevel=%ld", (long)verbosityLevel);
+  if (changed)
+    NSLog(@"[prefs] verbosityLevel=%ld", (long)verbosityLevel);
 }
 
 - (BOOL)isBlackedOut {
@@ -229,8 +238,9 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
           @"display");
     return NO;
   }
-  NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
-        @"blackout");
+  NSLog(@"[state] hasExternal=1 autoBlackout=%d isBlackedOut=0 — initiating "
+        @"blackout",
+        _autoBlackoutOnExternalConnect);
   [self applyEnable:NO];
   return _isBlackedOut;
 }
@@ -286,7 +296,86 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   BOOL disconnected = _externalDisconnectedDuringSleep;
   _actionInProgress = NO;
   _externalDisconnectedDuringSleep = NO;
+  // Clear the ivar before cancelling so the queued handler block (which
+  // compares the captured timer pointer against the ivar) sees the mismatch
+  // and bails out. Cancelling first leaves a brief window where the handler
+  // could still match.
+  if (_wakeSettleTimer) {
+    dispatch_source_t toCancel = _wakeSettleTimer;
+    _wakeSettleTimer = nil;
+    dispatch_source_cancel(toCancel);
+  }
   return disconnected;
+}
+
+// MARK: - Wake Settle Timer (P0 / P2)
+
+- (void)handleSystemWake {
+  [self resetWakeSettleTimer];
+}
+
+// (Re-)arms the settle timer. Called on wake and on each reconfiguration
+// callback while the timer is running, so it fires only after the display
+// pipeline has been quiet for 2 seconds.
+//
+// Cancellation discipline:
+//   - The ivar is cleared BEFORE the source is cancelled. The handler block
+//     compares its captured timer pointer to the ivar; clearing the ivar
+//     first guarantees the handler bails out if it runs concurrently.
+//   - Only this method and invalidateDisplayState clear/replace the ivar.
+//     The handler never clears the ivar through any path other than the
+//     identity check.
+- (void)resetWakeSettleTimer {
+  if (_wakeSettleTimer) {
+    dispatch_source_t toCancel = _wakeSettleTimer;
+    _wakeSettleTimer = nil;
+    dispatch_source_cancel(toCancel);
+  }
+  dispatch_source_t timer = dispatch_source_create(
+      DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+  __weak typeof(self) weakSelf = self;
+  dispatch_source_set_event_handler(timer, ^{
+    // Cancel this specific source. The ivar may already be cleared (e.g.
+    // by invalidateDisplayState) or may have been replaced by a newer
+    // reset. The identity check below is the authoritative guard.
+    dispatch_source_cancel(timer);
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf || strongSelf->_wakeSettleTimer != timer)
+      return;
+    strongSelf->_wakeSettleTimer = nil;
+    [strongSelf wakeSettleTimerFired];
+  });
+  dispatch_source_set_timer(
+      timer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
+      DISPATCH_TIME_FOREVER, (int64_t)(100 * NSEC_PER_MSEC));
+  dispatch_resume(timer);
+  _wakeSettleTimer = timer;
+}
+
+// Fires when the display pipeline has gone quiet after wake.
+// P2: issues a no-op CGConfig recommit to absorb the reconnected display state.
+// Safety invariant: if the external is gone but the built-in is still
+// blacked out (an unplug missed by the in-sleep callback), restore the
+// built-in immediately. Without this, the user would have to wait for
+// applyEnable:'s 2-second settle-time check to catch the same condition.
+// P0: re-applies auto-blackout if external is present and not blacked out.
+// _wakeSettleTimer is already cancelled and cleared by the handler block.
+- (void)wakeSettleTimerFired {
+  NSLog(@"[wake] — display pipeline settled");
+  BOOL ok = [self recommitDisplayConfiguration];
+  NSLog(@"[wake] — recommit after settle: %s", ok ? "ok" : "failed");
+  BOOL hasExternal = [self hasActiveExternalDisplay];
+  if (!hasExternal && _isBlackedOut) {
+    NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
+          @"disabling blackout (post-wake invariant)");
+    [self applyEnable:YES];
+    return;
+  }
+  if (_autoBlackoutOnExternalConnect && !_isBlackedOut && hasExternal) {
+    NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
+          @"blackout action");
+    [self applyEnable:NO];
+  }
 }
 
 // MARK: - Private
@@ -324,9 +413,10 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   // events. The 2-second window is conservative; in practice echoes arrive
   // within ~300ms, but we allow extra margin for slow or loaded systems.
   //
-  // A real display event (e.g. unplug) arriving inside the window will be
-  // suppressed along with the echoes. To recover, the safety invariant is
-  // re-evaluated when the window closes.
+  // Real disconnect events arriving inside the window are NOT suppressed —
+  // handleReconfiguration: evaluates the safety invariant before consulting
+  // _actionInProgress. The settle-time check below remains as a safety net
+  // for any state that diverged during the action itself.
   dispatch_after(
       dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
       dispatch_get_main_queue(), ^{
@@ -391,6 +481,12 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
                         flags:(CGDisplayChangeSummaryFlags)flags {
   if (flags & kCGDisplayBeginConfigurationFlag)
     return;
+
+  // If the post-wake settle timer is armed, push it back — the display
+  // pipeline is still issuing callbacks. It fires only once things go quiet.
+  if (_wakeSettleTimer)
+    [self resetWakeSettleTimer];
+
   if (_systemSleeping) {
     BOOL isDisconnect = flags & (kCGDisplayRemoveFlag | kCGDisplayDisabledFlag);
     BOOL isExternal = displayID != _builtInID;
@@ -411,6 +507,21 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
       kCGDisplayDisabledFlag;
 
   NSString *event = displayEventName(flags);
+
+  // Safety invariant — checked unconditionally, BEFORE the connectivity
+  // and _actionInProgress filters below. Restoring the built-in when no
+  // real external is present must never be skipped, even if the callback
+  // arrives during our own action window or carries no connectivity flag
+  // (the disconnect event sometimes arrives as a layout/mode change).
+  // _actionInProgress will be cleared by applyEnable: when the new action
+  // settles, so re-entering applyEnable: here is safe.
+  BOOL hasExternal = [self hasActiveExternalDisplay];
+  if (!hasExternal && _isBlackedOut) {
+    NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
+          @"disabling blackout (invariant)");
+    [self applyEnable:YES];
+    return;
+  }
 
   if (!(flags & connectivity)) {
     BDLog(1, @"[change] id=%u event=%@ — ignored, no connectivity change",
@@ -442,14 +553,7 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
         displayID, event, displayClass, flagsDescription(flags),
         connectivityFlagNames(flags));
 
-  BOOL hasExternal = [self hasActiveExternalDisplay];
-
-  // Safety invariant: restore built-in whenever no real external is present.
-  if (!hasExternal && _isBlackedOut) {
-    NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
-          @"disabling blackout");
-    [self applyEnable:YES];
-  } else if (hasExternal && _autoBlackoutOnExternalConnect && !_isBlackedOut) {
+  if (hasExternal && _autoBlackoutOnExternalConnect && !_isBlackedOut) {
     NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
           @"blackout action");
     [self applyEnable:NO];

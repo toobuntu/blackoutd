@@ -4,3 +4,12 @@ build/
 _CodeSignature/
 *.o
 *.dSYM/
+
+# Working files for AI-assisted development sessions; not part of the
+# repository's tracked content. Keep them locally for reference but do
+# not commit.
+docs/HANDOFF.md
+docs/HANDOFF-claude-code.md
+docs/pr*.diff
+docs/reviews/
+scripts/find_unicode_control2*/

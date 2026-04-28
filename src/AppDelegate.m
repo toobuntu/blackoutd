@@ -6,6 +6,7 @@
 
 #import "AppDelegate.h"
 #import <notify.h>
+#import <servers/bootstrap.h>
 
 static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
@@ -47,10 +48,26 @@ static NSBundle *BDResourceBundle(void) {
   dispatch_source_t _sighupSource;
   dispatch_source_t _sigtermSource;
   dispatch_source_t _sigintSource;
+  // Mach service port received from launchd via bootstrap_check_in().
+  // Held for the lifetime of the daemon so that bootstrap_look_up() from the
+  // CLI can confirm the daemon is running (v0.2 Mach port presence detection).
+  mach_port_t _machServicePort;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+  // Check in with launchd to hold the Mach service receive right.
+  // The CLI uses bootstrap_look_up() against this port to detect whether the
+  // daemon is running — no launchctl subprocess needed.
+  _machServicePort = MACH_PORT_NULL;
+  kern_return_t kr = bootstrap_check_in(bootstrap_port, kBundleID.UTF8String,
+                                        &_machServicePort);
+  if (kr != KERN_SUCCESS) {
+    NSLog(@"[startup] — bootstrap_check_in: %d (not running under launchd?)",
+          kr);
+    _machServicePort = MACH_PORT_NULL;
+  }
 
   _defaults = [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
 
@@ -69,6 +86,10 @@ static NSBundle *BDResourceBundle(void) {
 - (void)applicationWillTerminate:(NSNotification *)notification {
   NSLog(@"[quit] — stopping");
   [_displayController disableBlackout];
+  if (_machServicePort != MACH_PORT_NULL) {
+    mach_port_destroy(mach_task_self(), _machServicePort);
+    _machServicePort = MACH_PORT_NULL;
+  }
 }
 
 // MARK: - WindowServer Readiness
@@ -262,25 +283,11 @@ static NSBundle *BDResourceBundle(void) {
     return;
   }
 
-  // The display system may have already settled while systemSleeping was YES,
-  // meaning the external's re-announcement callback was dropped. Schedule a
-  // deferred check: after 2 seconds (display pipeline settle time), if
-  // auto-blackout is enabled, an external is present, and we are not blacked
-  // out, re-apply blackout. If the callback path handles it first, the guard
-  // in enableBlackout prevents a duplicate action.
-  if (_displayController.autoBlackoutOnExternalConnect) {
-    dispatch_after(
-        dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)),
-        dispatch_get_main_queue(), ^{
-          if (!self->_displayController.isBlackedOut &&
-              self->_displayController.autoBlackoutOnExternalConnect &&
-              [self->_displayController hasActiveExternalDisplay]) {
-            NSLog(@"[wake] — deferred check: external present, re-applying "
-                  @"blackout");
-            [self->_displayController enableBlackout];
-          }
-        });
-  }
+  // Arm the post-wake settle timer. The timer resets on each display callback
+  // and fires when the pipeline has been quiet for 2 seconds. On fire it
+  // issues a no-op CGConfig recommit (P2, USB-C Alt Mode recovery) and
+  // re-applies auto-blackout if needed (P0, wake auto-blackout fix).
+  [_displayController handleSystemWake];
 }
 
 // MARK: - Signal Handling
