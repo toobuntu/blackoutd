@@ -217,14 +217,26 @@ end
 RSpec.describe "CI lint-unicode scanner" do
   # Extract the Python heredoc body from ci.yml so the test runs the same
   # logic CI would run, without coupling to the workflow harness.
+  #
+  # The regex assumes the YAML pipe block in ci.yml indents each line by
+  # 10 spaces (the current ci.yml structure). If the indentation changes,
+  # the post-extraction sanity check below fails fast with a clear message
+  # rather than silently running an empty or malformed body.
   def extract_python_body
     yml = File.read(CI_YML_PATH)
-    # The heredoc is `python3 - <<'EOF' ... EOF`. Capture between the
-    # markers, lazily, the first occurrence.
     m = yml.match(/python3 - <<'EOF'\n(.*?)\n          EOF/m)
     raise "could not locate Python heredoc in ci.yml" unless m
-    # The YAML pipe block indents each line by 10 spaces; strip them.
-    m[1].lines.map { |l| l.sub(/\A {10}/, "") }.join
+    body = m[1].lines.map { |l| l.sub(/\A {10}/, "") }.join
+    # Sanity-check the extracted body. If ci.yml's structure changes
+    # (different indentation, different heredoc marker), fail loudly here
+    # instead of running an empty or wrong script and getting confusing
+    # downstream test failures.
+    %w[unicodedata.category ALLOWED parse_allow is_suspicious].each do |token|
+      raise "extracted Python body missing expected token #{token.inspect}; " \
+            "ci.yml may have changed shape — update extract_python_body" \
+        unless body.include?(token)
+    end
+    body
   end
 
   def run_python_in(dir)

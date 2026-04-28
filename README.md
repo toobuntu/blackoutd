@@ -261,10 +261,11 @@ via `bootstrap_look_up()` against the named Mach port
 not running, the lookup fails and the CLI reports "not running".
 
 For signal delivery, the daemon PID is obtained via sysctl process enumeration
-filtered by three identity checks: `p_comm == "blackoutd"`, parent is launchd
-(pid 1), and executable path matches the `ProgramArguments[0]` registered in
-the LaunchAgent plist. This avoids colliding with concurrent CLI invocations
-of the same binary.
+filtered by four identity checks: `p_comm == "blackoutd"`, parent is launchd
+(pid 1), executable path matches the `ProgramArguments[0]` registered in the
+LaunchAgent plist, and effective UID matches the calling user. This avoids
+colliding with concurrent CLI invocations of the same binary or with another
+user's daemon in unusual `gui/$UID` configurations.
 
 ### Display ID stability
 

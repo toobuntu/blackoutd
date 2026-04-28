@@ -71,14 +71,17 @@ static int runLaunchctl(NSArray<NSString *> *args) {
 // launchd-managed agent — return 0 immediately.
 //
 // PID discovery for signal delivery: enumerate processes via sysctl, then
-// for each candidate verify identity along three axes to avoid colliding
-// with a concurrent CLI invocation (which has the same p_comm "blackoutd"):
+// for each candidate verify identity along four axes to avoid colliding
+// with a concurrent CLI invocation (which has the same p_comm "blackoutd")
+// or with another user's daemon:
 //
 //   1. p_comm matches "blackoutd" (cheap pre-filter).
-//   2. Parent process is launchd (pid 1) — LaunchAgents are direct children
+//   2. Effective UID matches the calling user. Defends against unusual
+//      gui/$UID configurations where another user's daemon might be visible.
+//   3. Parent process is launchd (pid 1) — LaunchAgents are direct children
 //      of the per-user launchd, so a match here excludes CLI processes
 //      launched from a shell (parent is the shell or its descendant).
-//   3. Executable path matches the path registered in the LaunchAgent plist
+//   4. Executable path matches the path registered in the LaunchAgent plist
 //      (ProgramArguments[0]). Defends against an unrelated binary named
 //      "blackoutd" running in the same session.
 //
@@ -97,6 +100,7 @@ static pid_t daemonPid(void) {
   }
 
   NSString *expectedPath = registeredDaemonPath();
+  uid_t self_uid = getuid();
 
   // Enumerate running processes to find the daemon PID.
   // The process table can grow between the sizing call and the data call,
@@ -138,6 +142,9 @@ static pid_t daemonPid(void) {
     if (procs[i].kp_proc.p_pid == self_pid)
       continue;
     if (strcmp(procs[i].kp_proc.p_comm, "blackoutd") != 0)
+      continue;
+    // Effective UID must match the calling user.
+    if (procs[i].kp_eproc.e_ucred.cr_uid != self_uid)
       continue;
     // Parent must be launchd (pid 1) for a LaunchAgent.
     if (procs[i].kp_eproc.e_ppid != 1)

@@ -56,15 +56,19 @@ churn duration varies; observed range is 0.3 to 14 seconds.
 
 Chosen option: **Quiet timer reset by every reconfiguration callback**.
 
-On `NSWorkspaceDidWakeNotification`, `DisplayController` arms a
-`dispatch_source_t` timer with a 2-second initial delay. Each
-`CGDisplayReconfigurationCallback` (excluding `kCGDisplayBeginConfigurationFlag`
-events) cancels and recreates the timer. When the timer fires without
-having been pushed back for 2 full seconds, the pipeline is considered
-quiet and the handler:
+On `NSWorkspaceDidWakeNotification`, `AppDelegate` calls
+`-[DisplayController handleSystemWake]`, which arms a `dispatch_source_t`
+timer with a 2-second initial delay. Each `CGDisplayReconfigurationCallback`
+(excluding `kCGDisplayBeginConfigurationFlag` events) cancels and recreates
+the timer. When the timer fires without having been pushed back for 2 full
+seconds, the pipeline is considered quiet and the handler:
 
 1. Issues a no-op CGConfig recommit (P2 fix).
-2. Re-applies auto-blackout if the external is present and the built-in
+2. Re-checks the safety invariant: if no external display is present and
+   the built-in is currently blacked out, restore the built-in. (Closes
+   a window where an external unplugged during sleep was missed by the
+   `_externalDisconnectedDuringSleep` flag.)
+3. Re-applies auto-blackout if the external is present and the built-in
    is not currently blacked out (P0 fix).
 
 The 2-second window is empirical: shorter than the lower bound of
@@ -72,10 +76,22 @@ observed Alt Mode dropout timing, longer than the typical post-wake
 churn duration. It is documented at the source as a heuristic that
 trades a fixed user-visible delay for reliable correctness.
 
-The timer is owned by `DisplayController`. It is cancelled in
-`invalidateDisplayState` (called from `systemWillSleep:`) and in the
-handler's first action (preventing double-fire if the source is not yet
-deallocated when the next reset arrives).
+The timer is owned by `DisplayController`. The lifecycle and call sites:
+
+* **Armed** in `-handleSystemWake` (called from `AppDelegate`'s
+  `systemDidWake:` handler after `invalidateDisplayState` returns).
+* **Reset** in `-handleReconfiguration:flags:` whenever the timer is
+  already running (so each callback during pipeline churn pushes the
+  fire time back another 2 seconds).
+* **Cancelled** in `-invalidateDisplayState` (called from `systemDidWake:`,
+  not `systemWillSleep:` — `systemWillSleep:` only sets `systemSleeping = YES`).
+  Cancellation also happens implicitly when the handler block fires and
+  identity-checks the captured timer pointer against `_wakeSettleTimer`.
+
+The handler block compares its captured `dispatch_source_t` to
+`_wakeSettleTimer` before doing any work. The ivar is cleared **before**
+the source is cancelled, eliminating the window where a running handler
+could observe a still-matching ivar after another reset path has started.
 
 ### Consequences
 

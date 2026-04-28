@@ -354,14 +354,24 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 
 // Fires when the display pipeline has gone quiet after wake.
 // P2: issues a no-op CGConfig recommit to absorb the reconnected display state.
+// Safety invariant: if the external is gone but the built-in is still
+// blacked out (an unplug missed by the in-sleep callback), restore the
+// built-in immediately. Without this, the user would have to wait for
+// applyEnable:'s 2-second settle-time check to catch the same condition.
 // P0: re-applies auto-blackout if external is present and not blacked out.
 // _wakeSettleTimer is already cancelled and cleared by the handler block.
 - (void)wakeSettleTimerFired {
   NSLog(@"[wake] — display pipeline settled");
   BOOL ok = [self recommitDisplayConfiguration];
   NSLog(@"[wake] — recommit after settle: %s", ok ? "ok" : "failed");
-  if (_autoBlackoutOnExternalConnect && !_isBlackedOut &&
-      [self hasActiveExternalDisplay]) {
+  BOOL hasExternal = [self hasActiveExternalDisplay];
+  if (!hasExternal && _isBlackedOut) {
+    NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
+          @"disabling blackout (post-wake invariant)");
+    [self applyEnable:YES];
+    return;
+  }
+  if (_autoBlackoutOnExternalConnect && !_isBlackedOut && hasExternal) {
     NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
           @"blackout action");
     [self applyEnable:NO];
