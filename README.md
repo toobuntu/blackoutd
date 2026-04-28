@@ -49,10 +49,12 @@ display only.
 ## Requirements
 
 **Runtime:**
+
 - macOS 13 or later
 - Apple Silicon Mac (tested on M2 MacBook Air)
 
 **Build:**
+
 - Xcode Command Line Tools: `xcode-select --install`
 
 ## Install
@@ -79,14 +81,25 @@ blackoutd daemon stop         Stop daemon and restore built-in display
 
 ## Upgrade
 
+For end users:
+
 ```sh
-make clean; make; make reinstall
+git pull
+make clean && make
+sudo make install
 ```
 
-`make reinstall` does not require `sudo`. It regenerates the LaunchAgent plist
-pointing to the freshly built binary in `build/` and restarts the daemon. The
-CLI binary at `/usr/local/bin/blackoutd` is not updated by `reinstall`; run
-`sudo make install` to refresh it.
+For development iteration without re-installing to `/usr/local/bin`:
+
+```sh
+make clean && make && make dev
+```
+
+`make dev` does not require `sudo`. It bootouts the running agent, regenerates
+the LaunchAgent plist pointing to the freshly built binary in `build/`, and
+bootstraps the new plist. The CLI binary at `/usr/local/bin/blackoutd` is not
+updated by `make dev`; run `sudo make install` to refresh it for production
+use.
 
 ## Uninstall
 
@@ -198,7 +211,7 @@ acceptable.
 
 **Username change**: The LaunchAgent plist and log path are hardcoded to the
 home directory at install time. If the macOS username is changed after
-installation, run `make reinstall` from the source directory to regenerate
+installation, run `sudo make install` from the source directory to regenerate
 the plist and re-register the agent with the correct paths.
 
 **Preferences migration**: Versions using the `local.blackoutd` bundle ID
@@ -230,6 +243,7 @@ Disable that feature in the other app before using blackoutd.
 ## Tech notes
 
 ### SMAppService (future)
+
 If blackoutd is ever packaged as `Blackout.app`, the `launchctl bootstrap/bootout`
 subprocess calls in `main.m` should be replaced with
 `[SMAppService mainAppService]` register/unregister. This requires the LaunchAgent
@@ -238,20 +252,28 @@ and the binary to run from inside the bundle. See `man SMAppService` and
 [Apple Developer docs](https://developer.apple.com/documentation/servicemanagement/smappservice).
 
 ### Mach port presence detection
+
 `blackoutd status` and other CLI commands detect whether the daemon is running
 via `bootstrap_look_up()` against the named Mach port
 `io.github.toobuntu.blackoutd`, registered in the LaunchAgent plist under
 `MachServices`. This is synchronous and requires no subprocess. The daemon calls
 `bootstrap_check_in()` at startup to hold the receive right; when the daemon is
-not running, the lookup fails and the CLI reports "not running". The daemon PID
-for signal delivery is obtained via sysctl process enumeration.
+not running, the lookup fails and the CLI reports "not running".
+
+For signal delivery, the daemon PID is obtained via sysctl process enumeration
+filtered by three identity checks: `p_comm == "blackoutd"`, parent is launchd
+(pid 1), and executable path matches the `ProgramArguments[0]` registered in
+the LaunchAgent plist. This avoids colliding with concurrent CLI invocations
+of the same binary.
 
 ### Display ID stability
+
 `CGDirectDisplayID` values can change across reboots. The built-in display on
 Apple Silicon is reliably ID 1 in practice, but `discoverBuiltInID` uses
 `CGDisplayIsBuiltin()` enumeration for correctness.
 
 ### CLI status and diagnostics
+
 `blackoutd status` works even when the daemon is not running — it queries
 display state directly via CoreGraphics and reads preferences from
 NSUserDefaults. When the daemon is not running it reports "not running" and
@@ -278,6 +300,9 @@ git config core.hooksPath .githooks
 Run `make clean && make` to verify the build, and ensure `reuse lint` and
 `clang-format --style=file --dry-run --Werror` pass on changed files before
 submitting.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full encoding policy and other
+contribution guidelines.
 
 ## License
 
