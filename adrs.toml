@@ -1,0 +1,4 @@
+adr_dir = "docs/decisions"
+
+[templates]
+format = "madr"

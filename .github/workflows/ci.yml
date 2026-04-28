@@ -76,6 +76,10 @@ jobs:
             xargs -0 "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
 
   lint-unicode:
+    # CI backstop for the pre-commit hook in .githooks/pre-commit.
+    # Detects CVE-2021-42574 (Trojan Source) plus enforces UTF-8 without BOM.
+    # Rationale and codepoint coverage:
+    # docs/decisions/0001-trojan-source-detection-strategy.md
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -85,13 +89,48 @@ jobs:
       - name: Check for invisible Unicode characters and validate UTF-8 encoding
         run: |
           python3 - <<'EOF'
-          import sys, pathlib
-          BAD = (
-              set(range(0x202A, 0x202F)) |
-              set(range(0x2066, 0x206A)) |
-              {0x200B, 0x200C, 0x200D, 0x200F, 0xFEFF}
-          )
+          import re, sys, pathlib, unicodedata
+          # Detection strategy mirrors Red Hat's RHSB-2021-007 Python script
+          # (find_unicode_control2.py): default mode flags every character
+          # in Unicode category Cf (Format). We extend that to include Cc
+          # (Control) — except a TAB/LF/CR allowlist — to also catch C0 and
+          # C1 control characters. This is automatically future-proof: new
+          # invisible characters added to Cf or Cc in subsequent Unicode
+          # revisions are caught when the runner's Python is updated.
+          #
+          # Cf covers: bidi controls, zero-width chars, variation selectors
+          # (including extended/supplement), BOM, and any future invisible
+          # formatting characters.
+          # Cc covers: C0 (U+0000-U+001F) and C1 (U+0080-U+009F) controls.
+          #
+          # Per-file opt-out: a `bidi-allow: U+XXXX,U+YYYY` annotation
+          # anywhere in the file declares which codepoints it is allowed
+          # to contain. Reviewable in PR diff, grep-able. Mirrors the
+          # pre-commit hook's behavior.
+          ALLOWED = {0x09, 0x0A, 0x0D}  # TAB, LF, CR
           SKIP_DIRS = {'.git'}
+          ALLOW_RE = re.compile(r'bidi-allow:\s*([U+0-9A-Fa-f,]+)')
+
+          def parse_allow(text):
+              m = ALLOW_RE.search(text)
+              if not m:
+                  return frozenset()
+              cps = set()
+              for token in m.group(1).split(','):
+                  token = token.strip()
+                  if token.startswith('U+'):
+                      try:
+                          cps.add(int(token[2:], 16))
+                      except ValueError:
+                          pass
+              return frozenset(cps)
+
+          def is_suspicious(ch, allow):
+              cp = ord(ch)
+              if cp in ALLOWED or cp in allow:
+                  return False
+              return unicodedata.category(ch) in ('Cf', 'Cc')
+
           bidi_failures = []
           utf8_failures = []
           for path in pathlib.Path('.').rglob('*'):
@@ -99,30 +138,45 @@ jobs:
                   continue
               if SKIP_DIRS & set(path.parts):
                   continue
-              raw = path.read_bytes()
-              # Skip binary files: NUL bytes indicate non-text content.
-              # Check only the first 4 KB to avoid reading entire large blobs.
-              if b'\x00' in raw[:4096]:
+              try:
+                  with path.open('rb') as fh:
+                      head = fh.read(4096)
+                      if b'\x00' in head:
+                          # Single NUL alone does not prove "binary": UTF-16
+                          # and UTF-32 text contain NULs but are still text
+                          # files we want to reject under the UTF-8 policy.
+                          for enc in ('utf-16', 'utf-32'):
+                              try:
+                                  head.decode(enc)
+                              except UnicodeDecodeError:
+                                  continue
+                              utf8_failures.append(f'{path} (looks like {enc}; project requires UTF-8)')
+                              break
+                          continue
+                      raw = head + fh.read()
+              except OSError:
                   continue
-              # Validate UTF-8 encoding (project requires UTF-8 without BOM).
               try:
                   text = raw.decode('utf-8')
               except UnicodeDecodeError:
                   utf8_failures.append(str(path))
                   continue
-              # Check for invisible / dangerous Unicode characters.
-              if any(ord(c) in BAD for c in text):
+              allow = parse_allow(text)
+              if any(is_suspicious(c, allow) for c in text):
                   bidi_failures.append(str(path))
           ok = True
           if utf8_failures:
-              print('Non-UTF-8 files found:', file=sys.stderr)
+              print('Files violating UTF-8-without-BOM policy:', file=sys.stderr)
               for f in utf8_failures:
                   print(f'  {f}', file=sys.stderr)
               ok = False
           if bidi_failures:
-              print('Invisible Unicode characters found:', file=sys.stderr)
+              print('Invisible Unicode characters found (CVE-2021-42574):', file=sys.stderr)
               for f in bidi_failures:
                   print(f'  {f}', file=sys.stderr)
+              print('', file=sys.stderr)
+              print('A file may opt out of specific codepoints with an in-file', file=sys.stderr)
+              print('annotation, e.g.:  // bidi-allow: U+200E,U+200F', file=sys.stderr)
               ok = False
           if not ok:
               sys.exit(1)
@@ -179,3 +233,21 @@ jobs:
             -framework CoreGraphics \
             -framework IOKit \
             -I src
+
+  spec:
+    # Behavioral tests for the pre-commit hook and CI Unicode scanner.
+    # macOS runner so /bin/sh and BSD grep match what developers use.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@a4effe49ee8ee5b8b5091268c473a4628afb5651 # v1.245.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Run RSpec
+        run: bundle exec rspec

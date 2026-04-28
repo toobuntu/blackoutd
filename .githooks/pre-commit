@@ -17,34 +17,98 @@ if [ "$branch" = "main" ]; then
     exit 1
 fi
 
-# --- Invisible Unicode check (Trojan Source, CVE-2021-42574) ---
-# Checks staged blob content (not working tree) for Unicode bidi override
-# characters and zero-width chars that can hide malicious code from reviewers.
-# Uses od(1) (POSIX) for byte-level hex inspection — no Python required.
+# --- Invisible Unicode check (CVE-2021-42574 — Trojan Source) ---
+# Per Red Hat Security Bulletin RHSB-2021-007:
+#   grep -r $'[\u061C\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069]' .
+# That list is extended here with U+200B/200C/200D (zero-width chars) and
+# U+FEFF (project policy: no BOM). The bracket expression is built with POSIX
+# `printf '\NNN'` octal byte escapes, so the hook does not depend on bash
+# 4.2 or ksh93 $'\u' expansion and survives Apple removing bundled
+# scripting runtimes (see Apple Catalina release notes).
 #
-# Policy: project requires plain UTF-8 with no BOM anywhere in any file.
-# The following byte sequences are therefore blocked:
-#   E2 80 8B/8C/8D/8F  — U+200B/200C/200D/200F  zero-width chars
-#   E2 80 AA-AE        — U+202A-202E  bidi overrides
-#   E2 81 A6-A9        — U+2066-2069  bidi isolates
-#   EF BB BF           — U+FEFF  UTF-8 BOM (intentionally blocked; project
-#                        encodes all files as UTF-8 without BOM per CONTRIBUTING.md)
+# Per-file opt-out: a `bidi-allow: U+XXXX,U+YYYY` annotation anywhere in
+# the file declares which codepoints it is allowed to contain. Reviewable
+# in PR diff and grep-able (`grep -r bidi-allow:`). Use sparingly — every
+# exemption widens the attack surface and must be justified.
+#
+# Rationale, codepoint coverage, and alternatives considered:
+# docs/decisions/0001-trojan-source-detection-strategy.md
+
+# Codepoint table: "U+XXXX:OOO_OOO_OOO" where OOO are the UTF-8 octal
+# bytes joined with backslashes for direct use as a printf format string.
+# Single source of truth. Default and per-file patterns are derived here.
+_bidi_table='U+061C:\330\234
+U+200B:\342\200\213
+U+200C:\342\200\214
+U+200D:\342\200\215
+U+200E:\342\200\216
+U+200F:\342\200\217
+U+202A:\342\200\252
+U+202B:\342\200\253
+U+202C:\342\200\254
+U+202D:\342\200\255
+U+202E:\342\200\256
+U+2066:\342\201\246
+U+2067:\342\201\247
+U+2068:\342\201\250
+U+2069:\342\201\251
+U+FEFF:\357\273\277'
+
+# Build a UTF-8 bracket pattern from the table, optionally excluding
+# codepoints listed in the first argument (comma-separated U+XXXX).
+# Empty exclude list → full pattern. Returns 1 if every codepoint is
+# excluded (no pattern to build).
+build_pattern() {
+    _exclude_csv="${1:-}"
+    _fmt=""
+    _saved_ifs=$IFS
+    IFS='
+'
+    for _row in $_bidi_table; do
+        _cp="${_row%%:*}"
+        _esc="${_row#*:}"
+        case ",$_exclude_csv," in
+        *",$_cp,"*) continue ;;
+        esac
+        _fmt="$_fmt$_esc"
+    done
+    IFS=$_saved_ifs
+    [ -z "$_fmt" ] && return 1
+    # printf interprets the octal escapes; output is the bracket expression
+    # containing raw UTF-8 bytes for the codepoints to match.
+    # shellcheck disable=SC2059  # intentional dynamic format string
+    printf "[$_fmt]"
+}
+
+# Read the staged blob and extract the first bidi-allow annotation found.
+# Output: comma-separated U+XXXX list, or empty if no annotation.
+# Annotation may appear anywhere in the file (not restricted to top).
+read_bidi_allow() {
+    git show ":$1" 2>/dev/null \
+        | sed -n 's/.*bidi-allow:[[:space:]]*\([^[:space:]*]*\).*/\1/p' \
+        | head -n 1
+}
+
 all_staged=$(staged '.')
 if [ -n "$all_staged" ]; then
+    default_pattern=$(build_pattern "")
     bidi_found=""
     while IFS= read -r _bfile; do
         [ -z "$_bfile" ] && continue
-        # Read the staged blob once into a hex string.
-        # -v (verbose) prevents od from replacing repeated lines with '*'.
-        _hex=$(git show ":$_bfile" 2>/dev/null | od -An -tx1 -v | tr -d ' \n')
-        [ -z "$_hex" ] && continue
-        # Skip binary blobs: a NUL byte (hex 00) in a text file is invalid
-        # UTF-8 and indicates a binary object.  Scanning binary content for
-        # the dangerous-char patterns would produce false positives.
-        case "$_hex" in *00*) continue ;; esac
-        # Scan for dangerous UTF-8 byte sequences.
-        if printf '%s' "$_hex" \
-            | LC_ALL=C grep -qE 'e2808[bcd]|e2808f|e280a[a-e]|e281a[6-9]|efbbbf'; then
+        _allow=$(read_bidi_allow "$_bfile")
+        if [ -n "$_allow" ]; then
+            _pattern=$(build_pattern "$_allow") || continue
+        else
+            _pattern="$default_pattern"
+        fi
+        # `git show ":$file"` prints the staged blob (not the working tree).
+        # `--binary-files=without-match` skips blobs grep classifies as binary.
+        # `LC_ALL=en_US.UTF-8` ensures grep interprets the bracket expression
+        #   as Unicode characters.
+        if git show ":$_bfile" 2>/dev/null \
+            | LC_ALL=en_US.UTF-8 /usr/bin/grep \
+                --binary-files=without-match \
+                --extended-regexp --quiet "$_pattern"; then
             bidi_found="${bidi_found:+$bidi_found
 }$_bfile"
         fi
@@ -56,6 +120,9 @@ _BIDI_EOF_
         printf '%s\n' "$bidi_found" | while IFS= read -r _bf; do
             printf '  %s\n' "$_bf" >&2
         done
+        printf '\nA file may opt out of specific codepoints with an in-file\n' >&2
+        printf 'annotation, e.g.:  // bidi-allow: U+200E,U+200F\n' >&2
+        printf 'See docs/decisions/0001-trojan-source-detection-strategy.md\n' >&2
         exit 1
     fi
 fi
