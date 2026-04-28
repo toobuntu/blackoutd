@@ -95,7 +95,9 @@ authorship and dates intact. See
 ```sh
 make            # build to build/blackoutd
 make clean      # remove build artifacts
-make install    # build + install binary + bootstrap LaunchAgent (requires sudo)
-make dev        # build + restart agent from build dir, no sudo (development cycle)
+make install    # first-time install: build, install binary, bootstrap agent (sudo)
+make reinstall  # upgrade: bootout running agent, install, bootstrap (sudo)
+make dev        # build, restart agent from build dir; no sudo (dev cycle)
+make uninstall  # remove all installed files and the agent
 make release    # verify clean tree, build, and create annotated git tag
 ```

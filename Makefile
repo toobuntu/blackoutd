@@ -31,7 +31,8 @@ CFLAGS = \
     -framework IOKit \
     -sectcreate __TEXT __info_plist $(SRCDIR)/Info.plist
 
-.PHONY: all clean install postinstall dev uninstall load unload print-bundle-id release
+.PHONY: all clean install postinstall dev reinstall uninstall load unload \
+        print-bundle-id preflight release
 
 all: $(TARGET)
 
@@ -81,6 +82,20 @@ dev: $(TARGET)
 	chmod 644 $(AGENT_DST)
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
 
+# Upgrade flow for end users: bootout the running agent (if any), install
+# the new binary and resources to /usr/local, then bootstrap the new
+# plist. Equivalent to 'sudo make install' on a clean system but works
+# correctly when the agent is already loaded (where plain install would
+# fail with launchctl bootstrap exit 5).
+reinstall: $(TARGET) postinstall
+	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
+	sudo install -d /usr/local/bin
+	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
+	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
+	sudo cp $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Info.plist $(SHARE_BUNDLE)/Contents/
+	sudo cp -R $(BUILD_BUNDLE)/*.lproj $(SHARE_BUNDLE)/Contents/Resources/
+	launchctl bootstrap gui/$(UID) $(AGENT_DST)
+
 # Remove agent and all installed files.
 uninstall: unload
 	sudo rm -f $(INSTALL_BIN)
@@ -97,11 +112,9 @@ unload:
 print-bundle-id:
 	@echo $(BUNDLE_ID)
 
-# Verify a clean working tree, build the binary, and create an annotated
-# git tag. Does NOT push the tag, sign artifacts, or produce a packaged
-# release; those are manual follow-up steps printed at the end.
-# Tag convention: v<VERSION> (e.g., v0.2.0)
-release: $(TARGET)
+# Verify a clean working tree before doing release work. Run as a
+# prerequisite so the build does not happen if the gate fails.
+preflight:
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "error: uncommitted changes in working tree" >&2; \
 		echo "Commit or stash changes before creating a release." >&2; \
@@ -111,6 +124,12 @@ release: $(TARGET)
 		echo "error: tag v$(VERSION) already exists" >&2; \
 		exit 1; \
 	fi
+
+# Verify a clean working tree, build the binary, and create an annotated
+# git tag. Does NOT push the tag, sign artifacts, or produce a packaged
+# release; those are manual follow-up steps printed at the end.
+# Tag convention: v<VERSION> (e.g., v0.2.0)
+release: preflight $(TARGET)
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	@echo "Created tag v$(VERSION)"
 	@echo "Binary: $(TARGET)"

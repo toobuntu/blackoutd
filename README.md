@@ -59,13 +59,17 @@ display only.
 
 ## Install
 
+For first-time installation:
+
 ```sh
 make
 sudo make install
 ```
 
 This builds the binary, installs it to `/usr/local/bin/blackoutd`, installs the
-LaunchAgent plist, and bootstraps the agent for the current user.
+LaunchAgent plist, and bootstraps the agent for the current user. If the agent
+is already installed and running, `make install` will fail with a clear error;
+use `make reinstall` instead (see [Upgrade](#upgrade)).
 
 ## Usage
 
@@ -81,13 +85,18 @@ blackoutd daemon stop         Stop daemon and restore built-in display
 
 ## Upgrade
 
-For end users:
+For end users upgrading an existing installation:
 
 ```sh
 git pull
 make clean && make
-sudo make install
+sudo make reinstall
 ```
+
+`make reinstall` unloads the running agent (if any), installs the new binary
+and resources to `/usr/local/`, and bootstraps the new plist. This is the
+correct flow for upgrades — `make install` alone fails when the agent is
+already loaded (`launchctl bootstrap` returns exit 5 in that case).
 
 For development iteration without re-installing to `/usr/local/bin`:
 
@@ -98,7 +107,7 @@ make clean && make && make dev
 `make dev` does not require `sudo`. It bootouts the running agent, regenerates
 the LaunchAgent plist pointing to the freshly built binary in `build/`, and
 bootstraps the new plist. The CLI binary at `/usr/local/bin/blackoutd` is not
-updated by `make dev`; run `sudo make install` to refresh it for production
+updated by `make dev`; run `sudo make reinstall` to refresh it for production
 use.
 
 ## Uninstall
@@ -211,7 +220,7 @@ acceptable.
 
 **Username change**: The LaunchAgent plist and log path are hardcoded to the
 home directory at install time. If the macOS username is changed after
-installation, run `sudo make install` from the source directory to regenerate
+installation, run `sudo make reinstall` from the source directory to regenerate
 the plist and re-register the agent with the correct paths.
 
 **Preferences migration**: Versions using the `local.blackoutd` bundle ID
