@@ -92,12 +92,19 @@ authorship and dates intact. See
 
 ## Build
 
+Run all `make` targets as your normal logged-in user, **not** under `sudo`.
+The `install` and `reinstall` targets invoke `sudo` internally only for the
+privileged writes to `/usr/local/bin` and `/usr/local/share`. Running the
+whole `make` command under `sudo` would make `$HOME` resolve to `/var/root`
+and `id -u` return `0`, breaking plist generation and `launchctl bootstrap`
+domain targeting.
+
 ```sh
 make            # build to build/blackoutd
 make clean      # remove build artifacts
-make install    # first-time install: build, install binary, bootstrap agent (sudo)
-make reinstall  # upgrade: bootout running agent, install, bootstrap (sudo)
-make dev        # build, restart agent from build dir; no sudo (dev cycle)
+make install    # first-time install: build, install binary, bootstrap agent
+make reinstall  # upgrade: bootout running agent, install, bootstrap
+make dev        # build, restart agent from build dir; never invokes sudo
 make uninstall  # remove all installed files and the agent
 make release    # verify clean tree, build, and create annotated git tag
 ```

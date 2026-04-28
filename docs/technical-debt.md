@@ -10,6 +10,8 @@ Prioritized list of open issues, missing infrastructure, and planned
 improvements. Each item includes a problem statement, acceptance criteria,
 and pointers to files that need changes.
 
+**Next up after v0.2 ships**: P4 (Mach IPC, finish v1.0 portion) — see below.
+
 ---
 
 ## ~~P0 — Wake auto-blackout broken~~ (FIXED in v0.2)
@@ -27,8 +29,9 @@ recognized as requiring action.
 **Fix**: `systemDidWake:` now calls `[_displayController handleSystemWake]`,
 which arms a quiet timer. The timer resets on every
 `CGDisplayReconfigurationCallback` and fires when the display pipeline has
-been quiet for 2 seconds. On fire it issues a no-op CGConfig recommit and
-re-applies auto-blackout if external is present and not blacked out.
+been quiet for 2 seconds. On fire it issues a no-op CGConfig recommit,
+re-checks the safety invariant (no-external-while-blacked-out → restore),
+and re-applies auto-blackout if external is present and not blacked out.
 
 **Acceptance criteria**:
 - [x] After any sleep/wake with external connected and auto-blackout ON,
@@ -57,7 +60,11 @@ the confirmed repro.
 **Hardening (PR#8 review follow-up)**: The safety invariant in
 `handleReconfiguration:` is now evaluated unconditionally — before the
 connectivity-flag filter and the `_actionInProgress` guard. Restoring the
-built-in when no external is present is never gated on action state.
+built-in when no external is present is never gated on action state. The
+post-wake settle handler `wakeSettleTimerFired` also re-checks the
+invariant after the recommit, closing a 2-second window where state could
+diverge if an external was unplugged during sleep without the in-sleep
+callback firing.
 
 **Remaining risk**: The recommit may not cover all compositor failure modes.
 Monitor for new repros.
@@ -68,7 +75,7 @@ Monitor for new repros.
 - [ ] Verified with both healthy and broken-compositor display state
 
 **Files**: `src/DisplayController.m` (setDisplay:enabled:,
-recommitDisplayConfiguration, handleReconfiguration:)
+recommitDisplayConfiguration, handleReconfiguration:, wakeSettleTimerFired)
 
 ---
 
@@ -121,34 +128,69 @@ harness), `Makefile` (test target), `.github/workflows/ci.yml`
 
 ---
 
-## ~~P4 — Mach port IPC~~ (PARTIAL — presence detection done)
+## P4 — Mach IPC command channel (PROMOTED — next priority after v0.2)
 
-**Problem**: The CLI communicated with the daemon via Unix signals
-(SIGUSR1/SIGUSR2) and detected daemon presence by parsing `launchctl list`
-output. Signals are fire-and-forget (no return value), and `launchctl list`
-parsing was fragile.
+**Problem**: The CLI sends commands to the daemon via Unix signals
+(SIGUSR1=on, SIGUSR2=off, SIGHUP=reload-prefs). Signals are fire-and-forget:
+the CLI cannot tell whether the daemon successfully applied the command,
+cannot receive structured error info (e.g. "no external display present"),
+and cannot fetch state (`status` synthesizes its answer locally rather than
+asking the daemon).
 
-**Done (v0.2)**: Named Mach port registered via `MachServices` in the
-LaunchAgent plist. Daemon calls `bootstrap_check_in()` at startup to hold
-the receive right. CLI uses `bootstrap_look_up()` (synchronous, no
-subprocess) for liveness. PID for signal delivery is obtained via sysctl
-process enumeration with three identity checks (`p_comm`, parent is launchd,
-executable path matches `ProgramArguments[0]` from the registered plist).
-`launchctl list` parsing removed.
+**v0.2 state**:
 
-**Remaining (v1.0)**: Replace signal-based CLI commands with Mach messages.
-CLI commands should return structured status from daemon via Mach message,
-removing the need for PID discovery entirely.
+- Named Mach service `io.github.toobuntu.blackoutd` is registered via
+  `MachServices` in the LaunchAgent plist.
+- Daemon calls `bootstrap_check_in()` at startup to hold the receive right.
+  This is currently held but unused — it is the foundation for v1.0 Mach
+  IPC.
+- CLI presence detection uses `sysctl(KERN_PROC)` enumeration with four
+  identity checks (`p_comm`, effective UID, parent is launchd, executable
+  path matches `ProgramArguments[0]`). `bootstrap_look_up()` was considered
+  and rejected because it can have lifecycle side-effects on the daemon
+  (potential on-demand activation per Apple's `man bootstrap_look_up`).
+- `launchctl list` parsing removed.
+
+See [ADR 0002](decisions/0002-daemon-presence-detection.md) for the full
+rationale.
+
+**v1.0 plan**: Replace signal-based commands with Mach messages. The CLI
+sends a request message (operation code + parameters) to the daemon's
+service port and waits for a reply (status code + optional payload).
+Specifically:
+
+- Define a small message protocol: request types (ENABLE, DISABLE, RELOAD,
+  STATUS, AUTO_ON, AUTO_OFF), reply types (success + state, failure + reason).
+- Daemon adds a `mach_msg_server` loop on the service port.
+- CLI replaces `kill(pid, sig)` with `mach_msg` send/receive on a
+  newly-allocated reply port.
+- Eliminate sysctl PID discovery — the Mach service lookup IS the channel,
+  no PID needed.
+- `bootstrap_look_up()` from the CLI becomes part of normal command flow
+  (lifecycle side-effects are now exactly what we want: the CLI is asking
+  the service to do something).
 
 **Acceptance criteria**:
 - [x] Named Mach port `io.github.toobuntu.blackoutd` registered at daemon
-      startup
-- [x] `daemonPid()` replaced with `bootstrap_look_up()` — synchronous, no
-      subprocess
-- [ ] CLI commands return structured status from daemon via Mach message
-- [x] `launchctl list` parsing removed
+      startup via `bootstrap_check_in()`
+- [x] CLI presence detection no longer parses `launchctl list`
+- [x] CLI presence detection has no side-effects on daemon lifecycle (v0.2)
+- [ ] Daemon `mach_msg_server` loop handles request messages
+- [ ] CLI sends typed request, receives typed reply
+- [ ] `blackoutd status` reflects authoritative daemon state, not locally
+      synthesized state
+- [ ] `blackoutd on` reports success/failure rather than "delivered SIGUSR1"
+- [ ] sysctl-based PID discovery removed (no longer needed)
+- [ ] Signal handlers removed from `AppDelegate.m`
 
-**Files**: `src/main.m`, `src/AppDelegate.m`, `blackoutd.plist.template`
+**Files**: `src/main.m`, `src/AppDelegate.m`, new `src/BDMessage.h` for the
+protocol definitions, `blackoutd.plist.template`, `docs/decisions/` (new
+ADR for the message protocol).
+
+**Why bumped**: The current v0.2 design has daemon-side
+`bootstrap_check_in()` retained as future-prep. Holding the receive right
+without ever messaging it is a small but real loose end. Doing the v1.0
+work next ties the half-implemented foundation to its purpose.
 
 ---
 
@@ -206,10 +248,13 @@ hardware, displayprobe2.m reference). HANDOFF.md removed.
   ([RHSB-2021-007](https://access.redhat.com/security/vulnerabilities/RHSB-2021-007))
   for portability across macOS versions that no longer ship Python by
   default. CI `lint-unicode` job is the Python-based backstop on the Ubuntu
-  runner.
+  runner using `unicodedata.category()` Cf/Cc detection.
 - `spec/manual/TESTING.md` referenced but may be stale.
 - Homoglyph attacks (CVE-2021-42694) not detected — would require Unicode
   confusables tables. Tracked in ROADMAP.md as future work.
+- PUA character ranges (used by Glassworm-class supply-chain attacks) not
+  scanned. PUA is category Co, not Cf/Cc, so the category-based approach
+  does not cover them. Tracked as a follow-up in ADR 0001.
 
 **Acceptance criteria**:
 - [ ] clang-tidy job is required (not soft-skip) once runner availability
@@ -219,6 +264,7 @@ hardware, displayprobe2.m reference). HANDOFF.md removed.
       (rejects UTF-16/UTF-32 per project policy)
 - [ ] Stale spec/ files cleaned up or completed
 - [ ] Homoglyph defense (CVE-2021-42694) — deferred to future
+- [ ] PUA range scanning in CI — deferred to future
 
 **Files**: `.github/workflows/ci.yml`, `.githooks/pre-commit`, `spec/`
 

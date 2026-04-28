@@ -63,13 +63,23 @@ For first-time installation:
 
 ```sh
 make
-sudo make install
+make install
 ```
 
+Run `make install` as your normal logged-in user, **not** under `sudo`. The
+Makefile invokes `sudo` internally only for the privileged writes to
+`/usr/local/bin` and `/usr/local/share` and will prompt for your password.
+The plist generation, LaunchAgent install, and `launchctl bootstrap` steps
+must run as your user — running the whole `make` command under `sudo` would
+make `$HOME` resolve to `/var/root` and `id -u` return `0`, which would
+write the plist into root's LaunchAgents directory and target the wrong
+launchd domain (`gui/0`).
+
 This builds the binary, installs it to `/usr/local/bin/blackoutd`, installs the
-LaunchAgent plist, and bootstraps the agent for the current user. If the agent
-is already installed and running, `make install` will fail with a clear error;
-use `make reinstall` instead (see [Upgrade](#upgrade)).
+LaunchAgent plist into your `~/Library/LaunchAgents/`, and bootstraps the agent
+for your GUI session. If the agent is already installed and running,
+`make install` will fail with a clear error; use `make reinstall` instead
+(see [Upgrade](#upgrade)).
 
 ## Usage
 
@@ -90,13 +100,15 @@ For end users upgrading an existing installation:
 ```sh
 git pull
 make clean && make
-sudo make reinstall
+make reinstall
 ```
 
-`make reinstall` unloads the running agent (if any), installs the new binary
-and resources to `/usr/local/`, and bootstraps the new plist. This is the
-correct flow for upgrades — `make install` alone fails when the agent is
-already loaded (`launchctl bootstrap` returns exit 5 in that case).
+Run `make reinstall` as your normal logged-in user, **not** under `sudo`
+(see the note in [Install](#install) above). `make reinstall` unloads the
+running agent (if any), installs the new binary and resources to
+`/usr/local/`, and bootstraps the new plist for your GUI session. This is
+the correct flow for upgrades — `make install` alone fails when the agent
+is already loaded (`launchctl bootstrap` returns exit 5 in that case).
 
 For development iteration without re-installing to `/usr/local/bin`:
 
@@ -104,11 +116,11 @@ For development iteration without re-installing to `/usr/local/bin`:
 make clean && make && make dev
 ```
 
-`make dev` does not require `sudo`. It bootouts the running agent, regenerates
-the LaunchAgent plist pointing to the freshly built binary in `build/`, and
-bootstraps the new plist. The CLI binary at `/usr/local/bin/blackoutd` is not
-updated by `make dev`; run `sudo make reinstall` to refresh it for production
-use.
+`make dev` does not require `sudo` at all. It bootouts the running agent,
+regenerates the LaunchAgent plist pointing to the freshly built binary in
+`build/`, and bootstraps the new plist. The CLI binary at
+`/usr/local/bin/blackoutd` is not updated by `make dev`; run `make reinstall`
+to refresh it for production use.
 
 ## Uninstall
 
@@ -220,8 +232,9 @@ acceptable.
 
 **Username change**: The LaunchAgent plist and log path are hardcoded to the
 home directory at install time. If the macOS username is changed after
-installation, run `sudo make reinstall` from the source directory to regenerate
-the plist and re-register the agent with the correct paths.
+installation, run `make reinstall` (as your logged-in user, not under `sudo`)
+from the source directory to regenerate the plist and re-register the agent
+with the correct paths.
 
 **Preferences migration**: Versions using the `local.blackoutd` bundle ID
 stored preferences under `local.blackoutd.prefs`. That file is no longer read.
@@ -260,21 +273,28 @@ plist to live at `Blackout.app/Contents/Library/LaunchAgents/io.github.toobuntu.
 and the binary to run from inside the bundle. See `man SMAppService` and
 [Apple Developer docs](https://developer.apple.com/documentation/servicemanagement/smappservice).
 
-### Mach port presence detection
+### Daemon presence and PID detection
 
-`blackoutd status` and other CLI commands detect whether the daemon is running
-via `bootstrap_look_up()` against the named Mach port
-`io.github.toobuntu.blackoutd`, registered in the LaunchAgent plist under
-`MachServices`. This is synchronous and requires no subprocess. The daemon calls
-`bootstrap_check_in()` at startup to hold the receive right; when the daemon is
-not running, the lookup fails and the CLI reports "not running".
+`blackoutd status` and the signal-delivery commands (`on`, `off`, `auto`)
+detect whether the daemon is running via `sysctl(KERN_PROC)` process
+enumeration filtered by four identity checks: `p_comm == "blackoutd"`,
+effective UID matches the calling user, parent is launchd (pid 1), and
+executable path matches the `ProgramArguments[0]` registered in the
+LaunchAgent plist. The four checks together are authoritative — no
+non-daemon process can satisfy all four.
 
-For signal delivery, the daemon PID is obtained via sysctl process enumeration
-filtered by four identity checks: `p_comm == "blackoutd"`, parent is launchd
-(pid 1), executable path matches the `ProgramArguments[0]` registered in the
-LaunchAgent plist, and effective UID matches the calling user. This avoids
-colliding with concurrent CLI invocations of the same binary or with another
-user's daemon in unusual `gui/$UID` configurations.
+A `bootstrap_look_up()` fast path was considered and rejected because that
+call may activate an on-demand service as a side-effect (per Apple's man
+page). A presence probe should not have lifecycle side-effects.
+
+The daemon-side `bootstrap_check_in()` call at startup is retained: it
+holds the Mach service receive right declared by `MachServices` in the
+plist, providing the foundation for v1.0 Mach IPC (which will replace
+signal-based commands with structured request/response). It is not used
+by the CLI for liveness.
+
+See [ADR 0002](docs/decisions/0002-daemon-presence-detection.md) for the
+full rationale.
 
 ### Display ID stability
 

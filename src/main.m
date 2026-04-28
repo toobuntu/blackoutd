@@ -11,7 +11,6 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <errno.h>
 #import <libproc.h>
-#import <servers/bootstrap.h>
 #import <sys/sysctl.h>
 
 static NSString *const kBundleID = @BD_BUNDLE_ID;
@@ -66,14 +65,15 @@ static int runLaunchctl(NSArray<NSString *> *args) {
 
 // Returns the daemon's PID if running, 0 otherwise.
 //
-// Liveness: bootstrap_look_up() against the registered Mach service. If the
-// service port is not registered, the daemon cannot be running as a
-// launchd-managed agent — return 0 immediately.
+// Liveness and PID discovery share one mechanism: enumerate processes via
+// sysctl and identify the daemon by four properties. A bootstrap_look_up()
+// fast path was considered and rejected because that call is documented as
+// potentially activating an on-demand service (see Apple's bootstrap_look_up
+// man page). Even with KeepAlive=true making activation harmless in practice,
+// it is a side-effect we do not need: sysctl alone is authoritative and the
+// cost is a single system call enumerating ~400 processes.
 //
-// PID discovery for signal delivery: enumerate processes via sysctl, then
-// for each candidate verify identity along four axes to avoid colliding
-// with a concurrent CLI invocation (which has the same p_comm "blackoutd")
-// or with another user's daemon:
+// A candidate process must satisfy ALL of:
 //
 //   1. p_comm matches "blackoutd" (cheap pre-filter).
 //   2. Effective UID matches the calling user. Defends against unusual
@@ -86,19 +86,12 @@ static int runLaunchctl(NSArray<NSString *> *args) {
 //      "blackoutd" running in the same session.
 //
 // p_comm is limited to MAXCOMLEN (16) characters; "blackoutd" (9) fits.
+//
+// The daemon-side bootstrap_check_in() in AppDelegate is retained: it holds
+// the Mach service receive right for the v1.0 Mach IPC command channel
+// (which will replace signal-based commands). It is not used for liveness
+// from the CLI.
 static pid_t daemonPid(void) {
-  // Fast rejection: if the Mach service is not registered, the daemon is not
-  // running as a bootstrapped launchd agent.
-  mach_port_t port = MACH_PORT_NULL;
-  kern_return_t kr =
-      bootstrap_look_up(bootstrap_port, kAgentLabel.UTF8String, &port);
-  if (kr != BOOTSTRAP_SUCCESS) {
-    return 0;
-  }
-  if (port != MACH_PORT_NULL) {
-    mach_port_deallocate(mach_task_self(), port);
-  }
-
   NSString *expectedPath = registeredDaemonPath();
   uid_t self_uid = getuid();
 

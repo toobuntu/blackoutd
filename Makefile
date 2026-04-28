@@ -48,6 +48,12 @@ $(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDI
 clean:
 	rm -rf $(BUILDDIR)
 
+# First-time install. MUST be run as the logged-in user, not under sudo.
+# This recipe invokes sudo internally only for the privileged writes to
+# /usr/local. $(HOME) and $(UID) must reflect the real user so the plist
+# lands in ~/Library/LaunchAgents and launchctl targets gui/$UID, not
+# gui/0. Running 'sudo make install' would set $(HOME)=/var/root and
+# $(UID)=0 and break both.
 install: $(TARGET) postinstall
 	sudo install -d /usr/local/bin
 	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
@@ -84,9 +90,9 @@ dev: $(TARGET)
 
 # Upgrade flow for end users: bootout the running agent (if any), install
 # the new binary and resources to /usr/local, then bootstrap the new
-# plist. Equivalent to 'sudo make install' on a clean system but works
-# correctly when the agent is already loaded (where plain install would
-# fail with launchctl bootstrap exit 5).
+# plist. Works correctly when the agent is already loaded (where plain
+# install would fail with launchctl bootstrap exit 5).
+# MUST be run as the logged-in user, not under sudo (see install above).
 reinstall: $(TARGET) postinstall
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
 	sudo install -d /usr/local/bin
