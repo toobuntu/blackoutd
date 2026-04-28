@@ -31,7 +31,7 @@ CFLAGS = \
     -framework IOKit \
     -sectcreate __TEXT __info_plist $(SRCDIR)/Info.plist
 
-.PHONY: all clean install postinstall reinstall uninstall load unload print-bundle-id release
+.PHONY: all clean install postinstall dev uninstall load unload print-bundle-id release
 
 all: $(TARGET)
 
@@ -66,10 +66,11 @@ postinstall:
 	    $(AGENT_TEMPLATE) > $(AGENT_DST)
 	chmod 644 $(AGENT_DST)
 
-# Dev-cycle reinstall: load daemon directly from build/ without sudo.
-# The LaunchAgent plist is regenerated pointing to the build directory binary.
+# Dev cycle: bootout the running agent, regenerate the plist pointing to
+# the build/ binary, and bootstrap the new plist. No sudo, nothing copied
+# into /usr/local. Intended for tight iteration during development.
 # Use 'make install' for a full production install to /usr/local/bin.
-reinstall: $(TARGET)
+dev: $(TARGET)
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
 	install -d $(AGENT_DIR)
 	install -d $(HOME)/Library/Logs
@@ -96,9 +97,10 @@ unload:
 print-bundle-id:
 	@echo $(BUNDLE_ID)
 
-# Create a release: tag, build, and package.
-# Git tag convention: v<VERSION> (e.g., v0.2.0)
-# Requires a clean working tree (no uncommitted changes).
+# Verify a clean working tree, build the binary, and create an annotated
+# git tag. Does NOT push the tag, sign artifacts, or produce a packaged
+# release; those are manual follow-up steps printed at the end.
+# Tag convention: v<VERSION> (e.g., v0.2.0)
 release: $(TARGET)
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "error: uncommitted changes in working tree" >&2; \

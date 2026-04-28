@@ -9,6 +9,8 @@
 #import "AppDelegate.h"
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <errno.h>
+#import <libproc.h>
 #import <servers/bootstrap.h>
 #import <sys/sysctl.h>
 
@@ -33,6 +35,21 @@ static NSString *agentService(void) {
   return [NSString stringWithFormat:@"gui/%d/%@", getuid(), kAgentLabel];
 }
 
+// Reads ProgramArguments[0] from the installed LaunchAgent plist.
+// Returns nil if the plist is missing or malformed. The result is the
+// canonical path to the daemon binary as registered with launchd, used
+// to disambiguate the daemon process from CLI invocations of the same
+// binary in daemonPid().
+static NSString *registeredDaemonPath(void) {
+  NSDictionary *plist =
+      [NSDictionary dictionaryWithContentsOfFile:agentPlistPath()];
+  NSArray *args = plist[@"ProgramArguments"];
+  if (![args isKindOfClass:[NSArray class]] || args.count == 0)
+    return nil;
+  NSString *path = args.firstObject;
+  return [path isKindOfClass:[NSString class]] ? path : nil;
+}
+
 static int runLaunchctl(NSArray<NSString *> *args) {
   NSTask *task = [[NSTask alloc] init];
   task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
@@ -49,10 +66,21 @@ static int runLaunchctl(NSArray<NSString *> *args) {
 
 // Returns the daemon's PID if running, 0 otherwise.
 //
-// Presence is detected via bootstrap_look_up(): if the Mach service port is
-// not registered, the daemon cannot be running as a launchd-managed agent.
-// The actual PID is obtained by enumerating processes via sysctl — no
-// subprocess is spawned (replaces the launchctl list parsing approach).
+// Liveness: bootstrap_look_up() against the registered Mach service. If the
+// service port is not registered, the daemon cannot be running as a
+// launchd-managed agent — return 0 immediately.
+//
+// PID discovery for signal delivery: enumerate processes via sysctl, then
+// for each candidate verify identity along three axes to avoid colliding
+// with a concurrent CLI invocation (which has the same p_comm "blackoutd"):
+//
+//   1. p_comm matches "blackoutd" (cheap pre-filter).
+//   2. Parent process is launchd (pid 1) — LaunchAgents are direct children
+//      of the per-user launchd, so a match here excludes CLI processes
+//      launched from a shell (parent is the shell or its descendant).
+//   3. Executable path matches the path registered in the LaunchAgent plist
+//      (ProgramArguments[0]). Defends against an unrelated binary named
+//      "blackoutd" running in the same session.
 //
 // p_comm is limited to MAXCOMLEN (16) characters; "blackoutd" (9) fits.
 static pid_t daemonPid(void) {
@@ -68,6 +96,8 @@ static pid_t daemonPid(void) {
     mach_port_deallocate(mach_task_self(), port);
   }
 
+  NSString *expectedPath = registeredDaemonPath();
+
   // Enumerate running processes to find the daemon PID.
   // The process table can grow between the sizing call and the data call,
   // so retry with a larger buffer on ENOMEM.
@@ -76,8 +106,10 @@ static pid_t daemonPid(void) {
   struct kinfo_proc *procs = NULL;
   BOOL sysctlOK = NO;
   for (int attempt = 0; attempt < 5; attempt++) {
-    if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0)
+    if (sysctl(mib, 4, NULL, &size, NULL, 0) != 0) {
+      free(procs);
       return 0;
+    }
     // Add headroom for processes that may appear between calls.
     size += size / 8;
     struct kinfo_proc *tmp = (struct kinfo_proc *)realloc(procs, size);
@@ -105,8 +137,21 @@ static pid_t daemonPid(void) {
   for (int i = 0; i < count && !found; i++) {
     if (procs[i].kp_proc.p_pid == self_pid)
       continue;
-    if (strcmp(procs[i].kp_proc.p_comm, "blackoutd") == 0)
-      found = procs[i].kp_proc.p_pid;
+    if (strcmp(procs[i].kp_proc.p_comm, "blackoutd") != 0)
+      continue;
+    // Parent must be launchd (pid 1) for a LaunchAgent.
+    if (procs[i].kp_eproc.e_ppid != 1)
+      continue;
+    // Executable path must match ProgramArguments[0] from the plist.
+    if (expectedPath) {
+      char path[PROC_PIDPATHINFO_MAXSIZE];
+      int n = proc_pidpath(procs[i].kp_proc.p_pid, path, sizeof(path));
+      if (n <= 0)
+        continue;
+      if (strcmp(path, expectedPath.UTF8String) != 0)
+        continue;
+    }
+    found = procs[i].kp_proc.p_pid;
   }
   free(procs);
   return found;
