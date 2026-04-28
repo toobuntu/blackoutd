@@ -1,4 +1,103 @@
 {
+  "model": "opus",
+  "permissions": {
+    "allow": [
+      "Bash(make)",
+      "Bash(make clean)",
+      "Bash(make all)",
+      "Bash(make dev)",
+      "Bash(make postinstall)",
+      "Bash(make print-bundle-id)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git config --get:*)",
+      "Bash(bundle install)",
+      "Bash(bundle exec rspec:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(plutil -lint:*)",
+      "Bash(file:*)",
+      "Bash(codesign --verify:*)",
+      "Bash(codesign --display:*)",
+      "Bash(launchctl list)",
+      "Bash(launchctl list:*)",
+      "Bash(launchctl print:*)",
+      "Bash(blackoutd status)",
+      "Bash(blackoutd --version)",
+      "Bash(blackoutd --config)",
+      "Bash(reuse lint)",
+      "Bash(reuse lint:*)",
+      "Bash(reuse download:*)",
+      "Bash(actionlint:*)",
+      "Bash(zizmor:*)",
+      "Bash(shellcheck:*)",
+      "Bash(shfmt --diff:*)",
+      "Bash(clang-format --style=file --dry-run:*)",
+      "Bash(xcrun clang-format --style=file --dry-run:*)",
+      "Bash(clang-tidy:*)"
+    ],
+    "ask": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git stash:*)",
+      "Bash(git reset:*)",
+      "Bash(git rm:*)",
+      "Bash(git mv:*)",
+      "Bash(make install)",
+      "Bash(make reinstall)",
+      "Bash(make uninstall)",
+      "Bash(make release)",
+      "Bash(make load)",
+      "Bash(make unload)",
+      "Bash(make preflight)",
+      "Bash(launchctl bootstrap:*)",
+      "Bash(launchctl bootout:*)",
+      "Bash(launchctl kickstart:*)",
+      "Bash(blackoutd on)",
+      "Bash(blackoutd off)",
+      "Bash(blackoutd auto:*)",
+      "Bash(blackoutd daemon:*)",
+      "Bash(reuse annotate:*)",
+      "Bash(clang-format --style=file -i:*)",
+      "Bash(xcrun clang-format --style=file -i:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr review:*)",
+      "Bash(gh issue comment:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue edit:*)"
+    ],
+    "deny": [
+      "Bash(git push)",
+      "Bash(git push:*)",
+      "Bash(git push --force)",
+      "Bash(git push --force-with-lease)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh pr close:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(gh repo archive:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)",
+      "Bash(sudo rm:*)",
+      "Bash(sudo make:*)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -6,20 +105,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ \"$(git branch --show-current)\" != \"main\" ] || { echo '{\"block\": true, \"message\": \"Direct edits to main are not allowed. Create a feature branch.\"}' >&2; exit 2; }",
+            "command": "if [ \"$(git -C \"${CLAUDE_PROJECT_DIR:-.}\" branch --show-current)\" = \"main\" ]; then echo 'Direct edits to main are not allowed. Create a feature branch (git switch -c feature/<topic>) before editing.' >&2; exit 2; fi",
             "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; f=json.load(sys.stdin).get('file_path',''); print(f)\" | grep -qE '\\.(m|h)$' && clang-format --style=file -i \"$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('file_path',''))\")\" 2>/dev/null || true",
-            "timeout": 10
           }
         ]
       }
