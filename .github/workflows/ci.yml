@@ -182,6 +182,26 @@ jobs:
               sys.exit(1)
           EOF
 
+  lint-reuse:
+    # Verifies REUSE 3.0 compliance: every file has a recognized SPDX
+    # license expression (either inline as a comment, or via a sidecar
+    # .license file, or via .reuse/dep5 / REUSE.toml). This is the gate
+    # that should have caught the missing SPDX headers Copilot flagged
+    # in PR#9 — previously the project ran `reuse lint` only in the
+    # pre-commit hook, which contributors can bypass with `--no-verify`.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      # PIN-PENDING: pinact will replace the @v6 ref with a SHA + comment
+      # the next time `pinact run --verify --update` is invoked. The v6
+      # major-version pin tracks the latest reuse-tool 6.x release; do not
+      # downgrade.
+      - name: Run reuse lint
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
   lint-tidy:
     runs-on: macos-latest
     steps:
@@ -244,7 +264,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@a4effe49ee8ee5b8b5091268c473a4628afb5651 # v1.245.0
+        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
         with:
           ruby-version: "3.3"
           bundler-cache: true

@@ -1,7 +1,3 @@
-# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
-#
-# SPDX-License-Identifier: GPL-3.0-or-later
-
 require "fileutils"
 require "open3"
 require "tmpdir"

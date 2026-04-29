@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 number: 3
 title: Wake-settle quiet timer for display recovery
 status: accepted

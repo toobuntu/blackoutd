@@ -1,4 +1,8 @@
 ---
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 number: 4
 title: Merge PRs with merge commits, not squash or rebase
 status: accepted
