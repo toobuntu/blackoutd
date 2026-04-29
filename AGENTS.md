@@ -43,13 +43,20 @@ clang-tidy src/*.m -- -fobjc-arc \
   -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \
   -framework Cocoa -framework CoreGraphics -framework IOKit -I src
 
-# plist lint
-make postinstall && plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
+# plist lint (read-only validation of an already-generated plist)
+plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
 
 # RSpec behavioral tests for hook + CI Unicode scanner
 bundle install
 bundle exec rspec
 ```
+
+If the LaunchAgent plist has not yet been generated (e.g., on a fresh
+clone), run `make postinstall` first to materialize it from the template
+at `$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist`. That
+target writes to the user's LaunchAgents directory and is therefore not
+part of the read-only lint pipeline; run it once before linting and
+treat it as install-time setup, not validation.
 
 Build requirements: Xcode Command Line Tools (`xcode-select --install`).
 
@@ -96,7 +103,7 @@ diverge if an external was unplugged during sleep.
 
 ## Signal handling
 
-| Signal  | Behaviour                          |
+| Signal  | Behavior                           |
 |---------|------------------------------------|
 | SIGUSR1 | Enable blackout                    |
 | SIGUSR2 | Disable blackout (restore built-in)|
@@ -167,6 +174,35 @@ at compile time via `-DBD_BUNDLE_ID`. The LaunchAgent label equals the
 bundle ID. Localized resources live in a separate `blackoutd.bundle`
 installed alongside the binary; `BD_RESOURCES_BUNDLE` is the install path.
 
+### Reverse-engineering and inspection tools
+
+Investigating private/deprecated APIs and runtime state regularly uses:
+
+- `ipsw class-dump`, `ipsw dyld info`, `ipsw macho info` — extract Objective-C
+  interfaces and Mach-O metadata from system frameworks (BetterDisplay
+  research used `ipsw class-dump --arch arm64 BetterDisplay`).
+- `otool -L`, `otool -l`, `nm -gU`, `dyld_info` — inspect binary linkage,
+  exported symbols, and library references.
+- `log show`, `log stream` — query the unified logging system. Filter by
+  `--predicate 'process == "blackoutd"'` or `subsystem == "com.apple.iokit"`.
+- `pmset -g log`, `pmset -g sched`, `pmset -g batt`, `pmset -g pslog` — read
+  power-management state and history. **Never** use mutating forms
+  (`pmset -a`, `pmset -b`, `pmset -c`, `pmset -u`, `pmset sleepnow`,
+  `pmset displaysleepnow`, `pmset schedule`, `pmset repeat`).
+- `system_profiler SPDisplaysDataType -detailLevel mini` — display
+  configuration as macOS sees it.
+- `ioreg -lw0 -r -c IODisplayConnect` and other `-c` filters — IORegistry
+  introspection for the display, USB-C, and DCP device proxy paths.
+- `defaults read blackoutd` — inspect the daemon's NSUserDefaults state.
+  Mutating forms (`defaults write`, `defaults delete`) should not be used
+  by an agent; the maintainer makes those changes directly.
+- `vmmap`, `sample`, `spindump` — process memory and call-stack inspection
+  when diagnosing daemon hangs.
+
+These tools are expected reading; they are part of the development loop.
+The Claude Code allowlist includes them in `permissions.allow` so the
+agent does not need to ask before running them.
+
 ## Known dead ends — do not retry
 
 - **`CGDisplaySleep` / `CGDisplayWake`** for recovery: visible flicker
@@ -220,6 +256,16 @@ installed alongside the binary; `BD_RESOURCES_BUNDLE` is the install path.
 
 ## Testing checklist (manual)
 
+The "long sleep" entry below is intentionally qualitative. macOS does not
+expose a single threshold above which post-wake behavior is meaningfully
+different. Use this rule of thumb instead: a sleep is "long" if
+`pmset -g log | grep -E 'Sleep|DarkWake'` shows at least one **DarkWake**
+entry between Sleep and the user-initiated Wake. DarkWakes are the
+maintenance wakes that exercise power-management transitions most likely
+to expose Alt Mode dropout and wake-settle timing bugs. In practice this
+is "overnight" or "while at lunch with the lid closed for an hour or two"
+on the M2 MacBook Air; specific durations vary by power profile.
+
 - [ ] `blackoutd on` blacks out built-in
 - [ ] `blackoutd off` restores built-in
 - [ ] Unplugging external restores built-in unconditionally
@@ -231,8 +277,10 @@ installed alongside the binary; `BD_RESOURCES_BUNDLE` is the install path.
 - [ ] Disabling auto-blackout restores built-in if currently blacked out
 - [ ] `make clean && make && make reinstall` cycle succeeds (sudo prompt
       during privileged writes; do NOT prefix with `sudo`)
-- [ ] Wake from short sleep (<1 min) re-blacks out within 3 seconds
-- [ ] Wake from long sleep (>8 hr) re-blacks out; external survives Alt
+- [ ] Wake from short sleep (`pmset sleepnow` or lid-close ≤ 1 minute)
+      re-blacks out within 3 seconds
+- [ ] Wake from long sleep (overnight, or any sleep with at least one
+      DarkWake in `pmset -g log`) re-blacks out; external survives Alt
       Mode dropout window
 - [ ] Lid-close sleep behaves like `pmset sleepnow`
 

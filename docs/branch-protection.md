@@ -18,12 +18,17 @@ The ruleset enforces these properties:
 3. PRs cannot be merged via squash or rebase — only merge commits
    (per [ADR 0004](decisions/0004-merge-strategy.md)).
 4. The branch cannot be force-pushed or deleted.
-5. The maintainer is subject to the same rules as any contributor;
-   there is no general bypass.
+5. The repository administrator (sole maintainer) has bypass capability
+   so they can self-merge their own PRs. See *Single-maintainer
+   self-bypass* below for the rationale and trade-off.
 
 A single-maintainer public repository does not gain much from required
-*reviews* (GitHub forbids self-approval), so the gating is on **status
-checks** and **policy** rather than on review approvals.
+*reviews* from humans (GitHub forbids self-approval), so the gating is on
+**status checks** (CI must pass) and **policy** (the PR-and-merge-method
+rules) rather than on review approvals from a person. Automated reviewers
+(Copilot code review, CodeRabbit) provide a second pair of eyes whose
+comments are addressed before merge but whose approval is not required
+to merge.
 
 ## Chosen rules
 
@@ -31,7 +36,8 @@ checks** and **policy** rather than on review approvals.
 |--------------------------------------------|--------------------------------------|
 | Require a pull request before merging      | Enabled, **0 required approvals**    |
 | Dismiss stale approvals on new commits     | Enabled (defensive; cheap)           |
-| Require approval of most recent reviewable push | Enabled                          |
+| Require approval of most recent reviewable push | **Disabled**                    |
+| Automatically request Copilot review       | Enabled                              |
 | Require status checks to pass              | Enabled, list below                  |
 | Require branches up to date before merging | **Disabled**                         |
 | Allowed merge methods                      | **Merge commit only**                |
@@ -39,24 +45,29 @@ checks** and **policy** rather than on review approvals.
 | Require signed commits                     | Optional; recommended                |
 | Block force pushes                         | Enabled                              |
 | Block branch deletion                      | Enabled                              |
-| Bypass list                                | **Empty**                            |
+| Bypass list                                | **Repository admin** (single maintainer) |
 
 ### Required status checks
 
-These check names match the job names in `.github/workflows/ci.yml`.
-GitHub matches by exact job name as it appears on completed runs.
+These check names must exactly match the job names in
+`.github/workflows/ci.yml`. GitHub matches by the job name as it appears
+on completed runs. **When CI jobs are added, removed, or renamed, this
+list must be updated in lockstep** — see "Modifying" below.
 
 - `build`
 - `lint-plist`
 - `lint-format`
 - `lint-unicode`
+- `lint-reuse`
 - `lint-tidy`
 - `spec`
 
 CodeQL is **not** required as a status check. It runs on a schedule
-(`cron: '27 3 * * 1'`) and on PRs, but `lint-actions` coverage from
-`actionlint` plus `zizmor` is the practical floor; CodeQL is a free
-backstop, not a blocker.
+(`cron: '27 3 * * 1'`) and on PRs, but the practical floor for Actions-
+workflow security scanning is `actionlint` plus `zizmor`, which run as
+part of the pre-commit hook and (eventually) CI. CodeQL is a free
+backstop, not a blocker. Copilot code review is also not required —
+it produces comments to consider, not an approval gate.
 
 ### Why "branches up to date" is disabled
 
@@ -84,23 +95,64 @@ GitHub does not allow a PR's author to approve their own PR. Setting
 "required approvals" to 1 on a single-maintainer repo would
 effectively block all merges. The status-check gate is the primary
 quality bar here. A second pair of eyes on the work comes from
-external code-review tools (CodeRabbit, Copilot review, ChatGPT
-review) whose feedback is captured in `docs/reviews/` and addressed
-before merge.
+external code-review tools (CodeRabbit, Copilot review, occasional
+ChatGPT review) whose feedback is captured in `docs/reviews/` and
+addressed before merge.
 
 If the project gains a regular co-maintainer, raise this to 1
-required approval.
+required approval and remove the admin bypass below.
 
-### Why no bypass list
+### Why "approval of most recent reviewable push" is disabled
 
-A bypass list weakens the ruleset's promise. The maintainer should
-follow the same flow as any contributor: feature branch → PR → CI
-→ merge. The cost of doing so for a hotfix is one extra `git push`
-and one click on the merge button.
+GitHub describes this rule as: "the most recent reviewable push must
+be approved by someone other than the person who pushed it." On a
+single-maintainer repo, "someone other than the person who pushed it"
+does not exist among the repo's collaborators, so enabling this rule
+blocks every merge by the maintainer. It's the right rule to enable
+the moment a co-maintainer joins; until then, it's pure friction.
 
-For genuine emergencies (CI is broken and a one-line fix is needed
-to unblock everyone), the ruleset can be temporarily disabled and
-re-enabled. This is intentional friction.
+### Single-maintainer self-bypass
+
+The bypass list contains **Repository admin** (the sole maintainer's
+role). This grants bypass for the rules above, including the
+"require a pull request" rule.
+
+This is a deliberate concession to single-maintainer reality, with two
+mitigations:
+
+1. The maintainer's standard workflow remains feature-branch → PR →
+   CI → merge. Bypass is invoked only via the merge button after the
+   PR has CI-green status. This is enforced by **discipline**, not
+   tooling; if the maintainer ever feels themselves reaching for
+   `git push origin main` directly, the right response is to stop and
+   open a PR.
+2. The pre-commit hook in `.githooks/pre-commit` blocks direct commits
+   to `main` regardless of bypass status (it runs locally before the
+   push reaches GitHub). Combined with the Claude Code PreToolUse
+   hook in `.claude/settings.json` that blocks Edit/Write/MultiEdit on
+   the `main` branch, this preserves the no-direct-edits-to-main
+   property at the workstation level even though GitHub itself
+   permits it.
+
+If the project gains a regular co-maintainer, **remove the admin
+bypass** at the same time you enable required approvals.
+
+### Automatic Copilot code review
+
+The ruleset has Copilot code review configured to run automatically on
+every PR. Its comments are advisory and not required to merge.
+Copilot's strengths are catching obvious bugs, missed null checks, and
+formatting issues; its weaknesses are over-eagerness on stylistic
+nits and occasional invented bugs. Treat its output the same as
+CodeRabbit: read every comment, accept the substantive ones, ignore
+or rebut the rest.
+
+If GitHub's pricing changes for Copilot review (the
+[Copilot pricing changes announced 2026-04](https://github.blog/changelog/2026-04-20-changes-to-github-copilot-plans-for-individuals/)
+moved Copilot to usage-based billing), the workflow falls back to
+CodeRabbit alone, which is still active. No code change is needed if
+Copilot review becomes unavailable; the PR conversation just gets one
+fewer reviewer.
 
 ## Creating the ruleset
 
@@ -114,7 +166,7 @@ JSON definition. Both are documented below.
 2. Settings → Rules → Rulesets → **New ruleset → New branch ruleset**.
 3. **Ruleset name**: `main protection`.
 4. **Enforcement status**: `Active`.
-5. **Bypass list**: leave empty.
+5. **Bypass list**: **Add bypass → Repository admin → Always**.
 6. **Target branches** → **Add target** → **Include default branch**.
 7. **Branch rules** — enable in this order:
    - `Restrict deletions`.
@@ -122,7 +174,8 @@ JSON definition. Both are documented below.
    - `Require a pull request before merging`:
      - `Required approvals`: `0`.
      - `Dismiss stale pull request approvals when new commits are pushed`: **on**.
-     - `Require approval of the most recent reviewable push`: **on**.
+     - `Require approval of the most recent reviewable push`: **OFF** (single-maintainer repo).
+     - `Automatically request Copilot code review`: **on**.
      - `Allowed merge methods`: **Merge** only (uncheck `Squash` and `Rebase`).
    - `Require status checks to pass`:
      - `Require branches to be up to date before merging`: **OFF**.
@@ -131,6 +184,7 @@ JSON definition. Both are documented below.
        - `lint-plist`
        - `lint-format`
        - `lint-unicode`
+       - `lint-reuse`
        - `lint-tidy`
        - `spec`
    - `Block force pushes`.
@@ -143,6 +197,9 @@ The ruleset takes effect immediately for the default branch.
 
 The Rulesets REST API takes a JSON body. The command below creates
 the ruleset directly. Edit `OWNER` and `REPO` at the top, then run.
+
+The bypass list uses `actor_type: "RepositoryRole"` with the magic
+integer `actor_id: 5` for the Admin role.
 
 ```sh
 OWNER=toobuntu
@@ -157,7 +214,13 @@ gh api \
   "name": "main protection",
   "target": "branch",
   "enforcement": "active",
-  "bypass_actors": [],
+  "bypass_actors": [
+    {
+      "actor_type": "RepositoryRole",
+      "actor_id": 5,
+      "bypass_mode": "always"
+    }
+  ],
   "conditions": {
     "ref_name": {
       "include": ["~DEFAULT_BRANCH"],
@@ -173,8 +236,9 @@ gh api \
         "required_approving_review_count": 0,
         "dismiss_stale_reviews_on_push": true,
         "require_code_owner_review": false,
-        "require_last_push_approval": true,
+        "require_last_push_approval": false,
         "required_review_thread_resolution": false,
+        "automatic_copilot_code_review_enabled": true,
         "allowed_merge_methods": ["merge"]
       }
     },
@@ -187,6 +251,7 @@ gh api \
           { "context": "lint-plist" },
           { "context": "lint-format" },
           { "context": "lint-unicode" },
+          { "context": "lint-reuse" },
           { "context": "lint-tidy" },
           { "context": "spec" }
         ]
@@ -216,15 +281,11 @@ gh api "/repos/${OWNER}/${REPO}/rulesets/<ID>" | jq .
 ```
 
 To test that the ruleset is active, attempt a direct push to `main`
-from a clone:
-
-```sh
-git switch main
-git commit --allow-empty -m "test: should be blocked"
-git push
-# expected: remote rejects with "GH013: Repository rule violations found".
-git reset --hard HEAD~1
-```
+from a clone using a non-admin account. With the admin bypass, the
+maintainer's own clone will not see the rejection (which is the point
+of the bypass). To still validate the ruleset, look at the ruleset's
+**Insights** tab on github.com — it shows a log of bypass events, so
+you can confirm bypasses are recorded even when permitted.
 
 ## Modifying
 
@@ -239,10 +300,24 @@ the ruleset will then wait forever for a check that never runs and
 block all merges. To diagnose this, look at a stuck PR's "Checks"
 tab; the missing required check is shown with status "Expected".
 
+The recommended sequence when adding a new required job:
+
+1. Open a PR that adds the new job to `ci.yml`.
+2. Confirm the job runs and passes on that PR (still optional, not yet
+   required).
+3. Merge that PR.
+4. Update the ruleset to add the new check name to
+   `required_status_checks`.
+
+If you add the check to the ruleset *before* the workflow PR merges,
+the workflow PR itself can't merge because the required check doesn't
+exist yet. Order matters.
+
 ## Disabling temporarily
 
 For a genuine emergency where the ruleset itself is the obstacle
-(e.g. a CI infrastructure outage):
+(e.g. a CI infrastructure outage and the admin bypass is somehow
+unavailable):
 
 ```sh
 # Get the ruleset id:
@@ -260,7 +335,9 @@ gh api -X PUT "/repos/${OWNER}/${REPO}/rulesets/${RULESET_ID}" \
 ```
 
 The ruleset definition is preserved; only enforcement is toggled.
-Always re-enable as soon as the emergency passes.
+Always re-enable as soon as the emergency passes. Note that for a
+single-maintainer repo with admin bypass, full disabling is rarely
+needed — the bypass already exists for the same use case.
 
 ## Why a ruleset and not classic branch protection
 

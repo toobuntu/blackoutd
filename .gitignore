@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 build/
 *.plist.local
 .DS_Store
@@ -13,3 +17,4 @@ docs/HANDOFF-claude-code.md
 docs/pr*.diff
 docs/reviews/
 scripts/find_unicode_control2*/
+_user-claude-config/
