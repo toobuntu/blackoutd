@@ -46,6 +46,10 @@ clang-tidy src/*.m -- -fobjc-arc \
 # plist lint (read-only validation of an already-generated plist)
 plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
 
+# REUSE compliance (license headers)
+reuse lint
+scripts/annotate.sh   # add SPDX headers to any new uncovered files
+
 # RSpec behavioral tests for hook + CI Unicode scanner
 bundle install
 bundle exec rspec
@@ -253,6 +257,10 @@ agent does not need to ask before running them.
 - `.clang-tidy`: `bugprone-*`, `clang-analyzer-*`, select readability checks.
 - en_US spelling everywhere (e.g. "labeling" not "labelling", "color" not "colour").
 - Merge commits, never squash or rebase, on PR merge (see ADR 0004).
+- Every file carries SPDX license metadata (REUSE 3.0). New files: run
+  `scripts/annotate.sh`. The CI `lint-reuse` job blocks merges on missing
+  metadata. See CONTRIBUTING.md for the conventions, including the
+  YAML-frontmatter quirk for ADRs vs. Claude skills.
 
 ## Testing checklist (manual)
 
@@ -284,20 +292,27 @@ on the M2 MacBook Air; specific durations vary by power profile.
       Mode dropout window
 - [ ] Lid-close sleep behaves like `pmset sleepnow`
 
-## Open bugs
+## Open work and roadmap
 
-The authoritative tracker is `docs/technical-debt.md`. Quick summary:
+Two complementary trackers; consult both for context:
 
-- **P1 — Safety invariant on restore (MITIGATED)**: cursor-on-black after
-  restore in some compositor states. Fixed by no-op CGConfig recommit
-  before re-enable.
-- **P3 — Automated test suite**: only Unicode-hardening tests exist.
-  Daemon code has no automated coverage.
-- **P4 — Mach IPC command channel (PARTIAL)**: signal-based commands work,
-  daemon-side `bootstrap_check_in()` holds receive right for v1.0.
-- **P7 — CI hardening**: clang-tidy is soft-skip; homoglyph and PUA
-  detection deferred.
-- **P8, P9** — Light modes, SMAppService migration: future.
+- **`docs/technical-debt.md`** — engineering items organized by priority
+  (P0–P9) with problem statements, root causes, and acceptance criteria.
+  This is the source of truth for "what's the next engineering thing to
+  work on". Items here may or may not be assigned to a specific milestone.
+- **`ROADMAP.md`** — milestone plan organized by version (v0.1, v0.2,
+  ..., v1.0, Future). Cross-references the P-numbers from
+  `docs/technical-debt.md`. The source of truth for "what release does
+  this go into".
+
+Closed and partially-done items remain visible in `docs/technical-debt.md`
+to preserve rationale and acceptance-criteria history. README.md "Known
+issues" is separate — it documents user-visible limitations rather than
+engineering debt.
+
+The next priority after v0.2 is **P4 — Mach IPC command channel** (v1.0
+target). Read the P4 entry in `docs/technical-debt.md` before starting
+that work.
 
 ## Related projects
 
@@ -320,10 +335,11 @@ concern. Neither is meant for production.
 For non-trivial work, an agent should also read:
 
 1. `docs/technical-debt.md` — current priorities and known issues
-2. `docs/decisions/` — accepted ADRs (4 today: Trojan Source, daemon
+2. `ROADMAP.md` — milestone plan (cross-references the P-numbers above)
+3. `docs/decisions/` — accepted ADRs (4 today: Trojan Source, daemon
    presence, wake-settle timer, merge strategy)
-3. `CONTRIBUTING.md` — encoding policy, opt-out mechanism, commit/PR
-   conventions
+4. `CONTRIBUTING.md` — encoding policy, REUSE/SPDX conventions, commit
+   and PR conventions
 
 For PR work specifically, also:
 

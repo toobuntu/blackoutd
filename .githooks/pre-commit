@@ -163,7 +163,7 @@ if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
             fi
         fi
         if [ -n "$TIDY" ]; then
-            printf '%s\n' "$m_files" | xargs "$TIDY" -- \
+            printf '%s\n' "$m_files" | xargs -J % "$TIDY" % -- \
                 -fobjc-arc \
                 -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
                 -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \

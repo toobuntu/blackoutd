@@ -48,18 +48,21 @@ static NSBundle *BDResourceBundle(void) {
   dispatch_source_t _sighupSource;
   dispatch_source_t _sigtermSource;
   dispatch_source_t _sigintSource;
-  // Mach service port received from launchd via bootstrap_check_in().
-  // Held for the lifetime of the daemon so that bootstrap_look_up() from the
-  // CLI can confirm the daemon is running (v0.2 Mach port presence detection).
+  // Receive right for the named Mach service, obtained from launchd via
+  // bootstrap_check_in(). Held for the lifetime of the daemon as the
+  // foundation for v1.0 Mach IPC. The v0.2 CLI does NOT use this port for
+  // presence detection — see ADR 0002 (sysctl-based daemon presence).
   mach_port_t _machServicePort;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
   [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 
-  // Check in with launchd to hold the Mach service receive right.
-  // The CLI uses bootstrap_look_up() against this port to detect whether the
-  // daemon is running — no launchctl subprocess needed.
+  // Check in with launchd to claim the receive right for the named Mach
+  // service. Held for the lifetime of the daemon as the foundation for
+  // v1.0 Mach IPC. The v0.2 CLI uses sysctl-based process enumeration,
+  // not bootstrap_look_up(), to detect whether the daemon is running
+  // (see ADR 0002).
   _machServicePort = MACH_PORT_NULL;
   kern_return_t kr = bootstrap_check_in(bootstrap_port, kBundleID.UTF8String,
                                         &_machServicePort);
@@ -87,7 +90,11 @@ static NSBundle *BDResourceBundle(void) {
   NSLog(@"[quit] — stopping");
   [_displayController disableBlackout];
   if (_machServicePort != MACH_PORT_NULL) {
-    mach_port_destroy(mach_task_self(), _machServicePort);
+    // mach_port_destroy() is deprecated as inherently unsafe. For a privately
+    // held receive right, mach_port_mod_refs(..., RECEIVE, -1) is the
+    // documented modern equivalent.
+    mach_port_mod_refs(mach_task_self(), _machServicePort,
+                       MACH_PORT_RIGHT_RECEIVE, -1);
     _machServicePort = MACH_PORT_NULL;
   }
 }

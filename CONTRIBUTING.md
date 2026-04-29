@@ -56,6 +56,94 @@ To install the pre-commit hook:
 git config core.hooksPath .githooks
 ```
 
+## License headers (REUSE)
+
+Every file in the repository must carry SPDX license metadata, enforced by
+the CI `lint-reuse` job ([reuse.software](https://reuse.software/)). The
+expected format is:
+
+```
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+
+SPDX-License-Identifier: GPL-3.0-or-later
+```
+
+The annotation can live inline (preferred) or in a sidecar `<file>.license`
+file (used when a file's format has no comment syntax, such as `.json`).
+
+### How to add headers to new files
+
+Run `scripts/annotate.sh` from the repo root. It scans for non-compliant
+files, classifies them by extension and path, and inserts SPDX blocks in
+the right comment style (or creates a sidecar where inline is unsafe).
+The script is idempotent — already-compliant files are skipped.
+
+```sh
+scripts/annotate.sh
+```
+
+To use a different copyright owner or license (e.g. when running this
+script in a non-toobuntu repo), set environment variables:
+
+```sh
+ANNOTATE_COPYRIGHT="Some Other Person" \
+ANNOTATE_LICENSE="MIT" \
+scripts/annotate.sh
+```
+
+The script is the canonical version intended for cross-toobuntu use; the
+mirror in `toobuntu/homebrew-cask-tools/scripts/annotate.sh` is the nominal
+source of truth and should be kept in sync.
+
+### YAML frontmatter and SPDX placement
+
+Markdown files with YAML frontmatter (Architectural Decision Records,
+Claude Code skills, MkDocs pages) need special handling. Two patterns are
+both valid for `reuse lint`, but only one is safe in all contexts:
+
+**Inside frontmatter (works for ADRs, fragile for skills):**
+
+```markdown
+---
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+number: 1
+title: ADR title
+---
+```
+
+YAML allows `#` comments, and `reuse lint` finds the SPDX strings via
+substring search regardless of YAML structure. ADRs in `docs/decisions/`
+use this pattern.
+
+**After frontmatter (required for Claude Code skills):**
+
+```markdown
+---
+name: skill-name
+description: ...
+---
+
+<!--
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+```
+
+Claude Code's skill loader parses the frontmatter strictly, and content
+inside the `---` fences is consumed as YAML data. Putting the SPDX block
+*after* the closing `---` keeps the frontmatter clean and is the format
+that `reuse annotate --style=html` produces automatically for any
+Markdown file with frontmatter.
+
+**Practical guidance:** let `scripts/annotate.sh` handle this. It uses
+`reuse annotate --style=html` for `.md` files, which is frontmatter-aware
+and inserts the SPDX block in the right place. ADRs that already have
+inline SPDX in frontmatter are recognized as compliant and left alone.
+
 ## Language and style
 
 - Objective-C, ARC, AppKit. No Swift. See `docs/architecture.md`.
