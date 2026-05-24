@@ -16,6 +16,7 @@
 static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
+static NSString *const kVerbosityKey = @"verbosityLevel";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
 static NSString *agentPlistPath(void) {
@@ -259,6 +260,9 @@ static int printConfig(void) {
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                       ? [defaults boolForKey:kAutoBlackoutKey]
                       : YES;
+  NSInteger verbosity = [defaults objectForKey:kVerbosityKey] != nil
+                            ? [defaults integerForKey:kVerbosityKey]
+                            : 1;
 
   printf("--- blackoutd diagnostic info ---\n\n");
 
@@ -269,6 +273,7 @@ static int printConfig(void) {
   printf("built-in display: %s\n",
          builtInIsOnline() ? "active" : "blacked out");
   printf("auto-blackout   : %s\n", autoMode ? "enabled" : "disabled");
+  printf("verbosity       : %ld\n", (long)verbosity);
   printf("bundle-id       : %s\n", kBundleID.UTF8String);
 
   NSOperatingSystemVersion ver = info.operatingSystemVersion;
@@ -327,6 +332,9 @@ static int printStatus(void) {
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                       ? [defaults boolForKey:kAutoBlackoutKey]
                       : YES;
+  NSInteger verbosity = [defaults objectForKey:kVerbosityKey] != nil
+                            ? [defaults integerForKey:kVerbosityKey]
+                            : 1;
   if (pid > 0)
     printf("blackoutd: running (pid %d)\n", pid);
   else
@@ -334,6 +342,7 @@ static int printStatus(void) {
   printf("  built-in display : %s\n",
          builtInIsOnline() ? "active" : "blacked out");
   printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
+  printf("  verbosity        : %ld\n", (long)verbosity);
   return pid > 0 ? 0 : 1;
 }
 
@@ -349,6 +358,50 @@ static int setAutoBlackout(const char *value) {
   [defaults synchronize];
   printf("auto-blackout: %s\n", enable ? "enabled" : "disabled");
   return sendSignalToDaemon(SIGHUP);
+}
+
+// Sets the daemon's log verbosity level, persisted in NSUserDefaults so it
+// survives daemon restart, and signals the running daemon (if any) to
+// reload preferences immediately. Single-step replacement for the
+// two-command `defaults write blackoutd verbosityLevel -int N && killall
+// -HUP blackoutd` procedure documented in `docs/technical-debt.md` P20.
+//
+// Reads-back from NSUserDefaults rather than echoing the input so the
+// output reflects what the daemon will actually see on the next reload.
+//
+// Daemon-not-running case is non-error: the new value persists in
+// defaults and takes effect on next start. Returns 0.
+static int setVerbosity(const char *value) {
+  // Reject non-numeric input early (e.g. "blackoutd verbosity high"). The
+  // strtol fallback would silently produce 0, which is a valid level.
+  for (const char *p = value; *p; p++) {
+    if (*p < '0' || *p > '9') {
+      fprintf(stderr, "Usage: blackoutd verbosity <0|1|2>\n");
+      return 1;
+    }
+  }
+  long level = strtol(value, NULL, 10);
+  if (level < 0 || level > 2) {
+    fprintf(stderr, "verbosity level must be 0, 1, or 2\n");
+    return 1;
+  }
+  NSUserDefaults *defaults =
+      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+  [defaults setInteger:level forKey:kVerbosityKey];
+  [defaults synchronize];
+  pid_t pid = daemonPid();
+  if (pid > 0) {
+    if (kill(pid, SIGHUP) != 0) {
+      perror("blackoutd: kill SIGHUP");
+      return 1;
+    }
+    printf("verbosity: %ld (daemon notified)\n", level);
+  } else {
+    printf("verbosity: %ld (daemon not running; takes effect on next "
+           "start)\n",
+           level);
+  }
+  return 0;
 }
 
 // launchctl bootout exit code 3 means the service was not loaded (launchctl
@@ -394,6 +447,8 @@ static void printUsage(void) {
       "  off             Restore built-in display\n"
       "  status          Show daemon and display status (even if not running)\n"
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
+      "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
+      " 2=verbose)\n"
       "  --config        Print diagnostic info for bug reports\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
@@ -448,6 +503,12 @@ int main(int argc, const char *argv[]) {
         return 1;
       }
       return setAutoBlackout(argv[2]);
+    } else if (strcmp(cmd, "verbosity") == 0) {
+      if (argc < 3) {
+        fprintf(stderr, "Usage: blackoutd verbosity <0|1|2>\n");
+        return 1;
+      }
+      return setVerbosity(argv[2]);
     }
     // "daemon" with no subcommand falls through to daemon run loop below.
     if (strcmp(cmd, "daemon") != 0) {
