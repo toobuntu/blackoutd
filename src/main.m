@@ -228,6 +228,11 @@ static int runAndPrint(NSString *path, NSArray<NSString *> *args) {
   NSTask *task = [[NSTask alloc] init];
   task.executableURL = [NSURL fileURLWithPath:path];
   task.arguments = args;
+  // Flush buffered stdout before the child inherits the fd. When stdout is a
+  // file (e.g. `--config > file`), stdio is fully buffered, so the child's
+  // direct writes would otherwise land ahead of our buffered label and the
+  // value would look blank (observed: empty `arch` line).
+  fflush(stdout);
   NSError *err = nil;
   if (![task launchAndReturnError:&err])
     return -1;
