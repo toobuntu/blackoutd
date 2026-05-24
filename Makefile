@@ -14,6 +14,8 @@ AGENT_PLIST    = $(BUNDLE_ID).plist
 AGENT_DST      = $(AGENT_DIR)/$(AGENT_PLIST)
 AGENT_TEMPLATE = blackoutd.plist.template
 UID            = $(shell id -u)
+GIT_DESCRIBE   := $(shell git -C $(CURDIR) describe --tags --always --dirty 2>/dev/null || echo unknown)
+BUILD_TIME     := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 RESOURCES_SRC  = $(SRCDIR)/Resources
 BUNDLE_NAME    = $(BINARY).bundle
@@ -30,6 +32,8 @@ CFLAGS = \
     -Os \
     -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
     -DBD_RESOURCES_BUNDLE='"$(SHARE_BUNDLE)"' \
+    -DBD_BUILD_GIT='"$(GIT_DESCRIBE)"' \
+    -DBD_BUILD_TIME='"$(BUILD_TIME)"' \
     -framework Cocoa \
     -framework CoreGraphics \
     -framework IOKit \

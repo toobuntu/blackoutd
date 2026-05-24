@@ -13,6 +13,15 @@
 #import <libproc.h>
 #import <sys/sysctl.h>
 
+// Build identity, injected by the Makefile via -D. Fallbacks keep a bare
+// `clang src/*.m` compile working without the Makefile.
+#ifndef BD_BUILD_GIT
+#define BD_BUILD_GIT "unknown"
+#endif
+#ifndef BD_BUILD_TIME
+#define BD_BUILD_TIME "unknown"
+#endif
+
 static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
@@ -463,7 +472,8 @@ static int printVersion(void) {
   NSBundle *main = [NSBundle mainBundle];
   NSString *ver =
       [main objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-  printf("blackoutd %s\n", ver ? ver.UTF8String : "unknown");
+  printf("blackoutd %s (%s, built %s)\n", ver ? ver.UTF8String : "unknown",
+         BD_BUILD_GIT, BD_BUILD_TIME);
   return 0;
 }
 
@@ -516,6 +526,10 @@ int main(int argc, const char *argv[]) {
       return 1;
     }
   }
+
+  // Daemon path. Record build identity at the top of every session so the
+  // running binary can be matched against source from the log alone.
+  NSLog(@"[startup] — build=%s built=%s", BD_BUILD_GIT, BD_BUILD_TIME);
 
   NSApplication *app = [NSApplication sharedApplication];
   AppDelegate *delegate = [[AppDelegate alloc] init];
