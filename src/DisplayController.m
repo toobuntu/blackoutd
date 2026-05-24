@@ -30,6 +30,13 @@ extern CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef, CGDirectDisplayID,
 // Level 2 (verbose): semantic logs plus [verbose]-tagged detail lines.
 static NSInteger BDVerbosityLevel = 1;
 
+// Bound on the err=1014 retry loop. Each successful applyEnable: and each
+// systemDidWake (via invalidateDisplayState) resets the counter, so the
+// effective ceiling is "3 consecutive failures per wake cycle". The bound
+// exists to prevent pathological spinning if the underlying CG framework
+// stops accepting configuration calls entirely.
+static const NSInteger kBDMaxFailedActionRetries = 3;
+
 // Level-1 lines always log. Level-2 lines log only when verbosity >= 2,
 // prefixed with [verbose] so they are visually distinct and greppable.
 #define BDLog(level, fmt, ...)                                                 \
@@ -187,6 +194,13 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   // Post-wake settle timer. Arms on wake; resets on each display callback;
   // fires when the pipeline has been quiet for 2 seconds (P0/P2 fix).
   dispatch_source_t _wakeSettleTimer;
+  // Number of consecutive err=1014 (internal CG error) failures from
+  // applyEnable: since the last success or wake event. The retry loop is
+  // driven through resetWakeSettleTimer; the counter bounds it. Reset on
+  // success (applyEnable: completion) and on systemDidWake (via
+  // invalidateDisplayState). See incidents 14:42 and 17:28 on 2026-04-29
+  // in docs/debug/.
+  NSInteger _failedActionRetries;
 }
 
 - (instancetype)init {
@@ -296,6 +310,10 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   BOOL disconnected = _externalDisconnectedDuringSleep;
   _actionInProgress = NO;
   _externalDisconnectedDuringSleep = NO;
+  // Reset the err=1014 retry budget. Each new wake cycle gets a fresh
+  // window of up to kBDMaxFailedActionRetries attempts to converge on
+  // the safety invariant.
+  _failedActionRetries = 0;
   // Clear the ivar before cancelling so the queued handler block (which
   // compares the captured timer pointer against the ivar) sees the mismatch
   // and bails out. Cancelling first leaves a brief window where the handler
@@ -361,6 +379,18 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 // P0: re-applies auto-blackout if external is present and not blacked out.
 // _wakeSettleTimer is already cancelled and cleared by the handler block.
 - (void)wakeSettleTimerFired {
+  // Bail out if the system is going (back) to sleep before this runs.
+  // dispatch_source_t timers fire on wall-clock schedule and may execute
+  // while _systemSleeping=YES if the system slipped back into sleep
+  // during the settle window. Issuing CG configuration calls in that
+  // state returns err=1014 (internal CG error) and leaves daemon state
+  // desynced from reality. The next systemDidWake re-arms the wake-settle
+  // timer via handleSystemWake, so the deferred work happens then.
+  // Confirmed failure mode: 2026-04-29 14:42 incident, see docs/debug/.
+  if (_systemSleeping) {
+    NSLog(@"[wake] — settle timer fired but system is sleeping; deferring");
+    return;
+  }
   NSLog(@"[wake] — display pipeline settled");
   BOOL ok = [self recommitDisplayConfiguration];
   NSLog(@"[wake] — recommit after settle: %s", ok ? "ok" : "failed");
@@ -398,10 +428,34 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
       NSLog(@"[builtin] id=%u action=%@ result=failed err=%d", _builtInID,
             _currentAction, err);
       _actionInProgress = NO;
+      // Any genuine failure here is treated as transient and retried through
+      // the wake-settle path: the timer fires after the display pipeline goes
+      // quiet, and wakeSettleTimerFired re-evaluates the safety invariant. The
+      // _systemSleeping guard inside that handler prevents recursing into
+      // another sleeping CG call. kCGErrorIllegalArgument is handled above as
+      // "synced" and does not reach here. The dominant observed failure is the
+      // internal error 1014 (CGCompleteDisplayConfiguration blocked by sleep);
+      // 1014 has no public CGError symbol — the 1012-1014 range is reserved for
+      // internal errors — so the retry must NOT be gated on a single named
+      // constant such as kCGErrorCannotComplete (1004).
+      if (_failedActionRetries < kBDMaxFailedActionRetries) {
+        _failedActionRetries++;
+        NSLog(@"[builtin] err=%d — arming retry %ld/%ld via wake-settle "
+              @"timer",
+              err, (long)_failedActionRetries, (long)kBDMaxFailedActionRetries);
+        [self resetWakeSettleTimer];
+      } else {
+        NSLog(@"[builtin] err=%d — retry budget exhausted (%ld/%ld); "
+              @"deferring until next wake or display change",
+              err, (long)_failedActionRetries, (long)kBDMaxFailedActionRetries);
+        _failedActionRetries = 0;
+      }
       return;
     }
   }
   _isBlackedOut = !enable;
+  // Successful action: clear the err=1014 retry budget.
+  _failedActionRetries = 0;
   NSLog(@"[builtin] id=%u action=%@ result=complete isBlackedOut=%d",
         _builtInID, _currentAction, _isBlackedOut);
   [_delegate displayController:self blackoutStateChanged:_isBlackedOut];
@@ -423,6 +477,16 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
         self->_actionInProgress = NO;
         NSLog(@"[builtin] id=%u action=%@ result=settled isBlackedOut=%d",
               self->_builtInID, self->_currentAction, self->_isBlackedOut);
+        // If the system slipped back into sleep during the 2-second settle
+        // window, defer the post-action invariant check to the next
+        // post-wake cycle. Issuing CG calls while sleeping returns
+        // err=1014 and leaves daemon state desynced.
+        // Confirmed failure mode: 2026-04-29 17:28 incident, see docs/debug/.
+        if (self->_systemSleeping) {
+          NSLog(@"[builtin] settle handler — system sleeping; deferring "
+                @"post-action invariant check to next wake");
+          return;
+        }
         if (self->_isBlackedOut && ![self hasActiveExternalDisplay]) {
           NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
                 @"disabling blackout (missed during action window)");
