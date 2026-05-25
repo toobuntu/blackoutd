@@ -1348,11 +1348,15 @@ is absent in the failing captures and present in the succeeding one.
   storm during a dark-wake / re-sleep thrash (see P25); WS confirms the
   restored built-in returns mirror-primary=external, so it shows the
   external's black source — both panels black with the lid open.
-- `-155349` (control): lid-open sleep. The same coalesced flap arrives
-  *after* `NSWorkspaceDidWakeNotification` clears `_systemSleeping`, so the
-  flag is NOT set, the wake takes the normal path, the settle timer fires
-  (`recommit after settle: ok`), and the daemon converges correctly to
-  `isBlackedOut=1` with a healthy external — no cursor-on-black.
+- `-155349`: lid-open sleep. The coalesced flap arrives *after*
+  `NSWorkspaceDidWakeNotification` clears `_systemSleeping`, so the flag is
+  NOT set, the wake takes the normal path, and the settle timer fires
+  (`recommit after settle: ok`). Convergence is correct (`isBlackedOut=1`).
+  But cursor-on-black STILL occurred and was cleared only by a hot-corner
+  display-power cycle ~14 s after the recommit. Key result: the post-settle
+  recommit fired and did NOT recover the external — the display-power cycle
+  did. So cursor-on-black is independent of the early-return path and of the
+  recommit.
 
 The differentiator is a race (flap-before-wake-notification vs after), not
 the lid directly; lid-closed clamshell sleep appears to bias the flap to
@@ -1367,11 +1371,24 @@ arrive during sleep.
   `err=1014 — arming retry 1/3` firing. Those notes are stale.
 - **Alt Mode dropout not observed.** None of the four 2026-05-25 captures
   exhibits the "~30 s spontaneous Alt Mode dropout" described in P2, ADR
-  0003, and the displayrecommitd README. `-155349` is clean for the full
-  post-wake window; the only post-wake display-power transition is a
-  deliberate hot-corner display sleep. Treat the dropout as *hypothesized*,
-  not *established*, until reconfirmed with data; the observed
-  cursor-on-black is the early-return-skips-recommit path above.
+  0003, and the displayrecommitd README. The only post-wake display-power
+  transition in `-155349` is the deliberate hot-corner recovery, not a
+  spontaneous hotplug-out. Treat the dropout as *hypothesized*, not
+  *established*, until reconfirmed with data.
+- **The post-settle recommit does not recover cursor-on-black.** In
+  `-155349` the recommit fired (`recommit after settle: ok`) and the
+  external stayed black until a hot-corner display-power cycle. P2 / ADR
+  0003 / the README imply the no-op CGConfig recommit re-absorbs the
+  external; this capture shows it is insufficient on its own — recovery
+  needs a stronger action (a display-power cycle, as the hot corner does;
+  cf. BetterDisplay's `_reinitializeOnWake`). Open question for P20: is the
+  recommit insufficient by *mechanism*, or did it merely fire too early
+  (+2 s quiet) before the external finished re-attaching? A manual recommit
+  fired late, during the black, would distinguish the two.
+- **Cursor-on-black is intermittent and path-independent.** `-170616`
+  (lid-closed sleep, old daemon, the buggy early-return path) was clean;
+  `-155349` (normal path) was not. So cursor-on-black is neither
+  deterministic nor tied to the early-return path.
 
 **Proposed fix**: in `systemDidWake:`, do not `return` after the
 disconnected-during-sleep restore — fall through to
@@ -1380,7 +1397,9 @@ ADR 0003 flow (post-settle recommit + safety re-check + P0 re-blackout)
 runs on every wake, as ADR 0003 already specifies. Keep the immediate
 safety restore. Pairs with P25 (avoid nested CG transactions) and P1
 (retry budget) for the err=1014 thrash variant, which this change does not
-by itself resolve.
+by itself resolve. Scope: (A) fixes the convergence bug only. Per the
+recommit finding above it is NOT expected to resolve cursor-on-black, whose
+recovery needs a display-power-cycle-class action tracked under P20.
 
 **Acceptance criteria**:
 
@@ -1390,9 +1409,9 @@ by itself resolve.
       auto-blackout on, the daemon converges to `isBlackedOut=1` (not both
       active).
 - [ ] A fresh `verbosityLevel=2` capture shows the settle recommit firing
-      on this path; assess whether it clears cursor-on-black without a
-      hot-corner cycle (this tests the recommit's efficacy, previously
-      untestable because the recommit never ran on this path).
+      on this path and correct convergence. Cursor-on-black recovery is NOT
+      expected from this change (`-155349` shows the recommit insufficient);
+      that recovery is tracked under P20.
 - [ ] No regression on the normal wake path (`-155349` behavior).
 
 **Files**: `src/AppDelegate.m` (`systemDidWake:`). Relates to ADR 0003 and
