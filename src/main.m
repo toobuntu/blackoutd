@@ -388,17 +388,22 @@ static int setAutoBlackout(const char *value) {
 static int setVerbosity(const char *value) {
   // Reject non-numeric input early (e.g. "blackoutd verbosity high"). The
   // strtol fallback would silently produce 0, which is a valid level.
-  for (const char *p = value; *p; p++) {
-    if (*p < '0' || *p > '9') {
-      fprintf(stderr, "Usage: blackoutd verbosity <0|1|2>\n");
-      return 1;
-    }
-  }
-  long level = strtol(value, NULL, 10);
-  if (level < 0 || level > 2) {
-    fprintf(stderr, "verbosity level must be 0, 1, or 2\n");
+  static const char *kVerbosityUsage = "Usage: blackoutd verbosity <0|1|2>\n";
+
+  if (value == NULL || value[0] == '\0') {
+    fprintf(stderr, "%s", kVerbosityUsage);
     return 1;
   }
+
+  char *end = NULL;
+  errno = 0;
+  long level = strtol(value, &end, 10);
+
+  if (*end != '\0' || errno == ERANGE || level < 0 || level > 2) {
+    fprintf(stderr, "%s", kVerbosityUsage);
+    return 1;
+  }
+
   NSUserDefaults *defaults =
       [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
   [defaults setInteger:level forKey:kVerbosityKey];
