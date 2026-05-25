@@ -9,12 +9,38 @@ _CodeSignature/
 *.o
 *.dSYM/
 
+# Timestamped rotation backups across src/ and docs/.
+src/*.????-??-??-????.[hm]*
+docs/*.????-??-??-????.md*
+
+# Bundler installs gems here per .bundle/config (BUNDLE_PATH). The
+# config file itself IS tracked — it's how the project pins gem layout.
+# The vendored gems and gem-build artifacts are not.
+vendor/bundle/
+.bundle/cache/
+
+# In-tree worktrees for testing scripts that mutate the repo. Place
+# worktrees under this prefix so the Claude Code sandbox (whose
+# writable area is the project directory and its subdirectories)
+# permits them, AND so a stray `git add .` in the primary checkout
+# doesn't try to commit the worktree's files.
+worktrees/
+
 # Working files for AI-assisted development sessions; not part of the
 # repository's tracked content. Keep them locally for reference but do
 # not commit.
+docs/debug/
 docs/HANDOFF.md
 docs/HANDOFF-claude-code.md
 docs/pr*.diff
 docs/reviews/
 scripts/find_unicode_control2*/
 _user-claude-config/
+ACTION-ITEMS-handoff.md
+
+# Sandbox metadata written by scripts/sandbox-enter.sh inside a fresh
+# clone for later restoration by scripts/sandbox-exit.sh. The clone
+# inherits this .gitignore from the source repo, so listing the path
+# here keeps an inattentive `git add .` inside the sandbox from
+# committing remote URLs into the source's tracked tree.
+.sandbox-remotes/
