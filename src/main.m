@@ -256,7 +256,8 @@ static NSString *lastLogToken(NSString *needle) {
   if (![NSFileManager.defaultManager fileExistsAtPath:log])
     return nil;
   NSString *cmd =
-      [NSString stringWithFormat:@"grep -- '%@' '%@' | tail -1", needle, log];
+      [NSString stringWithFormat:@"grep --fixed-strings -- '%@' '%@' | tail -1",
+                                 needle, log];
   NSString *line = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
   if (!line.length)
     return nil;
@@ -381,6 +382,23 @@ static NSString *logWindowArgs(int minutes, NSString *start, NSString *end) {
   return [NSString stringWithFormat:@"--last %dm", minutes];
 }
 
+// Derives a self-bounding log-window start from the daemon's own most recent
+// [wake] line, less a lead margin to include the pre-wake sleep and any
+// dark-wake churn. nil if no wake is recorded (caller falls back to a fixed
+// window). Lets `diagnose` bound the capture without user-supplied times.
+static NSString *autoWindowStart(void) {
+  NSString *wake = lastLogToken(@"[wake]");
+  if (wake.length < 19)
+    return nil;
+  NSDateFormatter *f = [[NSDateFormatter alloc] init];
+  f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  f.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  NSDate *wakeDate = [f dateFromString:[wake substringToIndex:19]];
+  if (!wakeDate)
+    return nil;
+  return [f stringFromDate:[wakeDate dateByAddingTimeInterval:-90]];
+}
+
 // Collects a diagnostic bundle into /tmp and prints the report to stdout.
 static int runDiagnose(int minutes, NSString *start, NSString *end) {
   NSString *report = buildReport();
@@ -420,7 +438,11 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
     runShellToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
                    [NSString stringWithFormat:@"tail -500 '%@'", log]);
 
-  NSString *window = logWindowArgs(minutes, start, end);
+  // Self-bounding default: derive the window from the daemon's last wake.
+  // Explicit --start/--end or --minutes override.
+  if (!start.length && minutes <= 0)
+    start = autoWindowStart();
+  NSString *window = logWindowArgs(minutes > 0 ? minutes : 3, start, end);
   runShellToFile(
       [dir stringByAppendingPathComponent:@"system-log.txt"],
       [NSString stringWithFormat:
@@ -433,9 +455,9 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
                                  @"'process == \"WindowServer\" OR process == "
                                  @"\"displaypolicyd\"' --style compact 2>&1",
                                  window]);
-  runShellToFile(
-      [dir stringByAppendingPathComponent:@"sleep-wake.txt"],
-      @"pmset -g log 2>/dev/null | grep -E 'Sleep|Wake|Clamshell' | tail -40");
+  runShellToFile([dir stringByAppendingPathComponent:@"sleep-wake.txt"],
+                 @"pmset -g log 2>/dev/null | grep --extended-regexp "
+                 @"'Sleep|Wake|Clamshell' | tail -40");
   runShellToFile(
       [dir stringByAppendingPathComponent:@"ioreg.txt"],
       @"echo '=== IODisplayConnect ==='; ioreg -lw0 -r -c IODisplayConnect; "
@@ -597,7 +619,8 @@ static void printUsage(void) {
       "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
       " 2=verbose)\n"
       "  diagnose        Collect a diagnostic bundle for bug reports\n"
-      "                  [--minutes N | --start \"T\" --end \"T\"]\n"
+      "                  (auto-bounds the window to the last wake; override\n"
+      "                  with --minutes N or --start \"T\" --end \"T\")\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
@@ -661,7 +684,7 @@ int main(int argc, const char *argv[]) {
     if (strcmp(cmd, "status") == 0)
       return printStatus();
     if (strcmp(cmd, "diagnose") == 0) {
-      int minutes = 3;
+      int minutes = 0;
       NSString *start = nil, *end = nil;
       for (int i = 2; i + 1 < argc; i += 2) {
         if (strcmp(argv[i], "--minutes") == 0) {
