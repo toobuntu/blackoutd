@@ -1319,3 +1319,81 @@ grepping free text, and diag bundles can filter by category.
 script. Rationale recorded in the shared logging ADR (repo-foundation
 `0009-logging-os_log-vs-newsyslog`) with the file-log alternative recipe in
 repo-foundation `docs/newsyslog-log-rotation.md`.
+
+---
+
+## P28 — `systemDidWake:` early-return skips the post-settle recommit
+
+**Problem**: On the disconnected-during-sleep wake path, `systemDidWake:`
+restores the built-in and `return`s before calling `handleSystemWake`. The
+wake-settle quiet timer (ADR 0003) is therefore never armed on that path,
+so on a *successful* restore the settle handler `wakeSettleTimerFired`
+never runs: no post-settle recommit (P2 / ADR 0003) and no P0 re-blackout.
+The daemon ends `isBlackedOut=0` with the external present and
+auto-blackout enabled — both displays active — and the external is never
+re-absorbed by the settle recommit. ADR 0003's own confirmation criterion
+(`[wake] — recommit after settle: ok` must appear on every user wake;
+absence indicates the quiet timer never fired) is the detector: the line
+is absent in the failing captures and present in the succeeding one.
+
+**Empirical basis (2026-05-25, verbosityLevel=2)**:
+
+- `blackoutd-diag-20260525-122138` and `-135711`: lid-closed sleep; the
+  external's coalesced flap callback (`flags` carrying both `add` and
+  `remove`) arrives *during* sleep, sets `_externalDisconnectedDuringSleep`,
+  the wake takes the early-return path, the restore succeeds, no
+  `recommit after settle` line appears, and the daemon ends
+  `isBlackedOut=0` (both displays active).
+- `-150108`: same path, but the restore additionally hits an err=1014
+  storm during a dark-wake / re-sleep thrash (see P25); WS confirms the
+  restored built-in returns mirror-primary=external, so it shows the
+  external's black source — both panels black with the lid open.
+- `-155349` (control): lid-open sleep. The same coalesced flap arrives
+  *after* `NSWorkspaceDidWakeNotification` clears `_systemSleeping`, so the
+  flag is NOT set, the wake takes the normal path, the settle timer fires
+  (`recommit after settle: ok`), and the daemon converges correctly to
+  `isBlackedOut=1` with a healthy external — no cursor-on-black.
+
+The differentiator is a race (flap-before-wake-notification vs after), not
+the lid directly; lid-closed clamshell sleep appears to bias the flap to
+arrive during sleep.
+
+**Corrections to existing entries (data-driven, this session)**:
+
+- **err=1014 retry now fires.** P1's acceptance checkbox and P20's note
+  state the retry "never arms (wrong-constant guard, 1004 vs 1014)." That
+  was fixed in PR#12 (commit 318c69c): the guard now retries on any
+  non-`kCGErrorIllegalArgument` failure, and `-150108` shows
+  `err=1014 — arming retry 1/3` firing. Those notes are stale.
+- **Alt Mode dropout not observed.** None of the four 2026-05-25 captures
+  exhibits the "~30 s spontaneous Alt Mode dropout" described in P2, ADR
+  0003, and the displayrecommitd README. `-155349` is clean for the full
+  post-wake window; the only post-wake display-power transition is a
+  deliberate hot-corner display sleep. Treat the dropout as *hypothesized*,
+  not *established*, until reconfirmed with data; the observed
+  cursor-on-black is the early-return-skips-recommit path above.
+
+**Proposed fix**: in `systemDidWake:`, do not `return` after the
+disconnected-during-sleep restore — fall through to
+`[_displayController handleSystemWake]` so the settle timer arms and the
+ADR 0003 flow (post-settle recommit + safety re-check + P0 re-blackout)
+runs on every wake, as ADR 0003 already specifies. Keep the immediate
+safety restore. Pairs with P25 (avoid nested CG transactions) and P1
+(retry budget) for the err=1014 thrash variant, which this change does not
+by itself resolve.
+
+**Acceptance criteria**:
+
+- [ ] `[wake] — recommit after settle: ok` appears on the
+      disconnected-during-sleep path, not only the normal path.
+- [ ] After a disconnected-during-sleep wake with external present and
+      auto-blackout on, the daemon converges to `isBlackedOut=1` (not both
+      active).
+- [ ] A fresh `verbosityLevel=2` capture shows the settle recommit firing
+      on this path; assess whether it clears cursor-on-black without a
+      hot-corner cycle (this tests the recommit's efficacy, previously
+      untestable because the recommit never ran on this path).
+- [ ] No regression on the normal wake path (`-155349` behavior).
+
+**Files**: `src/AppDelegate.m` (`systemDidWake:`). Relates to ADR 0003 and
+P0, P1, P20, P25.
