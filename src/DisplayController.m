@@ -448,6 +448,10 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
         NSLog(@"[builtin] err=%d — retry budget exhausted (%ld/%ld); "
               @"deferring until next wake or display change",
               err, (long)_failedActionRetries, (long)kBDMaxFailedActionRetries);
+        // Zero (not saturate) so the next genuine trigger — a wake or a real
+        // display change — gets a fresh budget. No retry is armed here, and a
+        // failed action emits no reconfiguration callback, so this cannot spin:
+        // applyEnable: is only re-entered on an external event.
         _failedActionRetries = 0;
       }
       return;
