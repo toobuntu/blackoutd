@@ -13,9 +13,19 @@
 #import <libproc.h>
 #import <sys/sysctl.h>
 
+// Build identity, injected by the Makefile via -D. Fallbacks keep a bare
+// `clang src/*.m` compile working without the Makefile.
+#ifndef BD_BUILD_GIT
+#define BD_BUILD_GIT "unknown"
+#endif
+#ifndef BD_BUILD_TIME
+#define BD_BUILD_TIME "unknown"
+#endif
+
 static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
+static NSString *const kVerbosityKey = @"verbosityLevel";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
 static NSString *agentPlistPath(void) {
@@ -218,6 +228,11 @@ static int runAndPrint(NSString *path, NSArray<NSString *> *args) {
   NSTask *task = [[NSTask alloc] init];
   task.executableURL = [NSURL fileURLWithPath:path];
   task.arguments = args;
+  // Flush buffered stdout before the child inherits the fd. When stdout is a
+  // file (e.g. `--config > file`), stdio is fully buffered, so the child's
+  // direct writes would otherwise land ahead of our buffered label and the
+  // value would look blank (observed: empty `arch` line).
+  fflush(stdout);
   NSError *err = nil;
   if (![task launchAndReturnError:&err])
     return -1;
@@ -259,6 +274,9 @@ static int printConfig(void) {
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                       ? [defaults boolForKey:kAutoBlackoutKey]
                       : YES;
+  NSInteger verbosity = [defaults objectForKey:kVerbosityKey] != nil
+                            ? [defaults integerForKey:kVerbosityKey]
+                            : 1;
 
   printf("--- blackoutd diagnostic info ---\n\n");
 
@@ -269,6 +287,7 @@ static int printConfig(void) {
   printf("built-in display: %s\n",
          builtInIsOnline() ? "active" : "blacked out");
   printf("auto-blackout   : %s\n", autoMode ? "enabled" : "disabled");
+  printf("verbosity       : %ld\n", (long)verbosity);
   printf("bundle-id       : %s\n", kBundleID.UTF8String);
 
   NSOperatingSystemVersion ver = info.operatingSystemVersion;
@@ -327,6 +346,9 @@ static int printStatus(void) {
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                       ? [defaults boolForKey:kAutoBlackoutKey]
                       : YES;
+  NSInteger verbosity = [defaults objectForKey:kVerbosityKey] != nil
+                            ? [defaults integerForKey:kVerbosityKey]
+                            : 1;
   if (pid > 0)
     printf("blackoutd: running (pid %d)\n", pid);
   else
@@ -334,6 +356,7 @@ static int printStatus(void) {
   printf("  built-in display : %s\n",
          builtInIsOnline() ? "active" : "blacked out");
   printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
+  printf("  verbosity        : %ld\n", (long)verbosity);
   return pid > 0 ? 0 : 1;
 }
 
@@ -349,6 +372,68 @@ static int setAutoBlackout(const char *value) {
   [defaults synchronize];
   printf("auto-blackout: %s\n", enable ? "enabled" : "disabled");
   return sendSignalToDaemon(SIGHUP);
+}
+
+// Sets the daemon's log verbosity level, persisted in NSUserDefaults so it
+// survives daemon restart, and signals the running daemon (if any) to
+// reload preferences immediately. Single-step replacement for the
+// two-command `defaults write blackoutd verbosityLevel -int N && killall
+// -HUP blackoutd` procedure documented in `docs/technical-debt.md` P20.
+//
+// Reads-back from NSUserDefaults rather than echoing the input so the
+// output reflects what the daemon will actually see on the next reload.
+//
+// Daemon-not-running case is non-error: the new value persists in
+// defaults and takes effect on next start. Returns 0.
+static int setVerbosity(const char *value) {
+  // Reject non-numeric input early (e.g. "blackoutd verbosity high"). The
+  // strtol fallback would silently produce 0, which is a valid level.
+  static const char *kVerbosityUsage = "Usage: blackoutd verbosity <0|1|2>\n";
+
+  if (value == NULL || value[0] == '\0') {
+    fprintf(stderr, "%s", kVerbosityUsage);
+    return 1;
+  }
+
+  char *end = NULL;
+  errno = 0;
+  long level = strtol(value, &end, 10);
+
+  if (*end != '\0' || errno == ERANGE || level < 0 || level > 2) {
+    fprintf(stderr, "%s", kVerbosityUsage);
+    return 1;
+  }
+
+  NSUserDefaults *defaults =
+      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+  [defaults setInteger:level forKey:kVerbosityKey];
+  [defaults synchronize];
+  // Read the persisted value back so the reported number is what the daemon
+  // will load on reload, not merely the parsed input.
+  long applied = (long)[defaults integerForKey:kVerbosityKey];
+  pid_t pid = daemonPid();
+  if (pid > 0) {
+    if (kill(pid, SIGHUP) != 0) {
+      if (errno == ESRCH) {
+        // Benign race: daemon vanished between lookup and signal. Same outcome
+        // as the not-running branch (value persisted, loads on next start), so
+        // report success; non-ESRCH errors fall through to a real failure.
+        printf("verbosity: %ld (daemon exited before signal delivery; "
+               "takes effect on next start)\n",
+               applied);
+        return 0;
+      }
+
+      perror("blackoutd: kill SIGHUP");
+      return 1;
+    }
+    printf("verbosity: %ld (daemon notified)\n", applied);
+  } else {
+    printf("verbosity: %ld (daemon not running; takes effect on next "
+           "start)\n",
+           applied);
+  }
+  return 0;
 }
 
 // launchctl bootout exit code 3 means the service was not loaded (launchctl
@@ -394,6 +479,8 @@ static void printUsage(void) {
       "  off             Restore built-in display\n"
       "  status          Show daemon and display status (even if not running)\n"
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
+      "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
+      " 2=verbose)\n"
       "  --config        Print diagnostic info for bug reports\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
@@ -403,12 +490,41 @@ static void printUsage(void) {
       "  daemon          Run as daemon\n");
 }
 
+// Derives a local-time rendering of the embedded UTC build instant for the
+// human-facing --version output. Returns nil if BD_BUILD_TIME is the
+// "unknown" fallback or otherwise unparseable, in which case the caller
+// omits the local line. Local zone reflects whoever runs --version, not the
+// build host.
+static NSString *localBuildTimeLine(void) {
+  NSISO8601DateFormatter *parser = [[NSISO8601DateFormatter alloc] init];
+  // Require an explicit zone in the parsed string (the stamp always carries
+  // +00:00), so there is no silent assume-local/assume-UTC fallback.
+  parser.formatOptions =
+      NSISO8601DateFormatWithInternetDateTime | NSISO8601DateFormatWithTimeZone;
+  NSDate *date = [parser dateFromString:@BD_BUILD_TIME];
+  if (!date)
+    return nil;
+  NSDateFormatter *out = [[NSDateFormatter alloc] init];
+  out.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  // Lowercase xxx always emits a numeric offset (+00:00 at zero) rather than
+  // collapsing to Z like XXX/ZZZZZ; matches the offset-form build stamp.
+  out.dateFormat = @"yyyy-MM-dd'T'HH:mm:ssxxx";
+  out.timeZone = NSTimeZone.localTimeZone;
+  NSString *abbrev = NSTimeZone.localTimeZone.abbreviation ?: @"local";
+  return
+      [NSString stringWithFormat:@"%@ (%@)", [out stringFromDate:date], abbrev];
+}
+
 static int printVersion(void) {
   // Version is embedded in the binary's __TEXT,__info_plist section.
   NSBundle *main = [NSBundle mainBundle];
   NSString *ver =
       [main objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-  printf("blackoutd %s\n", ver ? ver.UTF8String : "unknown");
+  printf("blackoutd %s (%s)\n", ver ? ver.UTF8String : "unknown", BD_BUILD_GIT);
+  printf("built: %s (UTC)\n", BD_BUILD_TIME);
+  NSString *localLine = localBuildTimeLine();
+  if (localLine)
+    printf("local: %s\n", localLine.UTF8String);
   return 0;
 }
 
@@ -448,6 +564,12 @@ int main(int argc, const char *argv[]) {
         return 1;
       }
       return setAutoBlackout(argv[2]);
+    } else if (strcmp(cmd, "verbosity") == 0) {
+      if (argc < 3) {
+        fprintf(stderr, "Usage: blackoutd verbosity <0|1|2>\n");
+        return 1;
+      }
+      return setVerbosity(argv[2]);
     }
     // "daemon" with no subcommand falls through to daemon run loop below.
     if (strcmp(cmd, "daemon") != 0) {
@@ -455,6 +577,10 @@ int main(int argc, const char *argv[]) {
       return 1;
     }
   }
+
+  // Daemon path. Record build identity at the top of every session so the
+  // running binary can be matched against source from the log alone.
+  NSLog(@"[startup] — build=%s built=%s", BD_BUILD_GIT, BD_BUILD_TIME);
 
   NSApplication *app = [NSApplication sharedApplication];
   AppDelegate *delegate = [[AppDelegate alloc] init];

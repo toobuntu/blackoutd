@@ -14,6 +14,8 @@ AGENT_PLIST    = $(BUNDLE_ID).plist
 AGENT_DST      = $(AGENT_DIR)/$(AGENT_PLIST)
 AGENT_TEMPLATE = blackoutd.plist.template
 UID            = $(shell id -u)
+GIT_DESCRIBE   := $(shell git -C $(CURDIR) describe --tags --always --dirty 2>/dev/null || echo unknown)
+BUILD_TIME     := $(shell date -u -Iseconds)
 
 RESOURCES_SRC  = $(SRCDIR)/Resources
 BUNDLE_NAME    = $(BINARY).bundle
@@ -30,6 +32,8 @@ CFLAGS = \
     -Os \
     -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
     -DBD_RESOURCES_BUNDLE='"$(SHARE_BUNDLE)"' \
+    -DBD_BUILD_GIT='"$(GIT_DESCRIBE)"' \
+    -DBD_BUILD_TIME='"$(BUILD_TIME)"' \
     -framework Cocoa \
     -framework CoreGraphics \
     -framework IOKit \
@@ -91,6 +95,7 @@ dev: $(TARGET)
 	    $(AGENT_TEMPLATE) > $(AGENT_DST)
 	chmod 644 $(AGENT_DST)
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
+	@printf '%s\n' 'PATH `blackoutd` is now stale; use `./build/blackoutd` or `make reinstall`.'
 
 # Upgrade flow for end users: bootout the running agent (if any), install
 # the new binary and resources to /usr/local, then bootstrap the new

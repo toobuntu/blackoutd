@@ -12,9 +12,23 @@ and pointers to files that need changes.
 
 P0–P9 are the original v0.2-cycle entries (some FIXED, some still open).
 P10–P19 were added during the post-PR#8 second-pass review (see commit
-history for context). New entries are append-only; do not renumber.
+history for context). P20+ were added later — including P21 (shebang
+exec-bit), P22 (bump tool), P23 (verbosity CLI subcommand), and P24
+(sandbox helpers). New entries are append-only; do not renumber.
 
-**Next up after v0.2 ships**: P4 (Mach IPC, finish v1.0 portion) — see below.
+**Current top priority — P20 (cursor-on-black recovery gap)**: a confirmed
+production bug where the external display can enter a stuck render state
+that the daemon does not detect or recover from. Read P20 first. The
+related err=1014 family of safety-invariant violations was diagnosed
+from the 2026-04-29 logs and *partially* addressed in
+`src/DisplayController.m`; see the "Hardening (2026-04-29)" subsection in
+P1 — note the 2026-05-19 defect recorded there: the retry half of that
+fix never actually fires (wrong-constant guard). P20 is still
+open: the cursor-on-black state can occur without a sleep cycle, so it
+sits outside the err=1014 fix's reach.
+
+**Next up after P20 is resolved or quarantined**: P4 (Mach IPC, finish
+v1.0 portion).
 
 ---
 
@@ -53,7 +67,7 @@ every callback is a known efficiency wart — see P10.
 
 ---
 
-## P1 — Safety invariant on restore (MITIGATED)
+## P1 — Safety invariant on restore (MITIGATED, with 2026-04-29 hardening)
 
 **Problem**: When the display compositor is in a broken state (e.g. after a
 USB-C Alt Mode dropout), `disableBlackout` restores the built-in but it shows
@@ -73,16 +87,78 @@ invariant after the recommit, closing a 2-second window where state could
 diverge if an external was unplugged during sleep without the in-sleep
 callback firing.
 
+**Hardening (2026-04-29 — err=1014 family)**: Two confirmed incidents
+on 2026-04-29 (logs in `docs/debug/blackoutd-diag-20260429-{155245,200620}/`)
+showed the safety invariant violated by `CGCompleteDisplayConfiguration`
+returning error `1014` and leaving daemon state desynced from reality.
+Two distinct triggers, same family:
+
+> **Defect (found 2026-05-19):** `1014` is NOT `kCGErrorCannotComplete`.
+> The public `CGError` enum ends at `kCGErrorNoneAvailable` = `1011`;
+> `kCGErrorCannotComplete` is `1004` (verified against `CGError.h`).
+> `1014` is an internal CoreGraphics error — the `1012`–`1014` range is
+> reserved for unnamed internal errors (per the historical CG error
+> list), so it has no public symbol. All three captured incidents
+> returned `1014`: 2026-04-29 14:42 & 17:28 (pre-fix build, establishing
+> the value) and 2026-05-19 12:10 (post-fix build — the sleep-gating
+> guards are present, so the retry guard was compiled in too, yet two
+> bare `result=failed err=1014` lines appear with no "arming retry":
+> dispositive). The guard's *intent* is sound — retry only a transient
+> blocked call, not programming errors like `IllegalArgument` — and
+> `kCGErrorCannotComplete` is the documented name matching that intent;
+> it simply does not match the value this hardware actually returns
+> (`1014`). Fix on the branch: keep the transient-only intent but match
+> `1014` too — simplest is to retry on any failure that is not
+> `kCGErrorIllegalArgument` (already handled as "synced"), bounded by
+> `kBDMaxFailedActionRetries`. Related concurrency issue: P25.
+
+- **14:42 incident**: the wake-settle timer fired during a wake → back-to-sleep
+  sequence; `wakeSettleTimerFired` issued CG calls that blocked through
+  3 minutes of sleep and returned err=1014 on next wake. Built-in
+  remained `_isBlackedOut=YES` with no recovery path.
+- **17:28 incident**: the +2s settle handler in `applyEnable:` fired
+  while `_systemSleeping=YES`, triggered the "missed during action
+  window" restore, and got err=1014. Externals stuck in mirror mode
+  until next display change.
+
+The fix has three parts, all in `src/DisplayController.m`:
+
+1. `wakeSettleTimerFired` early-returns if `_systemSleeping=YES`. Defers
+   the work to the next post-wake settle cycle.
+2. `applyEnable:`'s `dispatch_after` settle handler clears
+   `_actionInProgress` regardless but skips the post-action invariant
+   check when sleeping.
+3. On `kCGErrorCannotComplete` from `setDisplay:enabled:`, `applyEnable:`
+   arms the wake-settle timer to drive a retry through the existing
+   pipeline. Bounded by `_failedActionRetries` (file-static const
+   `kBDMaxFailedActionRetries=3`); reset on success and on
+   `invalidateDisplayState` (called from `systemDidWake:`).
+
 **Remaining risk**: The recommit may not cover all compositor failure modes.
-Monitor for new repros.
+Monitor for new repros. **Update**: a separate failure mode is tracked
+under P20 — the cursor-on-black state is reachable without an unplug
+event, so neither the restore-path recommit nor the wake-settle recommit
+fires. The 2026-04-29 fix narrows the daemon's exposure to err=1014 but
+does not address P20's recovery gap.
 
 **Acceptance criteria**:
 - [ ] Unplugging external with built-in blacked out always produces a usable
       built-in showing window content, not cursor-on-black
 - [ ] Verified with both healthy and broken-compositor display state
+- [x] `wakeSettleTimerFired` and `applyEnable:` settle handler both
+      respect `_systemSleeping` (no CG calls during sleep)
+- [ ] err=1014 from `setDisplay:enabled:` triggers retry via wake-settle
+      with bounded retry count — **NOT working: guard compares against
+      `kCGErrorCannotComplete` (1004), not the real `1014`; retry never
+      arms. See the 2026-05-19 defect note above and P25.**
+- [ ] Verified: sleep-during-settle scenarios reproduce in dev and the
+      new daemon log shows `[wake] — settle timer fired but system is
+      sleeping; deferring` (and absence of err=1014). Send daemon log
+      back if anomalies.
 
 **Files**: `src/DisplayController.m` (setDisplay:enabled:,
-recommitDisplayConfiguration, handleReconfiguration:, wakeSettleTimerFired)
+recommitDisplayConfiguration, handleReconfiguration:, wakeSettleTimerFired,
+applyEnable:, invalidateDisplayState)
 
 ---
 
@@ -175,7 +251,8 @@ service port and waits for a reply (status code + optional payload).
 Specifically:
 
 - Define a small message protocol: request types (ENABLE, DISABLE, RELOAD,
-  STATUS, AUTO_ON, AUTO_OFF), reply types (success + state, failure + reason).
+  STATUS, AUTO_ON, AUTO_OFF, VERBOSITY), reply types (success + state,
+  failure + reason).
 - Daemon adds a `mach_msg_server` loop on the service port.
 - CLI replaces `kill(pid, sig)` with `mach_msg` send/receive on a
   newly-allocated reply port.
@@ -197,6 +274,9 @@ Specifically:
 - [ ] `blackoutd on` reports success/failure rather than "delivered SIGUSR1"
 - [ ] sysctl-based PID discovery removed (no longer needed)
 - [ ] Signal handlers removed from `AppDelegate.m`
+- [ ] P23 (verbosity subcommand) currently dispatches via SIGHUP +
+      NSUserDefaults; migrate it to the Mach IPC VERBOSITY message and
+      verify identical behavior.
 
 **Files**: `src/main.m`, `src/AppDelegate.m`, new `src/BDMessage.h` for the
 protocol definitions, `blackoutd.plist.template`, `docs/decisions/` (new
@@ -209,7 +289,7 @@ work next ties the half-implemented foundation to its purpose.
 
 ---
 
-## ~~P5 — Version infrastructure~~ (PARTIAL — version sourced and --version flag added)
+## ~~P5 — Version infrastructure~~ (PARTIAL — version sourced, --version flag, bump tool added)
 
 **Problem**: `CFBundleShortVersionString` in Info.plist was `0.1.0` and
 `CFBundleVersion` was `1`. No `make release` target, no git tag convention,
@@ -222,23 +302,37 @@ builds the binary, and creates an annotated git tag. The target does not
 push the tag, sign artifacts, or produce a packaged release; those are
 manual follow-up steps printed at the end.
 
+**Done (post-v0.2)**: `scripts/bump.sh patch|minor|major` reads
+`CFBundleShortVersionString` from `src/Info.plist` via PlistBuddy,
+computes the next version, bumps both `CFBundleShortVersionString` and
+`CFBundleVersion`, and creates a `chore: bump version to X.Y.Z` commit.
+`scripts/bump.sh undo` reverses the most recent bump commit (verifying
+it touches only Info.plist) and deletes the matching local tag if it
+points at HEAD. `scripts/bump.sh show` prints the current version. See
+P22 for the closed-out spec.
+
 **Git tag convention**: Tags follow semantic versioning with a `v` prefix:
 `v<MAJOR>.<MINOR>.<PATCH>` (e.g., `v0.2.0`, `v1.0.0`).
 
 **Version bumping workflow**:
-1. Update `CFBundleShortVersionString` in `src/Info.plist` (e.g., `0.3.0`).
-   The bump type (major/minor/patch) is decided by you, not by the
-   Makefile — `make release` simply consumes whatever value lives there.
-2. Update `CFBundleVersion` (increment by 1).
-3. Commit the version change: `git commit -m "chore: bump version to 0.3.0"`.
-4. Run `make release` to build and create the tag.
-5. Push the tag: `git push origin v<VERSION>`.
 
-**Rollback**: `make release` has no automatic teardown. The flow is
-preflight (refuses dirty tree or pre-existing tag) → build (failure
-prevents tag creation) → `git tag -a` (atomic). If you discover after
-tagging that the release was wrong (signing didn't take, version bump was
-wrong), clean up manually:
+```sh
+scripts/bump.sh minor                       # 0.2.0 -> 0.3.0; commits
+make release                                # tags v0.3.0; builds
+git push origin HEAD --follow-tags          # pushes branch + tag
+```
+
+To undo a bump that has not yet been pushed:
+
+```sh
+scripts/bump.sh undo                        # reverts commit + deletes local tag
+```
+
+**Rollback (after `make release` has tagged)**: `make release` has no
+automatic teardown. The flow is preflight (refuses dirty tree or
+pre-existing tag) → build (failure prevents tag creation) → `git tag -a`
+(atomic). If you discover after tagging that the release was wrong
+(signing didn't take, version bump was wrong), clean up manually:
 
 ```sh
 git tag -d v<VERSION>
@@ -256,9 +350,10 @@ deferred to v1.0 (P9 / Homebrew).
 - [x] Version sourced from a single location (Info.plist)
 - [x] `make release` target that verifies clean tree, builds, and tags
 - [x] `blackoutd --version` prints the version string
+- [x] Bump helper per P22 (`scripts/bump.sh`)
 - [ ] Hardening per P17 (semver validation, release-undo target, dry-run)
 
-**Files**: `src/Info.plist`, `Makefile`, `src/main.m`
+**Files**: `src/Info.plist`, `Makefile`, `src/main.m`, `scripts/bump.sh`
 
 ---
 
@@ -284,6 +379,10 @@ hardware, displayprobe2.m reference). HANDOFF.md removed.
   runner using `unicodedata.category()` Cf/Cc detection.
 - ~~No REUSE 3.0 license-header check in CI.~~ **DONE in scaffolding PR**:
   `lint-reuse` job runs `fsfe/reuse-action` on every PR.
+- ~~Files in `scripts/` that begin with a `#!` shebang must be mode 0755,
+  but no automated check enforces it.~~ **DONE (post-v0.2)**: `lint-perms`
+  job and pre-commit stanza enforce mode `100755` on `scripts/*.sh` and
+  `.githooks/*` files. See P21.
 - `spec/manual/TESTING.md` referenced but may be stale.
 - Homoglyph attacks (CVE-2021-42694) not detected — would require Unicode
   confusables tables. Tracked in ROADMAP.md as future work.
@@ -298,6 +397,7 @@ hardware, displayprobe2.m reference). HANDOFF.md removed.
 - [x] CI checks for invisible Unicode and validates UTF-8 encoding
       (rejects UTF-16/UTF-32 per project policy)
 - [x] CI checks REUSE 3.0 compliance (`lint-reuse` job)
+- [x] CI / pre-commit checks shipped-script executable bit (`lint-perms`)
 - [ ] Stale spec/ files cleaned up or completed
 - [ ] Homoglyph defense (CVE-2021-42694) — deferred to future
 - [ ] PUA range scanning in CI — deferred to future
@@ -433,8 +533,8 @@ crowding makes the change harder. Refactor first.
 ## P13 — Stringly-typed NSUserDefaults keys
 
 **Problem**: `@"autoBlackoutOnExternalConnect"` appears in 3 files.
-`@"blackoutActive"` appears in 2. Both are spelled correctly today; both
-will not be tomorrow.
+`@"blackoutActive"` appears in 2. `@"verbosityLevel"` appears in 2. All
+are spelled correctly today; all will not be tomorrow.
 
 **Acceptance criteria**:
 - [ ] New header `src/Preferences.h` (or similar) declares each key as
@@ -564,6 +664,10 @@ but worth tightening before v1.0.
 - [ ] Optional `make release-dry-run` prints the actions that would be
       taken without taking them.
 
+**Note**: `scripts/bump.sh` (P22) also validates semver during bump; the
+duplicate validation in `make release` is defense in depth in case
+someone hand-edits Info.plist.
+
 **Files**: `Makefile`, possibly a `scripts/release.sh` if the logic
 outgrows Makefile recipes.
 
@@ -613,3 +717,605 @@ is in the maintainer's head.
 
 **Files**: `docs/technical-debt.md`, `spec/manual/TESTING.md`,
 `docs/decisions/0002-*.md`, `docs/decisions/0003-*.md`.
+
+---
+
+## P20 — External-display "cursor on black" failure mode (TOP PRIORITY — needs reproduction with logs)
+
+**Problem**: Two confirmed occurrences of a state where the external
+display shows only a cursor on a black screen, with no window content
+rendering. The maintainer reports:
+
+- **Repro 1**: built-in remained blacked out, external black with cursor.
+  Hot-corner display sleep did NOT recover the external. Required physical
+  unplug of both data and power cable to recover.
+- **Repro 2**: built-in was restored (safety invariant fired), external
+  still black with cursor. Hot-corner display sleep DID recover the
+  external.
+
+Maintainer's hypothesis: `recommitDisplayConfiguration` was not firing
+when it should have.
+
+**2026-04-29 update**: Logs from these two incidents
+(`docs/debug/blackoutd-diag-20260429-{155245,200620}/`) revealed an
+adjacent failure mode: `CGCompleteDisplayConfiguration` was being
+called while the system was sleeping, blocking for minutes and
+eventually returning error `1014` (an undocumented code — NOT
+`kCGErrorCannotComplete`, which is `1004`; see the P1 defect note). The
+sleep-gating parts of the P1 hardening address that family, but the
+err=1014 *retry* path does not actually fire (wrong-constant guard; see
+P1 and P25). However, the
+underlying P20 failure mode — cursor-on-black without a sleep cycle —
+was not the root cause of those incidents and is still open.
+
+**2026-05-21 update (corroborating evidence from the SP2309W work)**: the
+`inject_edid` investigation produced direct evidence bearing on this gap, though
+not a captured repro of P20 itself.
+
+- The no-op CG recommit (`recommitDisplayConfiguration`) is confirmed to reach
+  the DCP and force a real reconfiguration, not merely nudge daemon state: in
+  the SP2309W work, inject + recommit renegotiates the link end to end (the
+  negotiated connection mode flips, measured via BetterDisplay's
+  `get -connectionMode`). That supports hypothesis C (a recommit-style nudge
+  forces the pipeline to re-attach) and the recommit-based recovery candidates.
+- The renegotiation is **not instant** — it lands a few seconds after the
+  recommit. Any recovery path must let the link settle before judging success;
+  an immediate check sees the stale (broken) state.
+- Correction to an earlier draft of this note: a display-sleep cycle does **not**
+  reproduce cursor-on-black — it *clears* it. The maintainer encounters
+  cursor-on-black only on wake from *system* sleep; a manual display-sleep cycle
+  (hot corner) forces a fresh renegotiation that recovers the external
+  (consistent with Repro 2). So the open puzzle is not a missing recommit but why
+  blackoutd's existing *system-wake* recommit does not already clear it. The
+  latency and re-attach-race findings make mistiming plausible — the wake-settle
+  recommit may fire before the external has finished re-attaching, nudging a
+  half-attached pipeline — which points back at wake-settle timing and the
+  err=1014 retry gap (P1/P25) rather than at adding a display-wake subscription.
+
+Still open: none of this was captured as a `verbosityLevel=2` diag bundle during
+a genuine occurrence (the data below is still what's needed). Add one item to
+that list — capture the connection mode (BetterDisplay `get -connectionMode`, or
+a native reader once it exists) *during* the broken state, to distinguish "stuck
+in a bad mode" from "no active mode".
+
+**Architecture analysis confirming the gap**:
+
+`recommitDisplayConfiguration` fires from exactly two paths today
+(verified by reading `src/DisplayController.m`):
+
+1. `setDisplay:enabled:YES` — when the built-in is being restored. Does
+   NOT fire when blackout stays enabled.
+2. `wakeSettleTimerFired` — only after `NSWorkspaceDidWakeNotification`
+   (system sleep/wake). Does NOT fire on display-sleep events
+   (hot-corner, `NSWorkspaceScreensDidSleepNotification`) and does NOT
+   fire on Alt Mode dropout that occurs without a sleep cycle.
+
+If the external enters the broken state without a system sleep/wake,
+no recommit is issued. Repro 1 fits this pattern: built-in stayed
+blacked out (no restore-path recommit), and no system wake occurred
+(no settle-timer recommit).
+
+The strict safety invariant in `handleReconfiguration:` only fires when
+`hasActiveExternalDisplay` returns `NO`. A display in the cursor-on-black
+state is still "active" from CoreGraphics' perspective: it has a
+`CGDirectDisplayID`, it's enabled, it has a real vendor ID. So the
+invariant does not trigger. **This is a real recovery gap, not a
+violation of the existing invariant.**
+
+**Hypotheses (untested)**:
+
+- **A — Alt Mode dropout without system sleep**: USB-C controller drops
+  Alt Mode under load, thermal events, or power-profile transitions.
+  No `CGDisplayReconfigurationCallback` is fired (the display is still
+  "connected" from macOS's view), so no recommit is issued.
+- **B — DCP driver state divergence**: `dcpext` enters an internal bad
+  state. CoreGraphics doesn't know to invalidate the display. The
+  hardware still emits a valid-looking signal but the rendering
+  pipeline is stuck.
+- **C — Compositor lost reference to the external surface**: After some
+  internal CG event we don't observe, the compositor stops rendering
+  to the external. A no-op CGConfig recommit forces re-attach.
+
+Hypotheses A and C both predict that a periodic or display-sleep-triggered
+recommit would resolve the issue. Hypothesis B may not be solvable from
+user-space and may match Repro 1 specifically (physical reconnect required).
+
+**Diagnostic data needed**:
+
+The 2026-04-29 logs surfaced the err=1014 family but the underlying
+cursor-on-black state without a sleep cycle is not yet reproduced
+with logs at hand. Required to make further progress:
+
+- [ ] Full contents of `/tmp/blackoutd-diag-*/` from a future
+      cursor-on-black occurrence, captured at `verbosityLevel=2`.
+- [ ] `pmset -g log` output spanning ~1 hour before and after the
+      occurrence (looking for sleep, DarkWake, wake events; power-source
+      transitions; lid close/open).
+- [ ] `system_profiler SPDisplaysDataType -detailLevel mini` captured
+      DURING the broken state (not after recovery).
+- [ ] `ioreg -lw0 -r -c IODisplayConnect` and
+      `ioreg -lw0 -p IOService -n dcpext` captured during the broken
+      state.
+- [ ] Power state during the incident: battery, AC, or transitioning?
+- [ ] Lid state during the incident: open, closed, or transitioning?
+- [ ] User actions immediately before the incident: closing apps,
+      changing displays in System Settings, plugging in a USB device?
+- [ ] Was the daemon process still alive? Verify with
+      `launchctl list io.github.toobuntu.blackoutd` and
+      `pgrep -fa blackoutd`.
+
+**Acceptance criteria**:
+
+- [ ] Logs from at least one new repro analyzed; root cause identified or
+      bracketed to one of hypotheses A, B, or C.
+- [ ] If hypothesis A or C is confirmed: implement a recovery path that
+      issues `recommitDisplayConfiguration` in response to the trigger.
+      Candidates (pick one or compose):
+  - Subscribe to `NSWorkspaceScreensDidWakeNotification` (display wake
+    from hot corner / display sleep) in addition to
+    `NSWorkspaceDidWakeNotification`. Trigger the same wake-settle path.
+  - New CLI command `blackoutd recommit` for manual recovery. Invokes
+    `recommitDisplayConfiguration` via signal or (post-P4) Mach IPC.
+  - Periodic low-frequency recommit while blackout is enabled
+    (e.g., every 5 minutes; only fires if external is present).
+- [ ] If hypothesis B is confirmed: document the external-hardware
+      limitation in README "Known issues" and mark as a hardware-class
+      bug not fixable from user-space.
+- [ ] Manual repro test added to `spec/manual/TESTING.md` so future
+      regressions are caught.
+- [ ] If a code fix is implemented: regression test in `spec/` if
+      possible, otherwise a dated entry in `spec/manual/TESTING.md`.
+
+**Files**: `src/DisplayController.m`, `src/AppDelegate.m`, possibly
+`src/main.m` (for new CLI command), `spec/manual/TESTING.md`,
+README "Known issues" section.
+
+**Workflow**: This is a hardware-dependent debugging task. The chat-side
+analysis (architecture + hypotheses, above) is done. Execution requires
+running diagnostic commands on the maintainer's machine during or after
+a repro. Suggested sequence:
+
+1. Maintainer collects the diagnostic data above on next occurrence with
+   `verbosityLevel=2` already set (one-step via `blackoutd verbosity 2`,
+   shipped in P23).
+2. Maintainer either (a) shares the data files in chat, or (b) opens a
+   Claude Code session with the data files staged in `/tmp/` and asks
+   Claude Code to analyze them.
+3. Claude Code iterates on instrumentation (additional `[verbose=2]`
+   log lines in `handleReconfiguration:`) and tests fix hypotheses via
+   `make dev` cycles.
+
+---
+
+## ~~P21 — Shebang executable-bit hygiene~~ (DONE)
+
+**Problem**: Files in the repo that begin with a `#!` shebang must be
+mode `0755` to be executable when invoked directly. Two scripts
+(`scripts/annotate.sh`, `scripts/rewrite-pr-as-merge-commit.sh`) were
+silently regressed to `0644` by file-write tooling that respects the
+user's umask.
+
+**Done**:
+
+- The two affected scripts were restored to `0755` in commit `c7eec89`
+  ("Mark scripts/ shebang files as executable").
+- `lint-perms` job added to `.github/workflows/ci.yml`. Iterates
+  `scripts/*.sh` and `.githooks/*` (excluding dotfiles like
+  `.gitignore`); fails the run on any file whose git-tracked mode is
+  not `100755`. Emits a `::error file=...::missing execute bit` line
+  that GitHub renders inline in the PR Files-changed view, with a
+  `Fix:` suggestion using `chmod 755` plus
+  `git update-index --chmod=+x`.
+- Pre-commit hook stanza added to `.githooks/pre-commit` (right after
+  the branch-block check). Same logic against the staged file's mode
+  via `git ls-files --stage`. Catches the regression at commit time
+  before it reaches CI.
+- Branch protection ruleset updated to require `lint-perms` as a
+  status check (see `docs/branch-protection.md`).
+
+**Acceptance criteria**:
+
+- [x] Affected scripts at mode `0755` with the bit recorded in git's
+      index.
+- [x] Pre-commit hook check for the staged-mode bit on
+      `scripts/*.sh` and `.githooks/*`.
+- [x] CI backstop in `.github/workflows/ci.yml` (`lint-perms` job).
+- [x] Required status check in branch protection ruleset.
+- [ ] Documentation note in `CONTRIBUTING.md`: when re-creating a script,
+      verify the executable bit afterward (the `lint-perms` failure
+      message is self-explanatory; add a one-liner if a contributor
+      hits the issue first). Deferred to a follow-up commit if it
+      becomes an actual friction point.
+
+**Files (touched)**: `.githooks/pre-commit`, `.github/workflows/ci.yml`,
+`docs/branch-protection.md`.
+
+---
+
+## ~~P22 — `scripts/bump.sh` for ergonomic version bumping~~ (DONE)
+
+**Problem**: P5 documented the version-bump workflow as a 2-step manual
+edit of `src/Info.plist`. Both steps were clerical and easy to get
+wrong: a semver typo, a missed `CFBundleVersion` increment, an
+inconsistency between the two fields.
+
+**Tradeoffs evaluated**:
+
+- **Use [Tim Hårek's git-bump](https://timharek.no/blog/introducing-git-bump/)
+  as-is**: external dependency for a small need; it's tag-driven, but
+  blackoutd's source-of-truth for the version is `Info.plist`, not
+  tags. Drift would be inevitable. Rejected.
+- **Add `BUMP=major|minor|patch` arg to `make release`**: conflates
+  bumping with releasing. You can't bump-only without taking the build
+  hit. Make recipes that wrap PlistBuddy and semver arithmetic become
+  hard to read. Rejected.
+- **Standalone `scripts/bump.sh`**: matches the existing pattern
+  (`scripts/annotate.sh`, `scripts/rewrite-pr-as-merge-commit.sh`).
+  Project-specific, small, POSIX `/bin/sh` for portability.
+  **Accepted.**
+
+**Done**: `scripts/bump.sh` ships with subcommands `patch | minor |
+major | undo | show`. POSIX `/bin/sh`, `set -eu`, no GNU extensions.
+The implementation deviates from the original P22 spec in two ways
+worth noting:
+
+1. **Auto-commits**: bump.sh runs `git commit --message="chore: bump
+   version to X.Y.Z"` after writing Info.plist. The original spec said
+   "Does NOT commit (the maintainer reviews and commits manually)";
+   the deviation matches the user's git-bump-style preference for a
+   single command that produces the bump commit. Review is done via
+   `git show HEAD` after the fact rather than `git diff` before the
+   commit. Atomic refusal: refuses to run if the working tree is dirty
+   or if the current branch is `main` (caught earlier than the
+   pre-commit hook would).
+2. **No `--dry-run` flag**: the auto-commit means the only durable
+   side effect is one new commit, which `bump.sh undo` reverses
+   cleanly. A dry-run mode is therefore lower-value than originally
+   thought. Can be added if a use case appears.
+
+Validation in bump.sh: rejects pre-release suffixes (`-rc1` etc.) and
+leading zeros (which would otherwise trip POSIX shell's octal arithmetic
+on inputs like `08`). Updates both `CFBundleShortVersionString` and
+`CFBundleVersion` (the latter incremented by 1) atomically — PlistBuddy's
+in-place edit is sufficient because failures abort before commit and
+`git checkout HEAD -- src/Info.plist` reverses any partial writes.
+
+**Acceptance criteria**:
+
+- [x] New script `scripts/bump.sh` (POSIX `/bin/sh`, `set -eu`).
+- [x] Takes one positional arg: `patch | minor | major | undo | show`.
+- [x] Reads current `CFBundleShortVersionString` from `src/Info.plist`
+      via `/usr/libexec/PlistBuddy`.
+- [x] Validates the current value against a strict semver regex; refuses
+      if it doesn't parse.
+- [x] Computes the new version per the bump kind.
+- [x] Updates both `CFBundleShortVersionString` and increments
+      `CFBundleVersion`.
+- [x] Has a `--help` / `help` invocation.
+- [x] Mode `0755` (per P21 — to be set by the maintainer before commit;
+      the lint-perms hook will catch it if forgotten).
+- [x] `undo` subcommand reverses the most recent bump commit and
+      deletes the matching local tag if it points at HEAD.
+- [N/A] **Deviation**: auto-commits rather than print-diff-only.
+- [N/A] **Deviation**: no `--dry-run` flag.
+
+**Workflow** (matches P5 documentation):
+
+```sh
+scripts/bump.sh minor                   # 0.2.0 -> 0.3.0; commits
+make release                            # tags v0.3.0; builds
+git push origin HEAD --follow-tags      # pushes branch and tag
+```
+
+If you discover the bump was wrong:
+
+```sh
+scripts/bump.sh undo                    # reverts commit + deletes local tag
+```
+
+**Files**: `scripts/bump.sh`. P5 documentation updated in this same
+revision.
+
+---
+
+## ~~P23 — `blackoutd verbosity <level>` CLI subcommand~~ (DONE)
+
+**Problem**: Increasing daemon verbosity was a two-step procedure
+(documented in P20's workflow):
+
+```sh
+defaults write blackoutd verbosityLevel -int 2
+killall -HUP blackoutd
+```
+
+Both steps are required (the daemon only reads the defaults on
+startup or on SIGHUP). When debugging a transient repro, the friction
+of the two-step procedure (with potential typos, daemon-not-running
+ambiguity) was undesirable.
+
+**Done**: New subcommand `blackoutd verbosity <0|1|2>` in `src/main.m`
+collapses both steps into one. Implementation specifics:
+
+- New `setVerbosity(const char *value)` static function. Validates the
+  argument is a decimal numeric (rejects e.g. `verbosity high` rather
+  than letting `strtol` silently produce 0), then bounds-checks 0–2.
+- Writes to NSUserDefaults under suite `blackoutd`, key `verbosityLevel`,
+  using `setInteger:forKey:` and `synchronize`.
+- Calls `daemonPid()` (existing helper from the daemon-presence
+  detection) to find the daemon. If running, sends SIGHUP, which the
+  daemon's existing `_sighupSource` handler routes to
+  `[AppDelegate reloadPreferences]`, which calls
+  `_displayController.verbosityLevel = newValue`.
+- Reads back the level it just wrote and reports it to the user (rather
+  than echoing the input) so the message reflects what the daemon will
+  actually see.
+- Daemon-not-running case is non-error: defaults persist, value applies
+  on next start.
+
+The `status` and `--config` outputs were also extended to print the
+current `verbosity` line so the maintainer can verify the value
+without invoking `defaults read`.
+
+**Tradeoff against P4 (Mach IPC) — accepted**: this subcommand uses
+signal-based prefs reload, which P4 plans to replace with Mach IPC.
+Adding it now ties into the deprecating mechanism. The cost is small
+(~30 lines added; one call site to migrate when P4 lands). The QoL win
+during P20 debugging justifies the early implementation. Tracked as a
+sub-bullet under P4's acceptance criteria.
+
+**Acceptance criteria**:
+
+- [x] New subcommand `blackoutd verbosity <0|1|2>`.
+- [x] Validates the integer level (0, 1, or 2).
+- [x] Writes to NSUserDefaults under suite `blackoutd`, key
+      `verbosityLevel`.
+- [x] Sends SIGHUP to the daemon if it's running. If not, reports
+      that the change takes effect on next start.
+- [x] Subcommand listed in `blackoutd --help` (printUsage()).
+- [x] `verbosity` line added to `blackoutd status` and
+      `blackoutd --config` output.
+- [ ] Manual test: from a terminal, `blackoutd verbosity 2`, observe
+      `[prefs] verbosityLevel=2` in the daemon log; `blackoutd
+      verbosity 1` reverses it.
+
+**Files (touched)**: `src/main.m`.
+
+---
+
+## ~~P24 — Sandbox helper scripts for fresh-clone Claude Code sessions~~ (DONE)
+
+**Problem**: Recent incidents involving agentic AI tools deleting
+production data ([Replit / PocketOS](https://mashable.com/article/ai-agent-deletes-data-30-hour-service-outage-pocketos),
+[Claude database wipe](https://hothardware.com/news/claude-confesses-to-wiping-entire-database-in-seconds))
+made it clear that the existing capability filtering in
+`.claude/settings.json` is necessary but not sufficient for high-risk
+tasks. The right second layer for non-routine work is a fresh clone
+with no remote (or a repointed-to-local origin), so even if the
+permission rules fail, the worst-case blast radius is limited to the
+sandbox dir.
+
+The maintainer's initial sketch:
+
+```sh
+cd sandbox/
+gh repo clone <repo>
+git remote --verbose > remotes.log
+git remote remove $(git remote)
+# ... iterate ...
+git remote add < remotes.log              # invalid syntax
+git push --set-upstream origin HEAD
+```
+
+did not quite work — `git remote --verbose` produces two lines per
+remote (one fetch, one push), `git remote remove` only takes one name
+at a time, and `git remote add < file` is not a valid invocation. A
+proper helper script encapsulates the pattern.
+
+**Done**: Two scripts, POSIX `/bin/sh`, mirror the patterns documented
+in `docs/claude-code-isolation.md`:
+
+- `scripts/sandbox-enter.sh [--mode=MODE] [--parent=DIR] <source-repo>`
+  clones `<source-repo>` to `<parent>/<repo-name>-sandbox-<timestamp>`.
+  Captures the source's remotes BEFORE cloning (since `git clone` of a
+  local path makes origin point at the source path, not at the
+  source's GitHub URL) and writes them to
+  `.sandbox-remotes/saved.tsv` inside the sandbox. Modes:
+  - `no-remote` (default): removes all remotes.
+  - `repoint-origin`: leaves origin pointing at the source path (the
+    natural result of `git clone <local>`).
+  - `add-local`: restores origin to the GitHub URL and adds a `local`
+    remote pointing at the source path.
+- `scripts/sandbox-exit.sh [--push] [--push-target=REMOTE]`
+  reads `.sandbox-remotes/saved.tsv`, removes any current remotes,
+  restores from the saved file. With `--push`, fetches and pushes the
+  current branch to the target remote (default `origin`).
+
+`.gitignore` updated to ignore `.sandbox-remotes/` so an inattentive
+`git add .` in the sandbox doesn't commit remote URLs into the source
+tree.
+
+**Future consolidation** (deferred — track here so it isn't forgotten):
+the maintainer is considering unifying `scripts/bump.sh`,
+`scripts/sandbox-enter.sh`, `scripts/sandbox-exit.sh`, and the personal
+`aiwt`/`aiwt-done` shell functions into a single tool with subcommands
+— either compiled (Go, Rust) or in Ruby using the `semver` gem. Pros:
+single cohesive CLI, shared validation, easier discovery. Cons: build
+and dependency footprint vs. the current dependency-free POSIX shell
+scripts. Not in scope for the current PR; revisit when more shared
+machinery accumulates.
+
+**Acceptance criteria**:
+
+- [x] `scripts/sandbox-enter.sh` and `scripts/sandbox-exit.sh` ship.
+- [x] Three modes implemented (no-remote, repoint-origin, add-local).
+- [x] Source remotes captured pre-clone (so add-local can restore the
+      GitHub URL).
+- [x] `.sandbox-remotes/` gitignored.
+- [x] Documentation in `docs/claude-code-isolation.md` references the
+      new scripts and explains when to choose each mode.
+- [ ] Mode `0755` (the maintainer must `chmod 755` the new scripts
+      before committing — the lint-perms pre-commit hook from P21 will
+      block the commit otherwise).
+- [ ] Manual test: enter a sandbox with `--mode=no-remote`, verify
+      `git remote -v` is empty; run sandbox-exit.sh; verify remotes
+      are restored.
+
+**Files (added)**: `scripts/sandbox-enter.sh`, `scripts/sandbox-exit.sh`,
+`.gitignore`, `docs/claude-code-isolation.md`.
+
+---
+
+## P25 — Safety-invariant restore re-enters `applyEnable:` and nests CG transactions
+
+**Problem**: The unconditional safety-invariant check in
+`handleReconfiguration:` (and `wakeSettleTimerFired`) calls `applyEnable:`
+even when a restore is already in flight. Because
+`CGCompleteDisplayConfiguration` pumps the run loop while it waits on
+WindowServer, a reconfiguration callback can fire *inside* the blocked
+`setDisplay:enabled:` of restore #1, re-enter `handleReconfiguration:`,
+find `hasExternal=0`, and launch a nested restore #2 — a second
+`CGBegin`/`CGSConfigureDisplayEnabled`/`CGComplete` transaction nested
+inside the first. The current source comment ("re-entering `applyEnable:`
+here is safe") is true for daemon *state* but not for nested CG
+*configuration* transactions: during post-wake pipeline churn the nested
+commits return `1014`.
+
+Confirmed in `docs/debug/blackoutd-diag-20260519-214316/` (daemon log,
+12:10:25–12:10:46): the restore from "external disconnected during sleep"
+logged `result=pending` + recommit but never completed; the invariant
+path then logged a second `result=pending` + recommit; the external
+flapped back (id=46 hardware → id=2 virtual) mid-transaction; both
+restores ended `result=failed err=1014` ten seconds apart, with no retry
+armed (see the P1 wrong-constant defect — the two failures are two
+distinct blocked CG calls, not a retry sequence).
+
+**On the "no-op recommit is harmless" assumption**: it holds for the bare
+`recommitDisplayConfiguration` transaction (an idempotent nudge). It does
+NOT extend to a re-entrant `applyEnable:`, which carries a real
+`CGSConfigureDisplayEnabled` mutation committed `kCGConfigurePermanently`.
+Nesting *configuration* transactions is the hazard, not the recommit.
+
+**Proposed fix** (keep detection unconditional; serialize the commit):
+
+- Detection stays exactly as-is — the invariant must keep firing before
+  the connectivity and `_actionInProgress` filters (P1 requirement).
+- Before issuing a *new* CG transaction in `applyEnable:`, coalesce: if an
+  action toward the same desired `_isBlackedOut` target is already in
+  flight, record the intent and let the in-flight action (or the next
+  settle-timer pass) converge, rather than nesting a second transaction.
+- Pair with the P1 retry-guard fix: retry on any non-success that is not
+  `kCGErrorIllegalArgument`, bounded by `kBDMaxFailedActionRetries`.
+
+**Acceptance criteria**:
+
+- [ ] No two overlapping `action=restore result=pending` lines without an
+      intervening `result=complete`/`failed` in a single wake cycle.
+- [ ] Re-entrant invariant detection still fires (unchanged) but does not
+      launch a nested CG configuration transaction.
+- [ ] err=1014 (or any non-`IllegalArgument` failure) arms the bounded
+      wake-settle retry — i.e. the P1 retry path actually executes.
+- [ ] Reproduced against a 12:10-style sleep → wake → external-flap
+      sequence; daemon log shows the retry arming and no nested pending
+      restores.
+
+**Files**: `src/DisplayController.m` (applyEnable:, handleReconfiguration:,
+wakeSettleTimerFired). Relates to P1 (retry guard) and P10
+(`_actionInProgress` is heuristic).
+
+---
+
+## P26 — SP2309W RGB / EDID color correction (scope decision pending)
+
+**Problem**: The Dell SP2309W's CTA-861 extension advertises YCbCr 4:4:4
+and 4:2:2 it cannot render, so macOS periodically negotiates YCbCr and the
+panel shows a pink cast. There is no flashable firmware fix (factory EDID
+only). The reactive workaround — a `WatchPaths` launchd agent calling
+BetterDisplay's `set -connectionMode=encoding:rgb+…` — is proprietary and
+is a second actor competing with blackoutd's reconfiguration callback.
+
+A FOSS preventive approach exists: inject a YCbCr-stripped virtual EDID via the
+private `IOAVServiceSetVirtualEDIDMode`, then drive renegotiation with a no-op
+CG recommit (prototype in the maintainer's `inject_edid/` tree; the original
+`IOAVControllerForceHotPlugDetect` was dropped — it tore the link to standby).
+On Apple Silicon the filesystem `/Library/Displays/.../Overrides/` mechanism
+does NOT work; runtime injection is the only host-side option. It is **not**
+owner-scoped: the mapping survives the injecting process exiting and survives
+display sleep, and is wiped only by full system sleep — so it must be re-applied
+on each system wake, not held by a resident ref.
+
+**Scope decision (first acceptance criterion)**: host the correction inside
+blackoutd as a distinct `DisplayColorController` module (one resident actor,
+owns the reconfiguration callback, can flag its own induced hotplug) versus
+a separate standalone daemon (cleaner separation, but reintroduces the
+two-actor race the 12:10 incident shows is dangerous). Recommendation leans
+toward a blackoutd module, gated so injection happens on external connect
+and post-settle only — never an unconditional hotplug during churn.
+
+**Modularity (see ADR 0009)**: if it lands in blackoutd, the quirk is
+opt-in and isolated so other users never carry it — its own translation unit
+(`src/quirks/DisplayColorController.{h,m}`) compiled only under
+`make QUIRKS=sp2309w` (`BLACKOUTD_QUIRK_SP2309W`), keyed to vendor `0x10AC` /
+product `0xD01D` even when built in, attached through one narrow generic core
+hook rather than a quirk framework (YAGNI — no other quirks are planned).
+
+**Prerequisite (answered 2026-05-21)**: the standalone `inject_edid` work
+confirms the virtual EDID survives process exit and display sleep, reverts on
+full system sleep, and that inject + recommit renegotiates the panel to RGB end
+to end (BetterDisplay-verified), with a few-seconds settle. So a non-resident
+one-shot re-applied on each system wake is sufficient; see ADR 0002 (now
+Confirmation: met) and `inject_edid` D1 / `investigations/connection-mode.md`.
+
+**Acceptance criteria**:
+
+- [ ] Scope decided (blackoutd module vs. standalone daemon); ADR 0009 moved
+      to `accepted` if it lands in blackoutd.
+- [ ] Quirk is opt-in: a default `make` compiles no quirk symbols;
+      `make QUIRKS=sp2309w` includes them; quirk acts only on `0x10AC`/`0xD01D`.
+- [ ] Injection verified to apply RGB — done for the standalone tool: the
+      negotiated mode flips `YCbCr 4:4:4 Limited` → `RGB Full` (CEA byte 131
+      `0xF1` → `0xC1` is the leading proxy). RGB does NOT survive system sleep,
+      so the criterion is **re-applied on wake** (via the wake-settle), not
+      "survive wake"; verify once hosted, with no competing actor.
+- [ ] BetterDisplay + `restore_rgb.sh` watchdog retired.
+- [ ] No interaction with the safety invariant (the induced hotplug is
+      recognized as self-originated, not treated as an external event).
+
+**Priority**: below P20 and P4. Optional — this is "its own concept" and
+may stay out of blackoutd entirely.
+
+**Files**: if hosted in blackoutd, `src/quirks/DisplayColorController.{h,m}`
+compiled only under `make QUIRKS=sp2309w`; default builds omit it. Prototype in
+`inject_edid` (`src/inject_edid.m`). See ADR 0009.
+
+---
+
+## P27 — Migrate NSLog to os_log with a subsystem
+
+**Problem**: The daemon logs via `NSLog`. That routes to Apple's unified
+logging, so retention is already automatic (no file to rotate — `newsyslog`
+does not apply, provided the launchd plist does not redirect
+`StandardOutPath`/`StandardErrorPath` to a real file; confirm it sends them to
+`/dev/null` or omits them). But `NSLog` lands in the default subsystem with no
+categories, so the logs cannot be filtered cleanly and the `[state]`/`[builtin]`/
+`[change]` tags are ad hoc text rather than queryable metadata.
+
+**Change**: adopt `os_log` with subsystem `io.github.toobuntu.blackoutd` and a
+small set of categories (e.g. `state`, `builtin`, `change`, `wake`). Then
+`log show --predicate 'subsystem == "io.github.toobuntu.blackoutd"'` replaces
+grepping free text, and diag bundles can filter by category.
+
+**Acceptance criteria**:
+
+- [ ] All `NSLog` call sites in `src/` use `os_log`/`os_log_error` with the
+      subsystem and an appropriate category.
+- [ ] The launchd plist routes std streams to `/dev/null` (or omits them); no
+      unbounded plaintext file is produced.
+- [ ] The diag-collection step filters by subsystem rather than process-name
+      text matching.
+
+**Priority**: low (hygiene; current logging works). Not a `newsyslog` task.
+
+**Files**: `src/*.m` (every `NSLog`), the launchd plist template, the diag
+script. Rationale recorded in the shared logging ADR (repo-foundation
+`0009-logging-os_log-vs-newsyslog`) with the file-log alternative recipe in
+repo-foundation `docs/newsyslog-log-rotation.md`.
