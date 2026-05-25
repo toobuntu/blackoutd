@@ -415,11 +415,13 @@ static int setVerbosity(const char *value) {
   if (pid > 0) {
     if (kill(pid, SIGHUP) != 0) {
       if (errno == ESRCH) {
-        fprintf(stderr,
-                "blackoutd: daemon exited before signal delivery; "
-                "verbosity=%ld (takes effect on next start)\n",
-                applied);
-        return 1;
+        // Benign race: daemon vanished between lookup and signal. Same outcome
+        // as the not-running branch (value persisted, loads on next start), so
+        // report success; non-ESRCH errors fall through to a real failure.
+        printf("verbosity: %ld (daemon exited before signal delivery; "
+               "takes effect on next start)\n",
+               applied);
+        return 0;
       }
 
       perror("blackoutd: kill SIGHUP");
@@ -504,7 +506,9 @@ static NSString *localBuildTimeLine(void) {
     return nil;
   NSDateFormatter *out = [[NSDateFormatter alloc] init];
   out.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-  out.dateFormat = @"yyyy-MM-dd'T'HH:mm:ssXXX";
+  // Lowercase xxx always emits a numeric offset (+00:00 at zero) rather than
+  // collapsing to Z like XXX/ZZZZZ; matches the offset-form build stamp.
+  out.dateFormat = @"yyyy-MM-dd'T'HH:mm:ssxxx";
   out.timeZone = NSTimeZone.localTimeZone;
   NSString *abbrev = NSTimeZone.localTimeZone.abbreviation ?: @"local";
   return
