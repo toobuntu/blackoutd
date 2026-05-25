@@ -472,13 +472,39 @@ static void printUsage(void) {
       "  daemon          Run as daemon\n");
 }
 
+// Derives a local-time rendering of the embedded UTC build instant for the
+// human-facing --version output. Returns nil if BD_BUILD_TIME is the
+// "unknown" fallback or otherwise unparseable, in which case the caller
+// omits the local line. Local zone reflects whoever runs --version, not the
+// build host.
+static NSString *localBuildTimeLine(void) {
+  NSISO8601DateFormatter *parser = [[NSISO8601DateFormatter alloc] init];
+  // Require an explicit zone in the parsed string (the stamp always carries
+  // +00:00), so there is no silent assume-local/assume-UTC fallback.
+  parser.formatOptions =
+      NSISO8601DateFormatWithInternetDateTime | NSISO8601DateFormatWithTimeZone;
+  NSDate *date = [parser dateFromString:@BD_BUILD_TIME];
+  if (!date)
+    return nil;
+  NSDateFormatter *out = [[NSDateFormatter alloc] init];
+  out.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  out.dateFormat = @"yyyy-MM-dd'T'HH:mm:ssXXX";
+  out.timeZone = NSTimeZone.localTimeZone;
+  NSString *abbrev = NSTimeZone.localTimeZone.abbreviation ?: @"local";
+  return
+      [NSString stringWithFormat:@"%@ (%@)", [out stringFromDate:date], abbrev];
+}
+
 static int printVersion(void) {
   // Version is embedded in the binary's __TEXT,__info_plist section.
   NSBundle *main = [NSBundle mainBundle];
   NSString *ver =
       [main objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-  printf("blackoutd %s (%s, built %s)\n", ver ? ver.UTF8String : "unknown",
-         BD_BUILD_GIT, BD_BUILD_TIME);
+  printf("blackoutd %s (%s)\n", ver ? ver.UTF8String : "unknown", BD_BUILD_GIT);
+  printf("built: %s (UTC)\n", BD_BUILD_TIME);
+  NSString *localLine = localBuildTimeLine();
+  if (localLine)
+    printf("local: %s\n", localLine.UTF8String);
   return 0;
 }
 

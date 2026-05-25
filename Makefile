@@ -15,7 +15,7 @@ AGENT_DST      = $(AGENT_DIR)/$(AGENT_PLIST)
 AGENT_TEMPLATE = blackoutd.plist.template
 UID            = $(shell id -u)
 GIT_DESCRIBE   := $(shell git -C $(CURDIR) describe --tags --always --dirty 2>/dev/null || echo unknown)
-BUILD_TIME     := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_TIME     := $(shell date -u -Iseconds)
 
 RESOURCES_SRC  = $(SRCDIR)/Resources
 BUNDLE_NAME    = $(BINARY).bundle
