@@ -95,6 +95,7 @@ dev: $(TARGET)
 	    $(AGENT_TEMPLATE) > $(AGENT_DST)
 	chmod 644 $(AGENT_DST)
 	launchctl bootstrap gui/$(UID) $(AGENT_DST)
+	@printf '%s\n' 'PATH `blackoutd` is now stale; use `./build/blackoutd` or `make reinstall`.'
 
 # Upgrade flow for end users: bootout the running agent (if any), install
 # the new binary and resources to /usr/local, then bootstrap the new
