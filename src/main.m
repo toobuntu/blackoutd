@@ -414,6 +414,14 @@ static int setVerbosity(const char *value) {
   pid_t pid = daemonPid();
   if (pid > 0) {
     if (kill(pid, SIGHUP) != 0) {
+      if (errno == ESRCH) {
+        fprintf(stderr,
+                "blackoutd: daemon exited before signal delivery; "
+                "verbosity=%ld (takes effect on next start)\n",
+                applied);
+        return 1;
+      }
+
       perror("blackoutd: kill SIGHUP");
       return 1;
     }
