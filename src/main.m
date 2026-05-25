@@ -403,17 +403,20 @@ static int setVerbosity(const char *value) {
       [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
   [defaults setInteger:level forKey:kVerbosityKey];
   [defaults synchronize];
+  // Read the persisted value back so the reported number is what the daemon
+  // will load on reload, not merely the parsed input.
+  long applied = (long)[defaults integerForKey:kVerbosityKey];
   pid_t pid = daemonPid();
   if (pid > 0) {
     if (kill(pid, SIGHUP) != 0) {
       perror("blackoutd: kill SIGHUP");
       return 1;
     }
-    printf("verbosity: %ld (daemon notified)\n", level);
+    printf("verbosity: %ld (daemon notified)\n", applied);
   } else {
     printf("verbosity: %ld (daemon not running; takes effect on next "
            "start)\n",
-           level);
+           applied);
   }
   return 0;
 }
