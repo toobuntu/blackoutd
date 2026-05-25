@@ -222,53 +222,95 @@ static int runShellToFile(NSString *filePath, NSString *command) {
   return runToFile(filePath, @"/bin/sh", @[ @"-c", command ]);
 }
 
-// Runs an executable with arguments, prints its stdout to our stdout.
-// Returns the process exit code, or -1 on launch failure.
-static int runAndPrint(NSString *path, NSArray<NSString *> *args) {
+// MARK: - Diagnostics
+
+static NSString *localBuildTimeLine(void);
+
+// Captures a command's combined stdout+stderr as a string so the same text
+// is both printed and written to the bundle. readDataToEndOfFile drains the
+// pipe as the child writes, so this does not deadlock on bounded output.
+static NSString *captureCommand(NSString *path, NSArray<NSString *> *args) {
   NSTask *task = [[NSTask alloc] init];
   task.executableURL = [NSURL fileURLWithPath:path];
   task.arguments = args;
-  // Flush buffered stdout before the child inherits the fd. When stdout is a
-  // file (e.g. `--config > file`), stdio is fully buffered, so the child's
-  // direct writes would otherwise land ahead of our buffered label and the
-  // value would look blank (observed: empty `arch` line).
-  fflush(stdout);
-  NSError *err = nil;
-  if (![task launchAndReturnError:&err])
-    return -1;
+  NSPipe *pipe = [NSPipe pipe];
+  task.standardOutput = pipe;
+  task.standardError = pipe;
+  if (![task launchAndReturnError:NULL])
+    return nil;
+  NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
   [task waitUntilExit];
-  return (int)task.terminationStatus;
+  return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 }
 
-static void printDisplays(void) {
+static NSString *daemonLogPath(void) {
+  return [NSHomeDirectory()
+      stringByAppendingPathComponent:@"Library/Logs/blackoutd.log"];
+}
+
+// Last line of the daemon log containing `needle`, trimmed; nil if absent.
+// Parsing the persistent log is the v0.2 stand-in for querying the daemon
+// directly; planned Mach IPC will replace it.
+static NSString *lastLogToken(NSString *needle) {
+  NSString *log = daemonLogPath();
+  if (![NSFileManager.defaultManager fileExistsAtPath:log])
+    return nil;
+  NSString *cmd =
+      [NSString stringWithFormat:@"grep -- '%@' '%@' | tail -1", needle, log];
+  NSString *line = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
+  if (!line.length)
+    return nil;
+  return [line
+      stringByTrimmingCharactersInSet:NSCharacterSet
+                                          .whitespaceAndNewlineCharacterSet];
+}
+
+// Lid state via the IOKit clamshell key. AppleClamshellState is YES when the
+// lid is closed (clamshell engaged), NO when open; the raw value is named in
+// the result so the mapping is unambiguous in a bug report.
+static NSString *clamshellState(void) {
+  NSString *cmd = @"ioreg -r -k AppleClamshellState | "
+                  @"awk -F'= ' '/AppleClamshellState/ {print $2; exit}'";
+  NSString *out = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
+  out = [out
+      stringByTrimmingCharactersInSet:NSCharacterSet
+                                          .whitespaceAndNewlineCharacterSet];
+  if ([out isEqualToString:@"Yes"])
+    return @"closed (AppleClamshellState=Yes)";
+  if ([out isEqualToString:@"No"])
+    return @"open (AppleClamshellState=No)";
+  return @"unknown";
+}
+
+static void appendDisplays(NSMutableString *r) {
   CGDirectDisplayID displays[8];
   uint32_t count = 0;
   CGGetOnlineDisplayList(8, displays, &count);
-  printf("\n--- Displays (%u online) ---\n", count);
+  [r appendFormat:@"\n--- Displays (%u online) ---\n", count];
   for (uint32_t i = 0; i < count; i++) {
     CGDirectDisplayID d = displays[i];
-    BOOL builtin = CGDisplayIsBuiltin(d);
-    BOOL active = CGDisplayIsActive(d);
-    uint32_t vendor = CGDisplayVendorNumber(d);
-    uint32_t model = CGDisplayModelNumber(d);
-    uint32_t serial = CGDisplaySerialNumber(d);
     CGRect bounds = CGDisplayBounds(d);
     CGSize size = CGDisplayScreenSize(d);
-
-    printf("\nDisplay %u (%s)\n", d, builtin ? "built-in" : "external");
-    printf("  Active          : %s\n", active ? "yes" : "no");
-    printf("  Vendor          : 0x%04x\n", vendor);
-    printf("  Model           : 0x%04x\n", model);
+    [r appendFormat:@"\nDisplay %u (%s)\n", d,
+                    CGDisplayIsBuiltin(d) ? "built-in" : "external"];
+    [r appendFormat:@"  Active          : %s\n",
+                    CGDisplayIsActive(d) ? "yes" : "no"];
+    [r appendFormat:@"  Vendor          : 0x%04x\n", CGDisplayVendorNumber(d)];
+    [r appendFormat:@"  Model           : 0x%04x\n", CGDisplayModelNumber(d)];
+    uint32_t serial = CGDisplaySerialNumber(d);
     if (serial != 0)
-      printf("  Serial          : 0x%08x\n", serial);
-    printf("  Resolution      : %.0f x %.0f\n", bounds.size.width,
-           bounds.size.height);
-    printf("  Physical size   : %.1fmm x %.1fmm\n", size.width, size.height);
+      [r appendFormat:@"  Serial          : 0x%08x\n", serial];
+    [r appendFormat:@"  Resolution      : %.0f x %.0f\n", bounds.size.width,
+                    bounds.size.height];
+    [r appendFormat:@"  Physical size   : %.1fmm x %.1fmm\n", size.width,
+                    size.height];
   }
 }
 
-static int printConfig(void) {
-  NSProcessInfo *info = [NSProcessInfo processInfo];
+// Builds the human-readable report as a single string so the same text is
+// printed to stdout and written to the bundle's config.txt.
+static NSString *buildReport(void) {
+  NSProcessInfo *info = NSProcessInfo.processInfo;
   NSUserDefaults *defaults =
       [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
@@ -278,64 +320,137 @@ static int printConfig(void) {
                             ? [defaults integerForKey:kVerbosityKey]
                             : 1;
 
-  printf("--- blackoutd diagnostic info ---\n\n");
+  NSMutableString *r = [NSMutableString string];
+  [r appendString:@"--- blackoutd diagnostic info ---\n\n"];
 
   pid_t pid = daemonPid();
-  printf("daemon          : %s\n", pid > 0 ? "running" : "not running");
+  [r appendFormat:@"daemon          : %s\n",
+                  pid > 0 ? "running" : "not running"];
   if (pid > 0)
-    printf("daemon pid      : %d\n", pid);
-  printf("built-in display: %s\n",
-         builtInIsOnline() ? "active" : "blacked out");
-  printf("auto-blackout   : %s\n", autoMode ? "enabled" : "disabled");
-  printf("verbosity       : %ld\n", (long)verbosity);
-  printf("bundle-id       : %s\n", kBundleID.UTF8String);
+    [r appendFormat:@"daemon pid      : %d\n", pid];
+  [r appendFormat:@"built-in (CG)   : %s\n",
+                  builtInIsOnline() ? "online" : "offline"];
+  NSString *state = lastLogToken(@"isBlackedOut=");
+  if (state)
+    [r appendFormat:@"daemon log tail : %@\n", state];
+  [r appendFormat:@"auto-blackout   : %s\n", autoMode ? "enabled" : "disabled"];
+  [r appendFormat:@"verbosity       : %ld\n", (long)verbosity];
+  [r appendFormat:@"bundle-id       : %s\n", kBundleID.UTF8String];
+  [r appendFormat:@"lid             : %@\n", clamshellState()];
+  NSString *batt = captureCommand(@"/usr/bin/pmset", @[ @"-g", @"batt" ]);
+  NSString *power =
+      batt.length ? [batt componentsSeparatedByString:@"\n"].firstObject : nil;
+  [r appendFormat:@"power           : %@\n", power ?: @"unknown"];
 
-  NSOperatingSystemVersion ver = info.operatingSystemVersion;
-  printf("macOS           : %ld.%ld.%ld\n", (long)ver.majorVersion,
-         (long)ver.minorVersion, (long)ver.patchVersion);
+  NSOperatingSystemVersion v = info.operatingSystemVersion;
+  [r appendFormat:@"macOS           : %ld.%ld.%ld\n", (long)v.majorVersion,
+                  (long)v.minorVersion, (long)v.patchVersion];
+  NSString *arch = captureCommand(@"/usr/bin/uname", @[ @"-m" ]);
+  [r appendFormat:@"arch            : %@", arch.length ? arch : @"unknown\n"];
 
-  printf("arch            : ");
-  runAndPrint(@"/usr/bin/uname", @[ @"-m" ]);
+  [r appendString:@"\n--- build provenance ---\n"];
+  [r appendFormat:@"cli build       : %s (built %s)\n", BD_BUILD_GIT,
+                  BD_BUILD_TIME];
+  NSString *daemonBuild = lastLogToken(@"build=");
+  if (daemonBuild) {
+    [r appendFormat:@"daemon startup  : %@\n", daemonBuild];
+    if (strstr(daemonBuild.UTF8String, BD_BUILD_GIT) == NULL)
+      [r appendString:@"WARNING         : CLI and daemon build stamps differ "
+                      @"(stale PATH binary?)\n"];
+  }
 
-  printDisplays();
+  appendDisplays(r);
 
-  printf("\n--- system_profiler ---\n");
-  runAndPrint(@"/usr/sbin/system_profiler", @[
+  [r appendString:@"\n--- system_profiler ---\n"];
+  NSString *sp = captureCommand(@"/usr/sbin/system_profiler", @[
     @"SPHardwareDataType", @"SPDisplaysDataType", @"-detailLevel", @"mini"
   ]);
+  [r appendString:sp.length ? sp : @"(unavailable)\n"];
+  return r;
+}
 
-  // Collect logs into a temp directory to avoid flooding stdout.
+// Builds the `log show` time-window arguments. Explicit --start/--end take
+// precedence (precise, low-noise); otherwise --last <minutes>m.
+static NSString *logWindowArgs(int minutes, NSString *start, NSString *end) {
+  if (start.length) {
+    NSString *w = [NSString stringWithFormat:@"--start '%@'", start];
+    if (end.length)
+      w = [w stringByAppendingFormat:@" --end '%@'", end];
+    return w;
+  }
+  return [NSString stringWithFormat:@"--last %dm", minutes];
+}
+
+// Collects a diagnostic bundle into /tmp and prints the report to stdout.
+static int runDiagnose(int minutes, NSString *start, NSString *end) {
+  NSString *report = buildReport();
+  fputs(report.UTF8String, stdout);
+
   NSDateFormatter *fmt = [[NSDateFormatter alloc] init];
   fmt.dateFormat = @"yyyyMMdd-HHmmss";
-  NSString *stamp = [fmt stringFromDate:[NSDate date]];
-  NSString *dir = [NSString stringWithFormat:@"/tmp/blackoutd-diag-%@", stamp];
-  NSFileManager *fm = [NSFileManager defaultManager];
+  NSString *dir = [NSString stringWithFormat:@"/tmp/blackoutd-diag-%@",
+                                             [fmt stringFromDate:NSDate.date]];
+  NSFileManager *fm = NSFileManager.defaultManager;
   [fm createDirectoryAtPath:dir
       withIntermediateDirectories:YES
                        attributes:nil
                             error:nil];
 
-  NSString *logFile = [NSHomeDirectory()
-      stringByAppendingPathComponent:@"Library/Logs/blackoutd.log"];
-  if ([fm fileExistsAtPath:logFile]) {
+  [report writeToFile:[dir stringByAppendingPathComponent:@"config.txt"]
+           atomically:YES
+             encoding:NSUTF8StringEncoding
+                error:nil];
+
+  NSMutableString *version = [NSMutableString string];
+  NSString *ver = [NSBundle.mainBundle
+      objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+  [version appendFormat:@"blackoutd %s (%s)\n",
+                        ver ? ver.UTF8String : "unknown", BD_BUILD_GIT];
+  [version appendFormat:@"built: %s (UTC)\n", BD_BUILD_TIME];
+  NSString *local = localBuildTimeLine();
+  if (local)
+    [version appendFormat:@"local: %@\n", local];
+  [version writeToFile:[dir stringByAppendingPathComponent:@"version.txt"]
+            atomically:YES
+              encoding:NSUTF8StringEncoding
+                 error:nil];
+
+  NSString *log = daemonLogPath();
+  if ([fm fileExistsAtPath:log])
     runShellToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
-                   [NSString stringWithFormat:@"tail -500 '%@'", logFile]);
-  }
+                   [NSString stringWithFormat:@"tail -500 '%@'", log]);
 
-  runShellToFile([dir stringByAppendingPathComponent:@"system-log.txt"],
-                 @"log show --last 5m --predicate 'process == \"blackoutd\"' "
-                 @"--style compact 2>&1");
-
+  NSString *window = logWindowArgs(minutes, start, end);
+  runShellToFile(
+      [dir stringByAppendingPathComponent:@"system-log.txt"],
+      [NSString stringWithFormat:
+                    @"log show %@ --predicate 'process == \"blackoutd\"' "
+                    @"--style compact 2>&1",
+                    window]);
+  runShellToFile(
+      [dir stringByAppendingPathComponent:@"windowserver.txt"],
+      [NSString stringWithFormat:@"log show %@ --debug --info --predicate "
+                                 @"'process == \"WindowServer\" OR process == "
+                                 @"\"displaypolicyd\"' --style compact 2>&1",
+                                 window]);
   runShellToFile(
       [dir stringByAppendingPathComponent:@"sleep-wake.txt"],
-      @"pmset -g log 2>/dev/null | grep -E 'Sleep|Wake|Clamshell' | tail -30");
+      @"pmset -g log 2>/dev/null | grep -E 'Sleep|Wake|Clamshell' | tail -40");
+  runShellToFile(
+      [dir stringByAppendingPathComponent:@"ioreg.txt"],
+      @"echo '=== IODisplayConnect ==='; ioreg -lw0 -r -c IODisplayConnect; "
+      @"echo; echo '=== dcpext ==='; ioreg -lw0 -p IOService -n dcpext");
 
-  printf("\nLog files collected in %s/\n", dir.UTF8String);
-  printf("  daemon-log.txt  — blackoutd.log (last 500 lines)\n");
-  printf("  system-log.txt  — system log filtered by blackoutd "
-         "(last 5 minutes)\n");
-  printf("  sleep-wake.txt  — pmset sleep/wake events (last 30)\n");
-
+  printf("\nDiagnostic bundle written to %s/\n", dir.UTF8String);
+  printf("  config.txt       — this report (build, lid, displays)\n");
+  printf("  version.txt      — CLI build identity\n");
+  printf("  daemon-log.txt   — blackoutd.log (last 500 lines)\n");
+  printf("  system-log.txt   — blackoutd unified log (%s)\n",
+         window.UTF8String);
+  printf("  windowserver.txt — WindowServer/displaypolicyd (%s)\n",
+         window.UTF8String);
+  printf("  sleep-wake.txt   — pmset Sleep/Wake/Clamshell (last 40)\n");
+  printf("  ioreg.txt        — IODisplayConnect + dcpext nodes\n");
   return 0;
 }
 
@@ -481,7 +596,8 @@ static void printUsage(void) {
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
       "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
       " 2=verbose)\n"
-      "  --config        Print diagnostic info for bug reports\n"
+      "  diagnose        Collect a diagnostic bundle for bug reports\n"
+      "                  [--minutes N | --start \"T\" --end \"T\"]\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
@@ -544,8 +660,22 @@ int main(int argc, const char *argv[]) {
       return sendSignalToDaemon(SIGUSR2);
     if (strcmp(cmd, "status") == 0)
       return printStatus();
-    if (strcmp(cmd, "--config") == 0)
-      return printConfig();
+    if (strcmp(cmd, "diagnose") == 0) {
+      int minutes = 3;
+      NSString *start = nil, *end = nil;
+      for (int i = 2; i + 1 < argc; i += 2) {
+        if (strcmp(argv[i], "--minutes") == 0) {
+          long m = strtol(argv[i + 1], NULL, 10);
+          if (m > 0)
+            minutes = (int)m;
+        } else if (strcmp(argv[i], "--start") == 0) {
+          start = @(argv[i + 1]);
+        } else if (strcmp(argv[i], "--end") == 0) {
+          end = @(argv[i + 1]);
+        }
+      }
+      return runDiagnose(minutes, start, end);
+    }
     if (strcmp(cmd, "--version") == 0)
       return printVersion();
     if (strcmp(cmd, "daemon") == 0) {
