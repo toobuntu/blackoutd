@@ -201,6 +201,10 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   // invalidateDisplayState). See incidents 14:42 and 17:28 on 2026-04-29
   // in docs/debug/.
   NSInteger _failedActionRetries;
+  // Monotonic wake counter. Incremented on each handleSystemWake so a
+  // late-recommit block scheduled for a prior wake bails out once a newer
+  // wake supersedes it.
+  NSUInteger _wakeGeneration;
 }
 
 - (instancetype)init {
@@ -329,6 +333,7 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 // MARK: - Wake Settle Timer (P0 / P2)
 
 - (void)handleSystemWake {
+  _wakeGeneration++;
   [self resetWakeSettleTimer];
 }
 
@@ -406,6 +411,10 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
           @"blackout action");
     [self applyEnable:NO];
   }
+
+  // Experimental (P29): probe whether a *late* recommit recovers a flapped
+  // external; the settle recommit above fires too early to tell.
+  [self scheduleLateRecommits];
 }
 
 // MARK: - Private
@@ -521,6 +530,44 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
     return NO;
   return CGCompleteDisplayConfiguration(config, kCGConfigureForSession) ==
          kCGErrorSuccess;
+}
+
+// Experimental late-recommit probe (P29). After the wake-settle recommit, fire
+// additional no-op recommits at fixed offsets so a capture can reveal whether a
+// recommit issued *after* the flap settles recovers the external; the settle
+// recommit at ~+2 s appears too early in -155349/-192959. Each fire is logged
+// with its offset so a user-observed recovery can be tied to a specific one.
+// Gated on an external being present (the only state that can be black) and on
+// the wake generation so a newer wake cancels pending fires. No-op recommit, no
+// flicker; tune or remove via kOffsets once the timing question is answered.
+- (void)scheduleLateRecommits {
+  if (![self hasActiveExternalDisplay])
+    return;
+  static const NSTimeInterval kOffsets[] = {5.0, 15.0, 30.0, 60.0};
+  const NSUInteger count = sizeof(kOffsets) / sizeof(kOffsets[0]);
+  const NSUInteger generation = _wakeGeneration;
+  __weak typeof(self) weakSelf = self;
+  for (NSUInteger i = 0; i < count; i++) {
+    const NSTimeInterval offset = kOffsets[i];
+    const NSUInteger seq = i + 1;
+    dispatch_after(
+        dispatch_time(DISPATCH_TIME_NOW, (int64_t)(offset * NSEC_PER_SEC)),
+        dispatch_get_main_queue(), ^{
+          __strong typeof(weakSelf) strongSelf = weakSelf;
+          if (!strongSelf || strongSelf->_wakeGeneration != generation)
+            return;
+          if (strongSelf->_systemSleeping) {
+            NSLog(@"[wake] — late recommit %lu/%lu (settle+%.0fs) skipped; "
+                  @"system sleeping",
+                  (unsigned long)seq, (unsigned long)count, offset);
+            return;
+          }
+          BOOL ok = [strongSelf recommitDisplayConfiguration];
+          NSLog(@"[wake] — late recommit %lu/%lu (settle+%.0fs): %s",
+                (unsigned long)seq, (unsigned long)count, offset,
+                ok ? "ok" : "failed");
+        });
+  }
 }
 
 - (CGError)setDisplay:(CGDirectDisplayID)display enabled:(BOOL)enabled {
