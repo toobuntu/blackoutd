@@ -131,19 +131,76 @@ a below-CG (`dcpext`) scanout property.
    reconfig flag is not a classifier. Use the deterministic repro instead:
    `sudo pmset schedule wake "$(date -j -v+15S "+%m/%d/%y %H:%M:%S")"; pmset
    sleepnow; sleep 90; ./build/blackoutd diagnose`.
-2. **Build `blackoutd recommit`** (one-shot, new `SIGINFO` handler → fire the
-   existing recommit, logged `[manual] — recommit requested`; CLI dispatch +
-   usage; public entry on `DisplayController`). Lets the maintainer blind-test a
-   *late* recommit during black (cue in terminal pre-sleep, Apple-Watch/TouchID
-   auth, blind Return). Tests timing vs mechanism. Leading guess: insufficient
-   by mechanism (recommit is a no-op).
-3. **Implement the mode-set fix** (`CGConfigureDisplayWithDisplayMode` applied
-   on every post-wake settle, not flap-keyed). Recommit is already shown
-   insufficient; this is the leading candidate. Test against the repro above.
-4. **inject_edid `--mode` reader** (connection mode / pixel encoding; the
-   external is YCbCr444_10bit). Surface in `diagnose` first; build out the
-   inject_edid convergence later. Not on the cursor-on-black critical path until
-   the mode-set fix needs the current-vs-preferred mode.
+2. **Validate the `dcpext DCPPowerState` detector** (below-CG black signal,
+   found 2026-05-26). Same-wake ioreg diffs show external `dcpext`
+   `DCPPowerState` 0 (black) → 4 (recovered) in BOTH controlled pairs
+   (`-001343`/`-001426`, `-015528`/`-015648`), plus `DCPPowerAssertionCount`
+   0→1. But `-085729` (active) read 0 and `-093747` (black, mid-saga) read 4 —
+   capture-instant / DPMS-powersave confounds. Capture *at the black instant*
+   with on-screen state recorded, repeatedly, to confirm 0⇔black / 4⇔rendering.
+   Surface `dcpext` `DCPPowerState` / `DCPPowerAssertionCount` in `diagnose`.
+3. **Recovery (maintainer's call): power-cycle only-when-black if the detector
+   validates; otherwise unconditional on every wake-with-external.** Levers,
+   strongest-bet first: reuse blackoutd's own `applyEnable:`
+   (`CGSConfigureDisplayEnabled`) as a disable→enable *cycle* on the external
+   (sequence so the built-in is never the only display left off); `pmset
+   displaysleepnow` (sudo, flicker — did eventually recover in the `-093747`
+   saga); `IODisplayWrangler IORequestIdle` (private). All flicker; a plain
+   `CGDisplaySleep`/`Wake` likely won't reach the DCP. The fix must handle
+   EITHER display — role reversal observed (`-093747`: built-in went black too).
+4. **Disable the g26 late recommit** (remove `scheduleLateRecommits` / empty
+   `kOffsets`) — tested negative. A `blackoutd recommit` CLI is low value (the
+   recommit is a no-op early and late).
+5. **inject_edid `--mode` reader** (connection mode / pixel encoding; external
+   is YCbCr444_10bit) — now also the natural home for reading `dcpext`
+   `DCPPowerState` for detection. Surface in `diagnose` first.
+
+## Implementation spec (for Claude Code)
+
+Three deliverables. Build in this order; A unblocks validation of any detector.
+
+**A. `diagnose`: report the external DCP state + an observed-state note.**
+- Add `dcp.txt` (or a section) recording, for the *external* display: the DCP
+  node's `DCPPowerState`, `DCPPowerAssertionCount`, and which `AppleDCPExpert`
+  it is. Do NOT read by position — there are two `AppleDCPExpert` nodes
+  (built-in + external). Identify the external by the display (EDID UUID begins
+  `10AC1DD0…`; vendor 0x10AC, product 0xD01D for the SP2309W) and walk to its
+  DCP, or match the `dcpext` service and confirm it is the external. Record
+  both DCPs labeled, so the value is unambiguous.
+- Add `diagnose --note "…"` that writes the operator's observed on-screen state
+  into the bundle (e.g. `note.txt`). This pairs the register with ground truth
+  so the detector can finally be validated.
+- The CG-layer view (mode 27 == preferred, framebuffer found) is identical for
+  black and rendering (P29), so do not bother adding more CG mode dumps.
+
+**B. Recovery behind a pref (strategy enum), invoked at `wakeSettleTimerFired`.**
+- Pref key e.g. `recoveryStrategy` ∈ {`off` (default, current behavior),
+  `cg-cycle`, `display-cycle`}. No reliable black detector exists yet (the
+  `DCPPowerState` signal is unvalidated — see P29 correction), so for now the
+  chosen strategy fires *unconditionally* on every wake-with-external, after
+  the settle. Wrap it so a later detector can gate it.
+- `cg-cycle`: reuse the existing `applyEnable:` primitive
+  (`CGSConfigureDisplayEnabled`) as disable→(brief)→enable on the target
+  display. CHEAP, low-disruption, but CG-level — may not reach the DCP (the
+  natural wake already toggled `power state 0→1` without recovering, so expect
+  this may be insufficient).
+- `display-cycle`: a DCP-level display-power cycle (the lever the hot corner /
+  `pmset displaysleepnow` exercises, which DID recover). More likely to work
+  because the failure is below CG; more disruptive (blanks displays). This is
+  the technically-correct bet — wire it so it can be A/B'd against `cg-cycle`.
+- Role reversal (P29): the dark display may be the BUILT-IN, not the external.
+  Target whichever display is dark, or cycle both; never leave zero displays
+  enabled mid-cycle (restore/keep the built-in during an external cycle).
+- Safety invariant unchanged: built-in restored when the last external
+  disconnects.
+
+**C. Disable the g26 late recommit** — remove the `scheduleLateRecommits` call
+(or empty `kOffsets`). Tested negative; it only adds noise.
+
+Reading needed: `src/DisplayController.m` (`applyEnable:`,
+`recommitDisplayConfiguration`, `wakeSettleTimerFired`, the `diagnose` path),
+`src/AppDelegate.m` (signal wiring), and the `diagnose` collector. The repro is
+in `docs/debug/REPRO.md`.
 
 ## Capture inventory (`docs/debug/`)
 
@@ -247,7 +304,10 @@ for analysis-heavy turns (classifying captures, challenging docs) if preferred.
 **Signature tally (running)**: black (maintainer-observed) `-122138`,
 `-135711`, `-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`,
 `-225050`, `-001343`, `-015528`; clean `-170616`, `-213717`, `-220028`, `-222940`,
-`-224742`, `-230242`, `-001426`. **Counterexample: `-001343` was black at
+`-224742`, `-230242`, `-001426`, `-015648`. Self-recovered / active: `-085729`
+(long lid-closed sleep, Apple-Watch unlock, external became active). Saga
+(battery, role reversal): `-093747` (programmatic, black/powersave) / `-093819`
+(manual, recovered). **Counterexample: `-001343` was black at
 `0x111e`** (2026-05-26) — the flap signature is falsified; the reconfig flag
 does not separate black from clean. Late recommit confirmed insufficient by
 `-223301` (flap at 22:31:30, all recommits fired, black persisted ~66 s,
