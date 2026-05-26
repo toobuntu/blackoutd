@@ -1,0 +1,235 @@
+2026-05-26 02:43:36.194 blackoutd[38407:7311416] [startup] — build=v0.2.0-39-ga0fe7f4-dirty built=2026-05-26T06:43:33+00:00
+2026-05-26 02:43:36.292 blackoutd[38407:7311416] [prefs] verbosityLevel=1
+2026-05-26 02:43:36.292 blackoutd[38407:7311416] [startup] — session started with builtInId=1
+2026-05-26 02:43:36.292 blackoutd[38407:7311416] [startup] — API deprecation: CGDisplayIOServicePort (deprecated macOS 10.9), CGSConfigureDisplayEnabled (private); if broken audit DisplayController.m
+2026-05-26 02:43:36.293 blackoutd[38407:7311416] [prefs] verbosityLevel=2
+2026-05-26 02:43:36.293 blackoutd[38407:7311416] [startup] — verbosityLevel=2
+2026-05-26 02:43:36.576 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:43:36.576 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating blackout
+2026-05-26 02:43:36.576 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 02:43:36.716 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:43:36.716 blackoutd[38407:7311416] [change] id=1 event=disconnected — ignored, action in progress
+2026-05-26 02:43:36.716 blackoutd[38407:7311416] [verbose=2] id=1 event=disconnected flags=0x1a20 (remove|disabled|unmirror|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (blackout)
+2026-05-26 02:43:36.716 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:43:36.716 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 02:43:36.716 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 02:43:37.107 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 02:43:39.118 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 02:43:39.119 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:01.432 blackoutd[38407:7311416] [sleep] — ignoring display changes
+2026-05-26 02:44:17.421 blackoutd[38407:7311416] [change] id=125 event=connected — ignored, sleeping
+2026-05-26 02:44:17.421 blackoutd[38407:7311416] [change] id=2 event=connected — external disconnect noted during sleep
+2026-05-26 02:44:17.421 blackoutd[38407:7311416] [wake] — resuming display change monitoring
+2026-05-26 02:44:17.421 blackoutd[38407:7311416] [wake] — external disconnected during sleep — disabling blackout
+2026-05-26 02:44:17.422 blackoutd[38407:7311416] [builtin] id=1 action=restore result=pending isBlackedOut=1
+2026-05-26 02:44:17.583 blackoutd[38407:7311416] [builtin] recommit before restore: ok
+2026-05-26 02:44:17.586 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:17.586 blackoutd[38407:7311416] [change] id=125 event=disconnected — ignored, action in progress
+2026-05-26 02:44:17.586 blackoutd[38407:7311416] [verbose=2] id=125 event=disconnected flags=0x1220 (remove|disabled|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (restore)
+2026-05-26 02:44:17.586 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:17.586 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 02:44:17.586 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 02:44:17.716 blackoutd[38407:7311416] [builtin] id=1 action=restore result=complete isBlackedOut=0
+2026-05-26 02:44:18.137 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:18.137 blackoutd[38407:7311416] [change] id=1 event=connected — ignored, action in progress
+2026-05-26 02:44:18.137 blackoutd[38407:7311416] [verbose=2] id=1 event=connected flags=0x151a (add|enabled|moved|setMode|mirror|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 02:44:18.143 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:18.143 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 02:44:18.144 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 02:44:19.914 blackoutd[38407:7311416] [builtin] id=1 action=restore result=settled isBlackedOut=0
+2026-05-26 02:44:20.239 blackoutd[38407:7311416] [wake] — display pipeline settled
+2026-05-26 02:44:20.253 blackoutd[38407:7311416] [wake] — recommit after settle: ok
+2026-05-26 02:44:20.253 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:20.253 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating blackout action
+2026-05-26 02:44:20.253 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 02:44:20.338 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 02:44:20.340 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:20.441 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:20.441 blackoutd[38407:7311416] [change] id=1 event=disconnected — ignored, action in progress
+2026-05-26 02:44:20.444 blackoutd[38407:7311416] [verbose=2] id=1 event=disconnected flags=0x1a20 (remove|disabled|unmirror|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (blackout)
+2026-05-26 02:44:20.444 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:20.444 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 02:44:20.444 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 02:44:22.534 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 02:44:22.534 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 02:44:25.836 blackoutd[38407:7311416] [wake] — late recommit 1/4 (settle+5s): ok
+2026-05-26 02:44:36.833 blackoutd[38407:7311416] [wake] — late recommit 2/4 (settle+15s): ok
+2026-05-26 02:44:53.338 blackoutd[38407:7311416] [wake] — late recommit 3/4 (settle+30s): ok
+2026-05-26 02:45:26.330 blackoutd[38407:7311416] [wake] — late recommit 4/4 (settle+60s): ok
+2026-05-26 02:45:30.433 blackoutd[38407:7311416] [sleep] — ignoring display changes
+2026-05-26 02:45:31.361 blackoutd[38407:7311416] [change] id=2 event=disconnected — external disconnect noted during sleep
+2026-05-26 02:45:31.361 blackoutd[38407:7311416] [change] id=126 event=connected — ignored, sleeping
+2026-05-26 08:57:19.094 blackoutd[38407:7311416] [wake] — resuming display change monitoring
+2026-05-26 08:57:19.097 blackoutd[38407:7311416] [wake] — external disconnected during sleep — disabling blackout
+2026-05-26 08:57:19.098 blackoutd[38407:7311416] [builtin] id=1 action=restore result=pending isBlackedOut=1
+2026-05-26 08:57:19.481 blackoutd[38407:7311416] [builtin] recommit before restore: ok
+2026-05-26 08:57:20.136 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:20.136 blackoutd[38407:7311416] [change] id=126 event=disconnected — ignored, action in progress
+2026-05-26 08:57:20.136 blackoutd[38407:7311416] [verbose=2] id=126 event=disconnected flags=0x1220 (remove|disabled|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (restore)
+2026-05-26 08:57:20.136 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:20.137 blackoutd[38407:7311416] [change] id=2 event=connected — ignored, action in progress
+2026-05-26 08:57:20.137 blackoutd[38407:7311416] [verbose=2] id=2 event=connected flags=0x111e (add|enabled|moved|setMain|setMode|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 08:57:20.413 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:20.413 blackoutd[38407:7311416] [change] id=1 event=connected — ignored, action in progress
+2026-05-26 08:57:20.413 blackoutd[38407:7311416] [verbose=2] id=1 event=connected flags=0x151a (add|enabled|moved|setMode|mirror|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 08:57:20.413 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:20.413 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 08:57:20.413 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 08:57:20.415 blackoutd[38407:7311416] [builtin] id=1 action=restore result=complete isBlackedOut=0
+2026-05-26 08:57:22.571 blackoutd[38407:7311416] [builtin] id=1 action=restore result=settled isBlackedOut=0
+2026-05-26 08:57:22.630 blackoutd[38407:7311416] [wake] — display pipeline settled
+2026-05-26 08:57:22.631 blackoutd[38407:7311416] [wake] — recommit after settle: ok
+2026-05-26 08:57:22.631 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:22.632 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating blackout action
+2026-05-26 08:57:22.632 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 08:57:22.850 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 08:57:22.850 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:22.869 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:22.869 blackoutd[38407:7311416] [change] id=1 event=disconnected — ignored, action in progress
+2026-05-26 08:57:22.869 blackoutd[38407:7311416] [verbose=2] id=1 event=disconnected flags=0x1a20 (remove|disabled|unmirror|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (blackout)
+2026-05-26 08:57:22.870 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:22.870 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 08:57:22.870 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 08:57:25.269 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 08:57:25.353 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 08:57:28.363 blackoutd[38407:7311416] [wake] — late recommit 1/4 (settle+5s): ok
+2026-05-26 08:57:39.351 blackoutd[38407:7311416] [wake] — late recommit 2/4 (settle+15s): ok
+2026-05-26 08:57:55.854 blackoutd[38407:7311416] [wake] — late recommit 3/4 (settle+30s): ok
+2026-05-26 08:58:28.858 blackoutd[38407:7311416] [wake] — late recommit 4/4 (settle+60s): ok
+2026-05-26 09:34:40.611 blackoutd[38407:7311416] [sleep] — ignoring display changes
+2026-05-26 09:34:57.561 blackoutd[38407:7311416] [change] id=127 event=connected — ignored, sleeping
+2026-05-26 09:34:57.579 blackoutd[38407:7311416] [change] id=2 event=connected — external disconnect noted during sleep
+2026-05-26 09:34:57.587 blackoutd[38407:7311416] [change] id=127 event=disconnected — external disconnect noted during sleep
+2026-05-26 09:34:57.588 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, sleeping
+2026-05-26 09:34:57.588 blackoutd[38407:7311416] [wake] — resuming display change monitoring
+2026-05-26 09:34:57.588 blackoutd[38407:7311416] [wake] — external disconnected during sleep — disabling blackout
+2026-05-26 09:34:57.588 blackoutd[38407:7311416] [builtin] id=1 action=restore result=pending isBlackedOut=1
+2026-05-26 09:34:57.588 blackoutd[38407:7311416] [builtin] recommit before restore: ok
+2026-05-26 09:34:57.686 blackoutd[38407:7311416] [builtin] id=1 action=restore result=complete isBlackedOut=0
+2026-05-26 09:34:57.801 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:34:57.801 blackoutd[38407:7311416] [change] id=1 event=connected — ignored, action in progress
+2026-05-26 09:34:57.801 blackoutd[38407:7311416] [verbose=2] id=1 event=connected flags=0x151a (add|enabled|moved|setMode|mirror|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 09:34:57.801 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:34:57.801 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 09:34:57.801 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 09:34:59.881 blackoutd[38407:7311416] [builtin] id=1 action=restore result=settled isBlackedOut=0
+2026-05-26 09:34:59.881 blackoutd[38407:7311416] [wake] — display pipeline settled
+2026-05-26 09:34:59.898 blackoutd[38407:7311416] [wake] — recommit after settle: ok
+2026-05-26 09:34:59.898 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:34:59.898 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating blackout action
+2026-05-26 09:34:59.898 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 09:34:59.973 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 09:34:59.979 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:35:00.179 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:35:00.179 blackoutd[38407:7311416] [change] id=1 event=disconnected — ignored, action in progress
+2026-05-26 09:35:00.179 blackoutd[38407:7311416] [verbose=2] id=1 event=disconnected flags=0x1a20 (remove|disabled|unmirror|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (blackout)
+2026-05-26 09:35:00.179 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:35:00.179 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 09:35:00.179 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 09:35:02.178 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 09:35:02.183 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:35:05.533 blackoutd[38407:7311416] [wake] — late recommit 1/4 (settle+5s): ok
+2026-05-26 09:35:16.482 blackoutd[38407:7311416] [wake] — late recommit 2/4 (settle+15s): ok
+2026-05-26 09:35:32.975 blackoutd[38407:7311416] [wake] — late recommit 3/4 (settle+30s): ok
+2026-05-26 09:36:05.971 blackoutd[38407:7311416] [wake] — late recommit 4/4 (settle+60s): ok
+2026-05-26 09:36:56.304 blackoutd[38407:7311416] [sleep] — ignoring display changes
+2026-05-26 09:37:05.032 blackoutd[38407:7311416] [change] id=2 event=disconnected — external disconnect noted during sleep
+2026-05-26 09:37:05.115 blackoutd[38407:7311416] [change] id=128 event=connected — ignored, sleeping
+2026-05-26 09:37:06.416 blackoutd[38407:7311416] [change] id=128 event=disconnected — external disconnect noted during sleep
+2026-05-26 09:37:06.416 blackoutd[38407:7311416] [change] id=2 event=connected — ignored, sleeping
+2026-05-26 09:37:06.417 blackoutd[38407:7311416] [wake] — resuming display change monitoring
+2026-05-26 09:37:06.417 blackoutd[38407:7311416] [wake] — external disconnected during sleep — disabling blackout
+2026-05-26 09:37:06.418 blackoutd[38407:7311416] [builtin] id=1 action=restore result=pending isBlackedOut=1
+2026-05-26 09:37:06.431 blackoutd[38407:7311416] [builtin] recommit before restore: ok
+2026-05-26 09:37:06.590 blackoutd[38407:7311416] [builtin] id=1 action=restore result=complete isBlackedOut=0
+2026-05-26 09:37:06.608 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:06.608 blackoutd[38407:7311416] [change] id=1 event=connected — ignored, action in progress
+2026-05-26 09:37:06.608 blackoutd[38407:7311416] [verbose=2] id=1 event=connected flags=0x151a (add|enabled|moved|setMode|mirror|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 09:37:06.608 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:06.608 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 09:37:06.608 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 09:37:08.706 blackoutd[38407:7311416] [builtin] id=1 action=restore result=settled isBlackedOut=0
+2026-05-26 09:37:08.706 blackoutd[38407:7311416] [wake] — display pipeline settled
+2026-05-26 09:37:08.718 blackoutd[38407:7311416] [wake] — recommit after settle: ok
+2026-05-26 09:37:08.718 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:08.718 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating blackout action
+2026-05-26 09:37:08.718 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 09:37:08.947 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 09:37:08.948 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:08.957 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:08.957 blackoutd[38407:7311416] [change] id=1 event=disconnected — ignored, action in progress
+2026-05-26 09:37:08.957 blackoutd[38407:7311416] [verbose=2] id=1 event=disconnected flags=0x1a20 (remove|disabled|unmirror|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (blackout)
+2026-05-26 09:37:08.957 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:08.957 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 09:37:08.957 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 09:37:11.144 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 09:37:11.156 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 09:37:14.638 blackoutd[38407:7311416] [wake] — late recommit 1/4 (settle+5s): ok
+2026-05-26 09:37:25.454 blackoutd[38407:7311416] [wake] — late recommit 2/4 (settle+15s): ok
+2026-05-26 09:37:41.953 blackoutd[38407:7311416] [wake] — late recommit 3/4 (settle+30s): ok
+2026-05-26 09:38:14.950 blackoutd[38407:7311416] [wake] — late recommit 4/4 (settle+60s): ok
+2026-05-26 10:22:25.343 blackoutd[38407:7311416] [sleep] — ignoring display changes
+2026-05-26 10:22:26.178 blackoutd[38407:7311416] [change] id=2 event=disconnected — external disconnect noted during sleep
+2026-05-26 10:22:26.178 blackoutd[38407:7311416] [change] id=129 event=connected — ignored, sleeping
+2026-05-26 14:06:12.759 blackoutd[38407:7311416] [wake] — resuming display change monitoring
+2026-05-26 14:06:12.761 blackoutd[38407:7311416] [wake] — external disconnected during sleep — disabling blackout
+2026-05-26 14:06:12.762 blackoutd[38407:7311416] [builtin] id=1 action=restore result=pending isBlackedOut=1
+2026-05-26 14:06:13.974 blackoutd[38407:7311416] [builtin] recommit before restore: ok
+2026-05-26 14:06:13.981 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:13.981 blackoutd[38407:7311416] [change] id=129 event=disconnected — ignored, action in progress
+2026-05-26 14:06:13.981 blackoutd[38407:7311416] [verbose=2] id=129 event=disconnected flags=0x1220 (remove|disabled|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (restore)
+2026-05-26 14:06:13.981 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:13.981 blackoutd[38407:7311416] [change] id=2 event=connected — ignored, action in progress
+2026-05-26 14:06:13.981 blackoutd[38407:7311416] [verbose=2] id=2 event=connected flags=0x111e (add|enabled|moved|setMain|setMode|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 14:06:14.152 blackoutd[38407:7311416] [builtin] id=1 action=restore result=complete isBlackedOut=0
+2026-05-26 14:06:14.153 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:14.153 blackoutd[38407:7311416] [change] id=1 event=connected — ignored, action in progress
+2026-05-26 14:06:14.153 blackoutd[38407:7311416] [verbose=2] id=1 event=connected flags=0x151a (add|enabled|moved|setMode|mirror|desktopShapeChanged) connectivity=add|enabled — ignored, action in progress (restore)
+2026-05-26 14:06:14.153 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:14.153 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 14:06:14.153 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 14:06:16.252 blackoutd[38407:7311416] [builtin] id=1 action=restore result=settled isBlackedOut=0
+2026-05-26 14:06:16.252 blackoutd[38407:7311416] [wake] — display pipeline settled
+2026-05-26 14:06:16.277 blackoutd[38407:7311416] [wake] — recommit after settle: ok
+2026-05-26 14:06:16.277 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:16.277 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating blackout action
+2026-05-26 14:06:16.278 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 14:06:16.348 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 14:06:16.349 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:16.458 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:16.458 blackoutd[38407:7311416] [change] id=1 event=disconnected — ignored, action in progress
+2026-05-26 14:06:16.458 blackoutd[38407:7311416] [verbose=2] id=1 event=disconnected flags=0x1a20 (remove|disabled|unmirror|desktopShapeChanged) connectivity=remove|disabled — ignored, action in progress (blackout)
+2026-05-26 14:06:16.458 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:16.458 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 14:06:16.459 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 14:06:18.547 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 14:06:18.548 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:06:21.849 blackoutd[38407:7311416] [wake] — late recommit 1/4 (settle+5s): ok
+2026-05-26 14:06:32.844 blackoutd[38407:7311416] [wake] — late recommit 2/4 (settle+15s): ok
+2026-05-26 14:06:49.339 blackoutd[38407:7311416] [wake] — late recommit 3/4 (settle+30s): ok
+2026-05-26 14:07:22.339 blackoutd[38407:7311416] [wake] — late recommit 4/4 (settle+60s): ok
+2026-05-26 14:12:17.719 blackoutd[38407:7311416] [sleep] — ignoring display changes
+2026-05-26 14:12:34.552 blackoutd[38407:7311416] [wake] — resuming display change monitoring
+2026-05-26 14:12:34.749 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:12:34.749 blackoutd[38407:7311416] [change] id=130 event=connected class=virtual
+2026-05-26 14:12:34.753 blackoutd[38407:7311416] [verbose=2] [change] id=130 event=connected class=virtual flags=0x1110 (add|enabled|desktopShapeChanged) connectivity=add|enabled
+2026-05-26 14:12:34.753 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=1 — no action
+2026-05-26 14:12:34.753 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:12:34.753 blackoutd[38407:7311416] [change] id=2 event=connected class=hardware
+2026-05-26 14:12:34.753 blackoutd[38407:7311416] [verbose=2] [change] id=2 event=connected class=hardware flags=0x133e (add|remove|enabled|disabled|moved|setMain|setMode|desktopShapeChanged) connectivity=add|remove|enabled|disabled
+2026-05-26 14:12:34.753 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=1 — no action
+2026-05-26 14:12:34.828 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:12:34.828 blackoutd[38407:7311416] [change] id=130 event=disconnected class=virtual
+2026-05-26 14:12:34.829 blackoutd[38407:7311416] [verbose=2] [change] id=130 event=disconnected class=virtual flags=0x1220 (remove|disabled|desktopShapeChanged) connectivity=remove|disabled
+2026-05-26 14:12:34.829 blackoutd[38407:7311416] [state] hasExternal=1 autoBlackout=1 isBlackedOut=1 — no action
+2026-05-26 14:12:34.829 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:12:34.829 blackoutd[38407:7311416] [change] id=2 event=shape — ignored, no connectivity change
+2026-05-26 14:12:34.829 blackoutd[38407:7311416] [verbose=2] id=2 event=shape flags=0x1000 (desktopShapeChanged) connectivity=none — ignored, no connectivity change
+2026-05-26 14:12:36.932 blackoutd[38407:7311416] [wake] — display pipeline settled
+2026-05-26 14:12:36.934 blackoutd[38407:7311416] [wake] — recommit after settle: ok
+2026-05-26 14:12:36.934 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:12:36.934 blackoutd[38407:7311416] [external] id=2 vendor=0x10ac (Dell) — hardware display detected
+2026-05-26 14:12:42.443 blackoutd[38407:7311416] [wake] — late recommit 1/4 (settle+5s): ok
+2026-05-26 14:12:53.438 blackoutd[38407:7311416] [wake] — late recommit 2/4 (settle+15s): ok
+2026-05-26 14:13:09.932 blackoutd[38407:7311416] [wake] — late recommit 3/4 (settle+30s): ok
+2026-05-26 14:13:42.933 blackoutd[38407:7311416] [wake] — late recommit 4/4 (settle+60s): ok
