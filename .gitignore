@@ -70,6 +70,12 @@ docs/debug/*
 # AC, post-displaysleep recovery half.
 !docs/debug/blackoutd-diag-20260526-141502/
 #
+# Within the allowlisted bundles the heavy logs are stored gzip-compressed;
+# track the .gz, never the raw text. See docs/debug/REPRO.md. These re-ignore
+# rules come after the allowlist so they win (last match) for the raw files.
+docs/debug/*/windowserver.txt
+docs/debug/*/ioreg.txt
+#
 # The later repro runs (143947/144023, 144217/144253, 144512, 150254/150327,
 # 150459/150533) only re-confirm the now-settled "external DCPPowerState is
 # constant" result; they are intentionally NOT allowlisted. If they were
