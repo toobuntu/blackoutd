@@ -255,9 +255,9 @@ static NSString *lastLogToken(NSString *needle) {
   NSString *log = daemonLogPath();
   if (![NSFileManager.defaultManager fileExistsAtPath:log])
     return nil;
-  NSString *cmd =
-      [NSString stringWithFormat:@"grep --fixed-strings -- '%@' '%@' | tail -1",
-                                 needle, log];
+  NSString *cmd = [NSString
+      stringWithFormat:@"grep --fixed-strings -- '%@' '%@' | tail -n 1", needle,
+                       log];
   NSString *line = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
   if (!line.length)
     return nil;
@@ -395,7 +395,7 @@ static void deriveWindow(NSString **startOut, NSString **endOut) {
     return;
   NSString *cmd = [NSString
       stringWithFormat:@"grep --fixed-strings -e 'resuming display change' "
-                       @"-e 'ignoring display changes' '%@' | tail -40",
+                       @"-e 'ignoring display changes' '%@' | tail -n 40",
                        log];
   NSString *out = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
   if (!out.length)
@@ -464,7 +464,7 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   NSString *log = daemonLogPath();
   if ([fm fileExistsAtPath:log])
     runShellToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
-                   [NSString stringWithFormat:@"tail -500 '%@'", log]);
+                   [NSString stringWithFormat:@"tail -n 500 '%@'", log]);
 
   // Self-bounding default: derive a window around the most recent incident
   // from the daemon's own sleep/wake markers. Explicit --start/--end or
@@ -493,7 +493,7 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
                                  window]);
   runShellToFile([dir stringByAppendingPathComponent:@"sleep-wake.txt"],
                  @"pmset -g log 2>/dev/null | grep --extended-regexp "
-                 @"'Sleep|Wake|Clamshell' | tail -40");
+                 @"'Sleep|Wake|Clamshell' | tail -n 40");
   runShellToFile(
       [dir stringByAppendingPathComponent:@"ioreg.txt"],
       @"echo '=== IODisplayConnect ==='; ioreg -lw0 -r -c IODisplayConnect; "
