@@ -1416,3 +1416,65 @@ recovery needs a display-power-cycle-class action tracked under P20.
 
 **Files**: `src/AppDelegate.m` (`systemDidWake:`). Relates to ADR 0003 and
 P0, P1, P20, P25.
+
+---
+
+## P29 — Cursor-on-black: flap wake → missing display-mode set (hypothesis)
+
+**Observation (2026-05-25, builds g19–g25, verbosityLevel=2)**: cursor-on-black
+on the external correlates with how the external re-attaches on wake.
+
+- Black wakes: the external's reconfig callback is `flags=0x133e`
+  (`add|remove|enabled|disabled|…`) — a coalesced down-then-up "flap"
+  (`-122138`, `-135711`, `-150108`, `-155349`, `-192959`).
+- Clean / recovered wakes: `flags=0x111e` (`add|enabled`, no remove bit) or no
+  external hardware event at all (`-170616`, and every recovery).
+
+In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
+**no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
+only a storm of `PKGWindowMoveOnMatchingDisplayChangedSeed failed to move
+window … (invalid)` and `_CGXPackagesSetWindowConstraints: Invalid window`
+(windows placed on a display with no valid scanout). The recovery wake
+(19:29:40) emits a full `[ Display:Mode ]` block (41 timing / 8 color modes,
+"set to previous mode 27", `2048 x 1152 fmt:YCbCr444_10bit`) and the external
+renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27.
+
+**Hypothesis**: the flap re-enumerates the external without a valid
+display-mode set, leaving it configured-but-not-scanning-out → black with the
+hardware cursor. Recovery works because a display-power cycle (hot corner /
+idle-off / on-battery system sleep) forces a fresh enumeration that re-runs
+the mode-set. This matches the maintainer's standing observation that the
+external "always comes back at a wrong mode."
+
+**Why the no-op recommit cannot fix it**: blackoutd's post-settle recommit and
+displayrecommitd's are *identical* — `CGBeginDisplayConfiguration` +
+`CGCompleteDisplayConfiguration(…, kCGConfigureForSession)` with nothing
+changed between. A no-op transaction re-commits the current (mode-less /
+wrong) config; it cannot install a mode. Empirically it fired and black
+persisted ~129 s in `-192959`. The displayrecommitd header belief that "the
+CGConfig cycle causes WindowServer to absorb the reconnected display" is
+unproven and mechanically cannot set a mode. (The Alt Mode "+30 s dropout"
+framing in P2 / ADR 0003 / the README is also unobserved in 2026-05-25 data;
+see P28.)
+
+**Candidate fix (preferred)**: on a flap wake (detectable — blackoutd already
+logs `0x133e`), set the external's mode explicitly via
+`CGConfigureDisplayWithDisplayMode` to the preferred/previous mode (public
+API, no sudo, minimal flicker), instead of a no-op recommit. Fallback if a
+mode-set proves insufficient: a programmatic display-power cycle
+(`IODisplayWrangler` `IORequestIdle` poke — private; or `pmset displaysleepnow`
+— needs sudo + flicker), deferred until the mode-set is shown inadequate.
+
+**Open / to confirm**:
+
+- Does `0x133e` reliably predict black? Classify 2–3 more captures by
+  (external wake flags, black or not). `diagnose` records both.
+- Manual late recommit: recovers (timing) or not (mechanism)? Test via a
+  one-shot `blackoutd recommit` (`SIGINFO`, planned). displayrecommitd's
+  recommit being a no-op makes "insufficient by mechanism" the leading guess.
+- What mode does the black wake hold vs the preferred mode? Confirm with the
+  new wake-anchored window (captures the onset) and an inject_edid `--mode`
+  reader surfaced in `diagnose`.
+
+**Files**: investigation only so far. Relates to P2, P20, P28, ADR 0003, ADR
+0009 (SP2309W YCbCr), and a future inject_edid `--mode` reader.
