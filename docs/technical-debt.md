@@ -1593,5 +1593,58 @@ as out of scope.
   via the `inject_edid --mode` reader. Without one, only an unconditional
   power-cycle-on-wake (flicker) or manual hot-corner recovery remain.
 
+**Update (2026-05-26) — below-CG confirmed; a candidate detector; role reversal.**
+- *Mechanism confirmed.* Same-wake ioreg diff (`-015528` black vs `-015648`
+  recovered) isolates the change to the external `dcpext` node: `DCPPowerState`
+  0→4 and `DCPPowerAssertionCount` 0→1 (the `DCPDPDeviceProxy` /
+  `DCPAVVideoInterfaceProxy` proxies also (re)register on recovery). The
+  built-in `dcp` stays `DCPPowerState=4` throughout. So black = external DCP not
+  powered to scanout, below CoreGraphics — as the WS evidence implied.
+- *Candidate detector (promising, unverified).* External `dcpext`
+  `DCPPowerState` reads 0 in both controlled black captures (`-001343`,
+  `-015528`) and 4 in their recoveries (`-001426`, `-015648`) — a clean 0/4
+  split. BUT two uncontrolled captures break it: `-085729` (external active)
+  read 0 and `-093747` (black, mid-saga) read 4 — likely capture-instant timing
+  (powersave ramp / role-reversal). DPMS powersave also reads 0. So
+  `DCPPowerState` is the best below-CG signal found but is NOT yet a trustworthy
+  sole trigger. Validate by capturing *at the black instant* (not ~90 s later)
+  with the observed on-screen state recorded, repeatedly, and confirm
+  0⇔black / 4⇔rendering. Surface `dcpext` `DCPPowerState` /
+  `DCPPowerAssertionCount` in `diagnose` to make this cheap.
+  **(2026-05-26, later — REFUTED as read.** The cross-file readout is unsound:
+  there are two `AppleDCPExpert` nodes (built-in + external) and they cannot be
+  told apart by position. Validation captures invert the naive signal —
+  `-140624` (external actively rendering) read 0; `-141433` (cursor-on-black, on
+  AC) read 4. Pooled by observed state: black `{0,0,4,4}` vs active `{4,4,0,0}`,
+  i.e. no correlation. The *only* sound observation is the within-pair diff
+  `-015528`→`-015648`, where the `DCPEXT` block's value went 0→4 — n=1. So
+  `DCPPowerState` is NOT a usable detector as currently read. To rescue it,
+  `diagnose` must extract the value from the *external* DCP identified by the
+  display (EDID UUID `10AC1DD0…`, i.e. vendor 0x10AC product 0xD01D), not by
+  position, and pair it with a recorded on-screen state, then re-validate.
+  Until a signal validates, there is no reliable below-CG black detector, so
+  "only-when-black" recovery is blocked and an unconditional cycle on every
+  wake-with-external is the near-term path.)**
+- *Role reversal (new; `-093747`/`-093819` saga, battery).* After `pmset
+  displaysleepnow` + trackpad wake, the **built-in** was briefly cursor-on-black,
+  then it moved to the external. The black is not external-specific; it lands on
+  whichever display the DCP fails to scan out. Reinforces firmware/DCP scanout,
+  and a fix must handle either display.
+- *Recovery levers.* (a) `pmset displaysleepnow` (a DCP-level display sleep)
+  eventually recovered, with messy intermediate states — consistent with the hot
+  corner. (b) **Reuse blackoutd's own primitive**: blackout = `applyEnable:` →
+  `CGSConfigureDisplayEnabled(…, false/true)`. A disable→enable cycle on the
+  *external* tears down and rebuilds its config — a stronger lever than the
+  no-op recommit, worth testing as recovery, though still CG-level so it may not
+  reach the DCP. Sequence carefully (never leave zero active displays — keep or
+  restore the built-in during the external cycle); expect flicker.
+- *Power source.* No controlled comparison yet; cursor-on-black reproduces on
+  battery (scripted and natural). AC was clean in `-213717`/`-220028`, but those
+  were not the scripted repro. To attribute power-source dependence, run the
+  same `pmset schedule wake` repro on AC. AGENTS.md already flags
+  battery-at-sleep as a coincidental non-predictor.
+  **(2026-05-26: done — `-141433` ran the scripted repro on AC and was
+  cursor-on-black. The bug is NOT power-source-dependent; AC reproduces it.)**
+
 **Files**: investigation only so far. Relates to P2, P20, P28, ADR 0003, ADR
 0009 (SP2309W YCbCr), and a future inject_edid `--mode` reader.
