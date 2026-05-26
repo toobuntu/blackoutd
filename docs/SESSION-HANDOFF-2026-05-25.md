@@ -131,14 +131,11 @@ a below-CG (`dcpext`) scanout property.
    reconfig flag is not a classifier. Use the deterministic repro instead:
    `sudo pmset schedule wake "$(date -j -v+15S "+%m/%d/%y %H:%M:%S")"; pmset
    sleepnow; sleep 90; ./build/blackoutd diagnose`.
-2. **Validate the `dcpext DCPPowerState` detector** (below-CG black signal,
-   found 2026-05-26). Same-wake ioreg diffs show external `dcpext`
-   `DCPPowerState` 0 (black) → 4 (recovered) in BOTH controlled pairs
-   (`-001343`/`-001426`, `-015528`/`-015648`), plus `DCPPowerAssertionCount`
-   0→1. But `-085729` (active) read 0 and `-093747` (black, mid-saga) read 4 —
-   capture-instant / DPMS-powersave confounds. Capture *at the black instant*
-   with on-screen state recorded, repeatedly, to confirm 0⇔black / 4⇔rendering.
-   Surface `dcpext` `DCPPowerState` / `DCPPowerAssertionCount` in `diagnose`.
+2. **(Done — detector dead.)** `DCPPowerState` does not signal cursor-on-black:
+   keyed on the `AppleDCPExpert` `role`, the external `DCPEXT` value is constant
+   at 4 across black/clean/recovered; the 0↔4 was the built-in's blackout
+   state. No ioreg-based black detector found (P29). Recovery is therefore
+   unconditional.
 3. **Recovery (maintainer's call): power-cycle only-when-black if the detector
    validates; otherwise unconditional on every wake-with-external.** Levers,
    strongest-bet first: reuse blackoutd's own `applyEnable:`
@@ -157,45 +154,60 @@ a below-CG (`dcpext`) scanout property.
 
 ## Implementation spec (for Claude Code)
 
-Three deliverables. Build in this order; A unblocks validation of any detector.
+Three deliverables. B is the substance; A is forensics + UX; C is cleanup.
+Note: the `DCPPowerState` detector is **dead** (P29 — the external `DCPEXT`
+value is constant at 4; the variation was the built-in's blackout state). So
+there is no black detector to gate on, and recovery is unconditional.
 
-**A. `diagnose`: report the external DCP state + an observed-state note.**
-- Add `dcp.txt` (or a section) recording, for the *external* display: the DCP
-  node's `DCPPowerState`, `DCPPowerAssertionCount`, and which `AppleDCPExpert`
-  it is. Do NOT read by position — there are two `AppleDCPExpert` nodes
-  (built-in + external). Identify the external by the display (EDID UUID begins
-  `10AC1DD0…`; vendor 0x10AC, product 0xD01D for the SP2309W) and walk to its
-  DCP, or match the `dcpext` service and confirm it is the external. Record
-  both DCPs labeled, so the value is unambiguous.
-- Add `diagnose --note "…"` that writes the operator's observed on-screen state
-  into the bundle (e.g. `note.txt`). This pairs the register with ground truth
-  so the detector can finally be validated.
+**A. `diagnose`: record DCP state (forensics) and trim the stdout.**
+- Record, for *both* DCPs labeled by `role`, the `DCPPowerState` /
+  `DCPPowerAssertionCount` (e.g. a `dcp.txt`). Attribute by the `"role"`
+  property on each `AppleDCPExpert` (`"DCP"` = built-in, `"DCPEXT"` = external),
+  NOT by position. This is forensic only — do not build a detector on it.
+- Trim the printed-to-screen output: keep the top status block, a *one-line*
+  build stamp (just the build ID, e.g. `v0.2.0-43-g40b4dfe-dirty (built …)`)
+  plus a one-line daemon-startup build ID for a quick visual match — NOT the
+  full daemon-log line — and keep the concluding "bundle written" file
+  manifest. Suppress the rest of the chatter.
+- (Optional, low priority now the detector is dead) `diagnose --note "…"`
+  appending an arbitrary operator string to the bundle for forensics. It does
+  NOT inspect collected data; it is just a label the operator types based on
+  what they saw. Not needed for any detector.
+- Leave `diagnose` writing raw text — no compression in blackoutd (avoids an
+  external compressor dependency; gzip/zstd aren't invoked by the daemon).
+  Compressing the heavy logs is a commit-time step done with the system `gzip`
+  (see `docs/debug/REPRO.md`), not part of capture.
 - The CG-layer view (mode 27 == preferred, framebuffer found) is identical for
-  black and rendering (P29), so do not bother adding more CG mode dumps.
+  black and rendering (P29), so do not add more CG mode dumps.
 
 **B. Recovery behind a pref (strategy enum), invoked at `wakeSettleTimerFired`.**
 - Pref key e.g. `recoveryStrategy` ∈ {`off` (default, current behavior),
-  `cg-cycle`, `display-cycle`}. No reliable black detector exists yet (the
-  `DCPPowerState` signal is unvalidated — see P29 correction), so for now the
-  chosen strategy fires *unconditionally* on every wake-with-external, after
-  the settle. Wrap it so a later detector can gate it.
+  `cg-cycle`, `display-cycle`}. No black detector exists (dead, above), so the
+  chosen strategy fires **unconditionally** on every wake-with-external after
+  the settle.
 - `cg-cycle`: reuse the existing `applyEnable:` primitive
   (`CGSConfigureDisplayEnabled`) as disable→(brief)→enable on the target
-  display. CHEAP, low-disruption, but CG-level — may not reach the DCP (the
-  natural wake already toggled `power state 0→1` without recovering, so expect
-  this may be insufficient).
+  display. CHEAP, low-disruption, but CG-level — likely insufficient (the
+  natural wake already toggled `power state 0→1` without recovering). Wire it
+  as the cheap probe.
 - `display-cycle`: a DCP-level display-power cycle (the lever the hot corner /
-  `pmset displaysleepnow` exercises, which DID recover). More likely to work
-  because the failure is below CG; more disruptive (blanks displays). This is
-  the technically-correct bet — wire it so it can be A/B'd against `cg-cycle`.
-- Role reversal (P29): the dark display may be the BUILT-IN, not the external.
-  Target whichever display is dark, or cycle both; never leave zero displays
-  enabled mid-cycle (restore/keep the built-in during an external cycle).
+  `pmset displaysleepnow` exercises, which DID recover). More disruptive
+  (blanks displays) but the technically-correct bet since the failure is below
+  CG. A/B it against `cg-cycle`.
+- Role reversal (P29): the dark display may be the BUILT-IN. Target whichever
+  is dark, or cycle both; never leave zero displays enabled mid-cycle
+  (restore/keep the built-in during an external cycle).
 - Safety invariant unchanged: built-in restored when the last external
   disconnects.
 
 **C. Disable the g26 late recommit** — remove the `scheduleLateRecommits` call
 (or empty `kOffsets`). Tested negative; it only adds noise.
+
+**D. (Separate track, once inject_edid is folded in as a module.)** On seeing
+the SP2309W (EDID UUID `10AC1DD0…`, vendor 0x10AC product 0xD01D), apply the
+RGB-8-bit EDID override so macOS stops negotiating the bad YCbCr (ADR 0009).
+This is the *color-cast* fix (an EDID override applied at connect/boot), wholly
+separate from the cursor-on-black scanout issue — do not entangle them.
 
 Reading needed: `src/DisplayController.m` (`applyEnable:`,
 `recommitDisplayConfiguration`, `wakeSettleTimerFired`, the `diagnose` path),
