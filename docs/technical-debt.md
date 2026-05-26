@@ -1618,13 +1618,20 @@ as out of scope.
   AC) read 4. Pooled by observed state: black `{0,0,4,4}` vs active `{4,4,0,0}`,
   i.e. no correlation. The *only* sound observation is the within-pair diff
   `-015528`→`-015648`, where the `DCPEXT` block's value went 0→4 — n=1. So
-  `DCPPowerState` is NOT a usable detector as currently read. To rescue it,
-  `diagnose` must extract the value from the *external* DCP identified by the
-  display (EDID UUID `10AC1DD0…`, i.e. vendor 0x10AC product 0xD01D), not by
-  position, and pair it with a recorded on-screen state, then re-validate.
-  Until a signal validates, there is no reliable below-CG black detector, so
-  "only-when-black" recovery is blocked and an unconditional cycle on every
-  wake-with-external is the near-term path.)**
+  `DCPPowerState` is NOT a usable detector as currently read.
+  **(2026-05-26, settled — DEAD.** Re-extracted with correct attribution: each
+  `AppleDCPExpert` carries `"role" = "DCP"` (built-in) or `"DCPEXT"` (external).
+  Keyed on role, the **external `DCPEXT` `DCPPowerState` is 4 in every capture**
+  — black, clean, and recovered alike; it never varies. The 0→4 I had seen
+  (including the `-015528`→`-015648` within-pair diff) was the **built-in's**
+  DCP, which reads 0 when the built-in is blacked out
+  (`CGSConfigureDisplayEnabled(false)`) and 4 when active — i.e. it tracks
+  blackout state, not the external scanout. So `DCPPowerState` carries no
+  cursor-on-black signal. Consistent with the WS finding: the stalled scanout
+  is not surfaced to ioreg at all. There is no below-CG detector here; treat
+  ioreg-based black detection as unavailable, and use unconditional recovery on
+  every wake-with-external. `diagnose` may still record both DCPs (labeled by
+  role) for forensics, but not as a detector.)**
 - *Role reversal (new; `-093747`/`-093819` saga, battery).* After `pmset
   displaysleepnow` + trackpad wake, the **built-in** was briefly cursor-on-black,
   then it moved to the external. The black is not external-specific; it lands on
