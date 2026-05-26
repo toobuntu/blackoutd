@@ -1426,9 +1426,14 @@ on the external correlates with how the external re-attaches on wake.
 
 - Black wakes: the external's reconfig callback is `flags=0x133e`
   (`add|remove|enabled|disabled|…`) — a coalesced down-then-up "flap"
-  (`-122138`, `-135711`, `-150108`, `-155349`, `-192959`).
-- Clean / recovered wakes: `flags=0x111e` (`add|enabled`, no remove bit) or no
-  external hardware event at all (`-170616`, and every recovery).
+  (`-122138`, `-135711`, `-150108`, `-155349`, `-192959`, `-212847`).
+- Clean / recovered wakes: `flags=0x111e` (`add|enabled`, no remove bit), no
+  post-wake external hardware event, or the external reconnecting during sleep
+  without a post-wake flap (`-170616`, `-213717`, and every recovery).
+
+Tally as of 2026-05-25: six black-with-flap, two clean-without, no
+counterexample (no `0x133e` that came up clean). Strong but not yet proven;
+one more clean capture should try to break it.
 
 In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
 **no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
@@ -1446,24 +1451,39 @@ idle-off / on-battery system sleep) forces a fresh enumeration that re-runs
 the mode-set. This matches the maintainer's standing observation that the
 external "always comes back at a wrong mode."
 
-**Why the no-op recommit cannot fix it**: blackoutd's post-settle recommit and
-displayrecommitd's are *identical* — `CGBeginDisplayConfiguration` +
-`CGCompleteDisplayConfiguration(…, kCGConfigureForSession)` with nothing
-changed between. A no-op transaction re-commits the current (mode-less /
-wrong) config; it cannot install a mode. Empirically it fired and black
-persisted ~129 s in `-192959`. The displayrecommitd header belief that "the
-CGConfig cycle causes WindowServer to absorb the reconnected display" is
-unproven and mechanically cannot set a mode. (The Alt Mode "+30 s dropout"
-framing in P2 / ADR 0003 / the README is also unobserved in 2026-05-25 data;
-see P28.)
+**Recommit efficacy — open, not settled**: blackoutd's post-settle recommit
+and displayrecommitd's are *identical* — `CGBeginDisplayConfiguration` +
+`CGCompleteDisplayConfiguration(…, kCGConfigureForSession)`, nothing changed
+between. In the two captured black cases (`-155349`, `-192959`) it fired
+*early* (~+3 s) and black persisted (~129 s in `-192959`); a no-op transaction
+re-commits the current config and may not, on its own, install a mode. This
+does NOT establish the recommit is useless in all cases: it was brought into
+blackoutd because it was believed to recover *some* occurrences (see
+`docs/architecture.md`, ADR 0003, the displayrecommitd repo, and
+`displayrecommitd/scripts/displayprobe2.m`), and a *late* recommit (well after
+the flap settles) is untested. Treat "recommit recovers cursor-on-black" as
+unproven in either direction pending a late-recommit test. (The Alt Mode
+"+30 s dropout" framing in P2 / ADR 0003 / the README is separately unobserved
+in 2026-05-25 data; see P28.)
 
-**Candidate fix (preferred)**: on a flap wake (detectable — blackoutd already
-logs `0x133e`), set the external's mode explicitly via
-`CGConfigureDisplayWithDisplayMode` to the preferred/previous mode (public
-API, no sudo, minimal flicker), instead of a no-op recommit. Fallback if a
-mode-set proves insufficient: a programmatic display-power cycle
-(`IODisplayWrangler` `IORequestIdle` poke — private; or `pmset displaysleepnow`
-— needs sudo + flicker), deferred until the mode-set is shown inadequate.
+**Recovery candidates** (fire on a flap wake, which blackoutd already detects
+via `0x133e`). Heed the known dead ends in `AGENTS.md` first:
+`IOServiceRequestProbe` on `DCPDPDeviceProxy` returns `kIOReturnUnsupported`
+(`0xe00002c7`) on Apple Silicon (confirmed in displayrecommitd);
+`CGDisplaySleep`/`CGDisplayWake` and `pmset displaysleepnow` flicker. The
+realistic, untried candidates are:
+
+1. A *late* CG recommit — manual `blackoutd recommit`, or an automatic second
+   recommit some seconds after the settle one. Cheapest; tests whether timing
+   was the issue. Log a sequence/timestamp so a recovery can be tied to a
+   specific fire.
+2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the
+   preferred/previous mode — public API, no sudo, minimal flicker; directly
+   addresses a missing/wrong mode. Untested.
+
+A display-power cycle is the known-good *manual* recovery (hot corner), but its
+CG/pmset forms flicker (dead ends above); leave any programmatic power-cycle as
+a last resort only if 1–2 fail.
 
 **Open / to confirm**:
 
