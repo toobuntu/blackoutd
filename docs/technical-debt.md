@@ -1466,6 +1466,19 @@ unproven in either direction pending a late-recommit test. (The Alt Mode
 "+30 s dropout" framing in P2 / ADR 0003 / the README is separately unobserved
 in 2026-05-25 data; see P28.)
 
+**Update (2026-05-25, build g26 — late recommit tested, negative)**: the
+automatic late-recommit probe ran in `-223301`. The settle recommit plus all
+four late recommits (settle+5/15/30/60 s) logged `ok`, yet the external stayed
+black through all of them (~66 s) until a hot-corner display-power cycle
+produced a clean `0x111e` re-enumeration and recovered it. So a *late* recommit
+does not recover this cursor-on-black either — the no-op recommit is now
+empirically insufficient both early and late in the captured cases (one more
+black capture with the late recommits would confirm before disabling them).
+The silent-recovery hypothesis (that "clean" wakes are flaps quietly fixed by a
+recommit) is also refuted: `-222940` (clean) shows a genuine `0x111e`
+enumeration, not a `0x133e` flap; and `-223301` shows recommits do not silently
+fix a flap.
+
 **Recovery candidates** (fire on a flap wake, which blackoutd already detects
 via `0x133e`). Heed the known dead ends in `AGENTS.md` first:
 `IOServiceRequestProbe` on `DCPDPDeviceProxy` returns `kIOReturnUnsupported`
@@ -1473,17 +1486,17 @@ via `0x133e`). Heed the known dead ends in `AGENTS.md` first:
 `CGDisplaySleep`/`CGDisplayWake` and `pmset displaysleepnow` flicker. The
 realistic, untried candidates are:
 
-1. A *late* CG recommit — manual `blackoutd recommit`, or an automatic second
-   recommit some seconds after the settle one. Cheapest; tests whether timing
-   was the issue. Log a sequence/timestamp so a recovery can be tied to a
-   specific fire.
-2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the
-   preferred/previous mode — public API, no sudo, minimal flicker; directly
-   addresses a missing/wrong mode. Untested.
-
-A display-power cycle is the known-good *manual* recovery (hot corner), but its
-CG/pmset forms flicker (dead ends above); leave any programmatic power-cycle as
-a last resort only if 1–2 fail.
+1. A *late* CG recommit (automatic, settle+5/15/30/60 s) — **tested g26,
+   negative** (`-223301`: all fired `ok`, external stayed black ~66 s until a
+   hot-corner power cycle recovered it). Recommit is insufficient early and
+   late; disable after one confirming black capture.
+2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the preferred
+   mode (from `CGDisplayCopyAllDisplayModes`) — public API, no sudo, minimal
+   flicker; directly installs the mode the flap skipped (the P29 missing-mode
+   hypothesis). The leading untried candidate.
+3. Display-power cycle (the known-good hot-corner equivalent; forces a clean
+   `0x111e` re-enumeration). Flickers, but the maintainer accepts flicker if it
+   proves the definitive fix. Use if the mode-set is insufficient.
 
 **Open / to confirm**:
 
