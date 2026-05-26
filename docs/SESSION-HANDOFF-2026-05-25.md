@@ -106,32 +106,33 @@ sleep) + input. Intermittent.
    recovery ran a full mode block ("set to previous mode 27", `2048×1152
    fmt:YCbCr444_10bit`). Hypothesis: the flap re-enumerates the external
    *without a valid mode-set* → configured-but-not-scanning-out → black. Matches
-   the maintainer's "always comes back at a wrong mode."
+   the maintainer's "always comes back at a wrong mode." **(2026-05-26: the
+   `0x133e` flap correlation is FALSIFIED — `-001343` was black at `0x111e`. The
+   missing-mode mechanism stands; the flap does not. See the tally at the end.)**
 
 ## Preferred fix direction (unbuilt)
 
-On a flap wake (blackoutd already logs `0x133e`), **set the external's mode
-explicitly** via `CGConfigureDisplayWithDisplayMode` to the preferred/previous
-mode — public API, no sudo, minimal flicker. Only if a mode-set proves
+On **every** wake-with-external (the flap is not a usable trigger — falsified
+2026-05-26), **set the external's mode explicitly** via
+`CGConfigureDisplayWithDisplayMode` to the preferred mode — public API, no sudo, minimal flicker. Only if a mode-set proves
 insufficient, fall back to a programmatic display-power cycle (`IODisplayWrangler`
 `IORequestIdle` poke — private; or `pmset displaysleepnow` — sudo + flicker).
 
 ## Next steps (in order)
 
-1. **Confirm the signature (no code).** Capture 2–3 more incidents at
-   `verbosity 2`; classify each by (external wake `flags`, black or not). Need
-   `0x133e`→black to hold and ideally a `0x133e` that comes up clean to break
-   it. Recover within ~60 s OR let battery idle-recover so failure and recovery
-   fall in one window; run `./build/blackoutd diagnose` after.
+1. **(Done — signature falsified.)** `-001343` is black at `0x111e`, so the
+   reconfig flag is not a classifier. Use the deterministic repro instead:
+   `sudo pmset schedule wake "$(date -j -v+15S "+%m/%d/%y %H:%M:%S")"; pmset
+   sleepnow; sleep 90; ./build/blackoutd diagnose`.
 2. **Build `blackoutd recommit`** (one-shot, new `SIGINFO` handler → fire the
    existing recommit, logged `[manual] — recommit requested`; CLI dispatch +
    usage; public entry on `DisplayController`). Lets the maintainer blind-test a
    *late* recommit during black (cue in terminal pre-sleep, Apple-Watch/TouchID
    auth, blind Return). Tests timing vs mechanism. Leading guess: insufficient
    by mechanism (recommit is a no-op).
-3. **If recommit fails → implement the mode-set fix** (`CGConfigureDisplayWith-
-   DisplayMode` on flap detection). Add a `blackoutd recover` to blind-test the
-   primitive first if useful.
+3. **Implement the mode-set fix** (`CGConfigureDisplayWithDisplayMode` applied
+   on every post-wake settle, not flap-keyed). Recommit is already shown
+   insufficient; this is the leading candidate. Test against the repro above.
 4. **inject_edid `--mode` reader** (connection mode / pixel encoding; the
    external is YCbCr444_10bit). Surface in `diagnose` first; build out the
    inject_edid convergence later. Not on the cursor-on-black critical path until
@@ -159,11 +160,11 @@ insufficient, fall back to a programmatic display-power cycle (`IODisplayWrangle
 
 ## Update — 2026-05-25 (later)
 
-**Signature confirmed across 8 captures** (P29): black ⇔ external
-post-wake/restore `0x133e` flap; clean ⇔ no post-wake flap. Black: 122138,
-135711, 150108, 155349, 192959, 212847. Clean: 170616, 213717. No
-counterexample yet (no `0x133e` that came up clean); one more clean capture
-should try to break it. `-213717` also confirms (A): restore → settle →
+**Signature FALSIFIED (superseded 2026-05-26).** Earlier this looked like
+black ⇔ `0x133e` flap / clean ⇔ no flap (black: 122138, 135711, 150108, 155349,
+192959, 212847; clean: 170616, 213717). `-001343` then came up black at `0x111e`
+— a counterexample. The flap is not the discriminator; the missing-mode
+mechanism is flag-independent. See the tally at the end. `-213717` also confirms (A): restore → settle →
 recommit → re-blackout → `isBlackedOut=1`, no black (AC).
 
 **Recommit overclaim corrected**: do NOT assert the CG recommit is insufficient
@@ -210,13 +211,14 @@ of a mode-set). Keep the two investigations separate; do not call YCbCr
    early AND late. Action: one more confirming black capture, then DISABLE
    (remove the `scheduleLateRecommits` call / empty `kOffsets`) and move to the
    mode-set. See P29 "Update (g26)".
-2. **Mode-set fix — now the leading candidate** (replaces the recommit
-   approach). On a `0x133e` flap wake, set the external to its preferred mode via
+2. **Mode-set fix — the leading candidate** (replaces the recommit approach).
+   On **every** post-wake settle (the flap is falsified as a trigger,
+   2026-05-26), set the external to its preferred mode via
    `CGConfigureDisplayWithDisplayMode` (preferred mode from
-   `CGDisplayCopyAllDisplayModes`; public API, no sudo, minimal flicker). This
-   directly installs the mode the flap skipped (P29). If insufficient, fall back
-   to a display-power cycle (flicker accepted by the maintainer as a last
-   resort). blackoutd already detects the flap (`0x133e`) to key this on.
+   `CGDisplayCopyAllDisplayModes`; public API, no sudo, minimal flicker).
+   Installs the mode the black wake lacks (flag-independent mechanism). If
+   insufficient, fall back to a display-power cycle (flicker accepted as a last
+   resort). Test against the scripted repro in P29.
 3. **`blackoutd recommit` CLI** — now LOW value (recommit shown insufficient
    early and late); build only if a manual one-shot is still wanted.
 4. **diagnose `--mode` reader** — still useful: pixel-encoding/mode via the
@@ -236,12 +238,14 @@ for analysis-heavy turns (classifying captures, challenging docs) if preferred.
 
 **Signature tally (running)**: black (maintainer-observed) `-122138`,
 `-135711`, `-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`,
-`-225050`; clean `-170616`, `-213717`, `-220028`, `-222940`, `-224742`,
-`-230242`. No counterexample. Late recommit confirmed insufficient by `-223301`
-(clean log evidence: flap at 22:31:30, all recommits fired, black persisted
-~66 s, hot-corner recovered) and corroborated by `-225050`. **Classify
-per-wake, not by grep**: each bundle's `daemon-log.txt` is a cumulative
-`tail -500` across pids/incidents, so grepping it for `0x133e` finds residual
-flaps from earlier incidents (the `-223301` flap rides along in `-224742` /
-`-230242`). Verified `0x111e` clean at own wake: `-220028`, `-222940`,
-`-224742`, `-230242`. `-213717`/`-220028`/`-222940` also re-confirm (A).
+`-225050`, `-001343`; clean `-170616`, `-213717`, `-220028`, `-222940`,
+`-224742`, `-230242`, `-001426`. **Counterexample: `-001343` was black at
+`0x111e`** (2026-05-26) — the flap signature is falsified; the reconfig flag
+does not separate black from clean. Late recommit confirmed insufficient by
+`-223301` (flap at 22:31:30, all recommits fired, black persisted ~66 s,
+hot-corner recovered) and corroborated by `-225050`. **Classify per-wake, not
+by grep**: each bundle's `daemon-log.txt` is a cumulative `tail -500` across
+pids/incidents, so grepping it for `0x133e` finds residual flaps from earlier
+incidents (the `-223301` flap rides along in `-224742` / `-230242`). Verified
+`0x111e` at own wake: `-220028`, `-222940`, `-224742`, `-230242`, and
+`-001343` (black anyway). `-213717`/`-220028`/`-222940` also re-confirm (A).

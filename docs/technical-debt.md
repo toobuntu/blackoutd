@@ -1421,8 +1421,9 @@ P0, P1, P20, P25.
 
 ## P29 — Cursor-on-black: flap wake → missing display-mode set (hypothesis)
 
-**Observation (2026-05-25, builds g19–g25, verbosityLevel=2)**: cursor-on-black
-on the external correlates with how the external re-attaches on wake.
+**Observation (2026-05-25, builds g19–g25, verbosityLevel=2; FALSIFIED
+2026-05-26 — see below)**: cursor-on-black on the external *appeared* to
+correlate with how the external re-attaches on wake.
 
 - Black wakes: the external's reconfig callback is `flags=0x133e`
   (`add|remove|enabled|disabled|…`) — a coalesced down-then-up "flap"
@@ -1431,11 +1432,12 @@ on the external correlates with how the external re-attaches on wake.
   post-wake external hardware event, or the external reconnecting during sleep
   without a post-wake flap (`-170616`, `-213717`, and every recovery).
 
-Tally as of 2026-05-25: black (maintainer-observed) `-122138`, `-135711`,
-`-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`, `-225050`;
-clean `-170616`, `-213717`, `-220028`, `-222940`, `-224742`, `-230242`. No
-counterexample so far (no wake verified as clean `0x111e`/no-flap that was also
-black).
+Tally: black (maintainer-observed) `-122138`, `-135711`, `-150108`, `-155349`,
+`-192959`, `-212847`, `-222732`, `-223301`, `-225050`, `-001343`; clean
+`-170616`, `-213717`, `-220028`, `-222940`, `-224742`, `-230242`, `-001426`.
+**Counterexample found (`-001343`)**: a black wake whose own incident reconnect
+was `0x111e`, not a flap (see Falsified, below). The flag does not separate
+black from clean.
 
 **Classify per-wake, not by grep.** Each bundle's `daemon-log.txt` is a
 cumulative `tail -500` spanning multiple pids and prior incidents, so a `grep
@@ -1446,6 +1448,21 @@ session: `0x111e` clean at own wake on `-220028`, `-222940`, `-224742`,
 `-230242`; `0x133e` flap on `-223301` (22:31:30). Note the flap is sometimes
 logged at the post-wake reconnect and sometimes at an in-sleep reconnect (no
 verbose flag while sleeping), a further reason grep is not a classifier.
+
+**Falsified (2026-05-26) — the reconfig flag does not discriminate.** Scripted
+repro (deterministic): `sudo pmset schedule wake "$(date -j -v+15S "+%m/%d/%y
+%H:%M:%S")"; pmset sleepnow; sleep 90; ./build/blackoutd diagnose`. In `-001343`
+(black, maintainer-confirmed, before recovery) the incident wake (00:12:21)
+brought the external back at **`0x111e`** — the supposedly "clean" flag — and
+the screen was black regardless. So `0x133e`⇔black / `0x111e`⇔clean is wrong:
+`0x111e` can be black. The flap was a coincidental correlate of the earlier
+lid-close / trackpad wakes, not the cause or a reliable predictor. Recovery via
+hot corner in `-001426` produced **no** reconfiguration callback at all (no
+re-enumeration), so "recovery = clean re-enumeration" is also not general.
+Consequence: a fix cannot key on the reconfig flag. What survives is the
+*mechanism* hypothesis below (black = absence of a valid mode-set / scanout),
+which is flag-independent; verify it against `-001343`'s `windowserver.txt`
+(expect no `[ Display:Mode ]` during the black, as in `-192959`).
 
 In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
 **no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
@@ -1461,12 +1478,15 @@ path; see ADR 0009 / `inject_edid/docs/sp2309w-display-notes.md`. It is
 orthogonal to cursor-on-black: the black is the *absence* of a mode-set, not the
 encoding. Do not conflate the two investigations.)
 
-**Hypothesis**: the flap re-enumerates the external without a valid
-display-mode set, leaving it configured-but-not-scanning-out → black with the
-hardware cursor. Recovery works because a display-power cycle (hot corner /
-idle-off / on-battery system sleep) forces a fresh enumeration that re-runs
-the mode-set. This matches the maintainer's standing observation that the
-external "always comes back at a wrong mode."
+**Hypothesis (flag-independent, still standing)**: the wake re-enumerates the
+external without a valid display-mode set, leaving it
+configured-but-not-scanning-out → black with the hardware cursor. A
+display-power cycle (hot corner / idle-off / on-battery system sleep) usually
+recovers it; in `-001343`/`-001426` the hot corner recovered with no logged
+reconfiguration at all, so the recovery is a scanout/mode resumption rather than
+necessarily a re-enumeration. This matches the maintainer's standing
+observation that the external "always comes back at a wrong mode." The flap
+(`0x133e`) is no longer part of the hypothesis — it was falsified above.
 
 **Recommit efficacy — open, not settled**: blackoutd's post-settle recommit
 and displayrecommitd's are *identical* — `CGBeginDisplayConfiguration` +
@@ -1499,8 +1519,9 @@ recommit) is also refuted: `-222940` (clean) shows a genuine `0x111e`
 enumeration, not a `0x133e` flap; and `-223301` shows recommits do not silently
 fix a flap.
 
-**Recovery candidates** (fire on a flap wake, which blackoutd already detects
-via `0x133e`). Heed the known dead ends in `AGENTS.md` first:
+**Recovery candidates.** The flap is not a usable trigger (falsified above), so
+a fix must apply on *every* wake-with-external (in `wakeSettleTimerFired`),
+not key on a reconfig flag. Heed the known dead ends in `AGENTS.md` first:
 `IOServiceRequestProbe` on `DCPDPDeviceProxy` returns `kIOReturnUnsupported`
 (`0xe00002c7`) on Apple Silicon (confirmed in displayrecommitd);
 `CGDisplaySleep`/`CGDisplayWake` and `pmset displaysleepnow` flicker. The
@@ -1511,23 +1532,26 @@ realistic, untried candidates are:
    hot-corner power cycle recovered it; `-225050` confirms, n=2). Recommit is
    insufficient early and late; ready to disable.
 2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the preferred
-   mode (from `CGDisplayCopyAllDisplayModes`) — public API, no sudo, minimal
-   flicker; directly installs the mode the flap skipped (the P29 missing-mode
-   hypothesis). The leading untried candidate.
-3. Display-power cycle (the known-good hot-corner equivalent; forces a clean
-   `0x111e` re-enumeration). Flickers, but the maintainer accepts flicker if it
-   proves the definitive fix. Use if the mode-set is insufficient.
+   mode (from `CGDisplayCopyAllDisplayModes`), applied on every post-wake settle
+   (not keyed on a flag) — public API, no sudo, minimal flicker; directly
+   installs the mode the black wake lacks (the flag-independent mechanism
+   above). The leading untried candidate; test against the scripted repro.
+3. Display-power cycle (what the hot corner does). Flickers, but the maintainer
+   accepts flicker if it proves the definitive fix. Use if the mode-set is
+   insufficient.
 
 **Open / to confirm**:
 
-- Does `0x133e` reliably predict black? Classify 2–3 more captures by
-  (external wake flags, black or not). `diagnose` records both.
-- Manual late recommit: recovers (timing) or not (mechanism)? Test via a
-  one-shot `blackoutd recommit` (`SIGINFO`, planned). displayrecommitd's
-  recommit being a no-op makes "insufficient by mechanism" the leading guess.
-- What mode does the black wake hold vs the preferred mode? Confirm with the
-  new wake-anchored window (captures the onset) and an inject_edid `--mode`
-  reader surfaced in `diagnose`.
+- ~~Does `0x133e` reliably predict black?~~ **Answered: no** (falsified
+  2026-05-26; `-001343` was black at `0x111e`). The reconfig flag is not a
+  classifier.
+- ~~Manual/late recommit recovers?~~ **Answered: no** (g26 late recommit tested
+  negative, `-223301`/`-225050`). A `blackoutd recommit` CLI is therefore low
+  value.
+- What mode does the black wake hold vs the preferred mode? This is now the
+  central question. Confirm with `-001343`'s `windowserver.txt` (expect no
+  `[ Display:Mode ]` during black) and an `inject_edid` `--mode` reader; then
+  test the `CGConfigureDisplayWithDisplayMode` fix against the scripted repro.
 
 **Files**: investigation only so far. Relates to P2, P20, P28, ADR 0003, ADR
 0009 (SP2309W YCbCr), and a future inject_edid `--mode` reader.
