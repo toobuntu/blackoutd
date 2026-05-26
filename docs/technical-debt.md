@@ -1431,9 +1431,15 @@ on the external correlates with how the external re-attaches on wake.
   post-wake external hardware event, or the external reconnecting during sleep
   without a post-wake flap (`-170616`, `-213717`, and every recovery).
 
-Tally as of 2026-05-25: six black-with-flap, two clean-without, no
-counterexample (no `0x133e` that came up clean). Strong but not yet proven;
-one more clean capture should try to break it.
+Tally as of 2026-05-25: nine black-with-flap (`-122138`, `-135711`, `-150108`,
+`-155349`, `-192959`, `-212847`, `-222732`, `-223301`, `-225050`), six
+clean-without (`-170616`, `-213717`, `-220028`, `-222940`, `-224742`,
+`-230242`), no counterexample (no `0x133e` that came up clean). Because
+recommits do not silently recover a flap (g26 update below), a wake the user
+perceives as clean genuinely had no flap — so user-perceived "clean" is now
+reliable no-flap evidence, not a possibly-hidden flap. (`0x133e` log-verified
+this session on `-223301`, `-225050`; `0x111e` on `-220028`, `-222940`; the rest
+by prior reads or maintainer report.)
 
 In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
 **no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
@@ -1442,7 +1448,11 @@ window … (invalid)` and `_CGXPackagesSetWindowConstraints: Invalid window`
 (windows placed on a display with no valid scanout). The recovery wake
 (19:29:40) emits a full `[ Display:Mode ]` block (41 timing / 8 color modes,
 "set to previous mode 27", `2048 x 1152 fmt:YCbCr444_10bit`) and the external
-renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27.
+renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27. (`YCbCr444` here
+is the SP2309W's normal, usable encoding — it renders fine and is not the
+defect; the black is the *absence* of a mode-set, not the encoding. The
+pink/green color cast is a separate matter that does not occur under blackoutd
+— see ADR 0009 and the session-handoff note.)
 
 **Hypothesis**: the flap re-enumerates the external without a valid
 display-mode set, leaving it configured-but-not-scanning-out → black with the
@@ -1472,8 +1482,11 @@ four late recommits (settle+5/15/30/60 s) logged `ok`, yet the external stayed
 black through all of them (~66 s) until a hot-corner display-power cycle
 produced a clean `0x111e` re-enumeration and recovered it. So a *late* recommit
 does not recover this cursor-on-black either — the no-op recommit is now
-empirically insufficient both early and late in the captured cases (one more
-black capture with the late recommits would confirm before disabling them).
+empirically insufficient both early and late in the captured cases. `-225050`
+confirms `-223301`: late recommits 1/4–3/4 fired `ok` while black, the screen
+stayed black, and only the hot-corner power cycle recovered it (n=2; the
+cycle-1 settle+60 s fire was correctly preempted when the hot corner slept the
+system). The late recommit has served its purpose and can be disabled.
 The silent-recovery hypothesis (that "clean" wakes are flaps quietly fixed by a
 recommit) is also refuted: `-222940` (clean) shows a genuine `0x111e`
 enumeration, not a `0x133e` flap; and `-223301` shows recommits do not silently
@@ -1488,8 +1501,8 @@ realistic, untried candidates are:
 
 1. A *late* CG recommit (automatic, settle+5/15/30/60 s) — **tested g26,
    negative** (`-223301`: all fired `ok`, external stayed black ~66 s until a
-   hot-corner power cycle recovered it). Recommit is insufficient early and
-   late; disable after one confirming black capture.
+   hot-corner power cycle recovered it; `-225050` confirms, n=2). Recommit is
+   insufficient early and late; ready to disable.
 2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the preferred
    mode (from `CGDisplayCopyAllDisplayModes`) — public API, no sudo, minimal
    flicker; directly installs the mode the flap skipped (the P29 missing-mode

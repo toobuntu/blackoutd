@@ -9,15 +9,25 @@ Continuation prompt for a fresh session. Purpose of this work: tighten
 correctness of the display stack by following empirical data, and challenge
 documentation/conclusions that may rest on unverified assumptions.
 
+> **Reading this in Claude Code (or any agent that can run the repo)?** The
+> "How to work with this maintainer" bullets below describe *this chat
+> session's* constraints — the can't-compile limitation and the Filesystem-MCP
+> `dryRun` edit flow do **not** apply to you. Your workflow is governed by
+> `AGENTS.md`: you can run `make` / `clang-format` / `clang-tidy` / `git`
+> directly and use `worktrees/`. Everything else here — system under test,
+> findings, the `0x133e` signature, build plan, capture inventory — applies
+> unchanged. No separate Claude Code handoff exists or is needed.
+
 ## How to work with this maintainer
 
 - **Be a partner, not a yes-man.** Push back with evidence; flag guesses
   explicitly; never confabulate. Data over recollection, including over the
   repo's own docs.
-- **Claude cannot run anything on the Mac.** It reads/edits files via the
-  Filesystem MCP (`edit_file` with `dryRun:true` first, then apply; the
-  matcher needs exact text — re-read after the maintainer runs `clang-format`).
-  The maintainer runs all builds/tests and captures bundles.
+- **In this chat session, Claude cannot run anything on the Mac** (does not
+  apply to Claude Code — see the callout above). It reads/edits files via the
+  Filesystem MCP (`edit_file` with `dryRun:true` first, then apply; the matcher
+  needs exact text — re-read after the maintainer runs `clang-format`). The
+  maintainer runs all builds/tests and captures bundles.
 - **Pre-commit ritual (maintainer runs):** `xcrun clang-format -i --Werror
   src/*.m`, then `clang-tidy`, then `make dev` (rebuilds `build/blackoutd` and
   reboots the LaunchAgent; `/usr/local/bin/blackoutd` goes stale — use
@@ -174,9 +184,17 @@ dead ends, and battery-at-sleep as a coincidental (non-causative) predictor.
 Realistic untried recovery candidates are just two: a *late* recommit and an
 explicit `CGConfigureDisplayWithDisplayMode` mode-set.
 
-**`fmt:YCbCr444_10bit`** is the SP2309W's faulty-EDID advertising; it renders.
-The panel is really RGB 8-bit (inject_edid's domain, ADR 0009). Orthogonal to
-the black (which is the missing mode-set, not the encoding) — do not conflate.
+**`fmt:YCbCr444_10bit` is the SP2309W's normal, usable encoding — it renders
+fine and is not a defect.** It is not constantly present and is orthogonal to
+cursor-on-black (the black is the missing mode-set, not the encoding). Separate
+matter: the pink/green **color cast**. The maintainer first saw it via Brisync
+or Lunar (czarny/brisync#45) and on wake when using the blackout-built-in
+feature of Lunar / BetterDisplay — conjecturally (maintainer's word) from those
+tools driving brightness with a gamma overlay. That cast led to the faulty-EDID
+discovery (ADR 0009 / inject_edid) and motivated a FOSS blackout (blackoutd). It
+does NOT occur under the maintainer's current setup — blackoutd plus
+MonitorControlLite (no DDC, no cast). Do not imply YCbCr is the problem or that
+the cast is present under blackoutd.
 
 ## Build plan (maintainer approved all three)
 
@@ -212,6 +230,11 @@ Filesystem-MCP setup, where Claude cannot compile). Point it at `AGENTS.md`,
 for analysis-heavy turns (classifying captures, challenging docs) if preferred.
 
 **Signature tally (running)**: black-with-`0x133e`-flap: `-122138`, `-135711`,
-`-150108`, `-155349`, `-192959`, `-212847`. Clean-without-flap: `-170616`,
-`-213717`, `-220028`. No counterexample yet. `-213717`/`-220028` also re-confirm
-(A) (disconnect path → restore → settle → recommit → re-blackout → converged).
+`-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`, `-225050`
+(nine). Clean-without-flap: `-170616`, `-213717`, `-220028`, `-222940`,
+`-224742`, `-230242` (six). No counterexample. Late recommit confirmed
+insufficient by `-223301` + `-225050` (n=2). Because recommits do not silently
+recover a flap, a wake the user perceives as clean genuinely had no flap — so
+"clean" reports are now reliable no-flap evidence. `-213717`/`-220028`/`-222940`
+also re-confirm (A) (disconnect path → restore → settle → recommit → re-blackout
+→ converged).
