@@ -50,6 +50,25 @@ the observed state per bundle out-of-band (e.g. `cursor-on-black`,
 `external-powersave-off`, `rendering`). See the planned `diagnose --note` work
 in `docs/SESSION-HANDOFF-2026-05-25.md`.
 
+## Committing bundles (size)
+
+Bundles are large — `ioreg.txt` is ~5 MB every time (the `IOKitDiagnostics`
+blob) and `windowserver.txt` ranges ~1.5–21 MB. Only a curated set is tracked
+(allowlisted in `.gitignore`), and within those the two heavy logs are stored
+**gzip-compressed**, never raw:
+
+```sh
+gzip -n <bundle>/windowserver.txt <bundle>/ioreg.txt
+```
+
+gzip is the deliberate choice over zstd/xz/lzip: it is a macOS system binary
+(no Homebrew dependency) and is decompressable everywhere these bundles get
+analyzed, including environments without a zstd CLI or a zstd-aware Python
+(zstd entered the Python stdlib only in 3.14). `-n` omits the name/timestamp so
+the blob is reproducible. Decompress with `gunzip -c <file>.gz` (or `zcat`).
+Per-file, not a tarball, so the small text files stay greppable and diffable.
+`scripts/reconcile-gitignore-dirs.sh` flags any raw heavy log still tracked.
+
 ## Future
 
 Consider a `blackoutd selftest` / `repro` subcommand with configurable knobs
