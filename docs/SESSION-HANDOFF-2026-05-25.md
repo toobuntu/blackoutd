@@ -1,0 +1,217 @@
+<!--
+SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+# blackoutd session handoff — 2026-05-25
+
+Continuation prompt for a fresh session. Purpose of this work: tighten
+correctness of the display stack by following empirical data, and challenge
+documentation/conclusions that may rest on unverified assumptions.
+
+## How to work with this maintainer
+
+- **Be a partner, not a yes-man.** Push back with evidence; flag guesses
+  explicitly; never confabulate. Data over recollection, including over the
+  repo's own docs.
+- **Claude cannot run anything on the Mac.** It reads/edits files via the
+  Filesystem MCP (`edit_file` with `dryRun:true` first, then apply; the
+  matcher needs exact text — re-read after the maintainer runs `clang-format`).
+  The maintainer runs all builds/tests and captures bundles.
+- **Pre-commit ritual (maintainer runs):** `xcrun clang-format -i --Werror
+  src/*.m`, then `clang-tidy`, then `make dev` (rebuilds `build/blackoutd` and
+  reboots the LaunchAgent; `/usr/local/bin/blackoutd` goes stale — use
+  `./build/blackoutd`). Memory/preferences are NOT enabled, so Claude cannot
+  persist anything between sessions except by writing files like this one.
+- **Code style:** Obj-C here; ksh93/bash/Ruby elsewhere. BSD/macOS utilities
+  only (no GNU extensions). **Long options where supported** (`grep
+  --fixed-strings`, `grep --extended-regexp`, not `-F`/`-E`). en_US spelling.
+  Minimal comments (self-documenting), no first person in comments. GPL-3.0-or-
+  later + REUSE (`reuse annotate`, never hand-write SPDX). Atomic commits, ≤50-
+  char subject, `Closes #NNNN` in body. Propose commit decomposition when
+  changes are ready.
+
+## System under test
+
+- MacBook Air M2 (Mac14,2), macOS 26.5.0 Tahoe. Single **Dell SP2309W**
+  (vendor 0x10AC, product 0xD01D, native 2048×1152 @ 60 Hz) via USB-C→HDMI.
+- Normal mode: lid **closed during sleep, opened on wake**; built-in blacked
+  out so the external is the sole display. Idle display-sleep: 2 min on
+  battery, 10 min on AC; password required only 5 min after display-off.
+- Three repos under `~/devel/claude/desktop/`: **blackoutd** (Obj-C menubar
+  LaunchAgent that blacks out the built-in when an external connects; owns the
+  CGDisplayReconfiguration callback, a 2 s wake-settle quiet timer, and a CG
+  recommit), **inject_edid** (CLI fixing the SP2309W YCbCr color cast), and
+  **displayrecommitd** (standalone origin of the recommit pattern).
+
+## The bug: "cursor-on-black"
+
+On wake, the external comes up black with only the hardware cursor; recovered
+by a hot-corner display sleep (or idle display-off, or on battery a system
+sleep) + input. Intermittent.
+
+## What is committed (build v0.2.0-25-g3e12647-dirty as of handoff)
+
+- **`diagnose` subcommand** (replaced `--config`). Writes a bundle to
+  `/tmp/blackoutd-diag-<stamp>/`: `config.txt` (daemon state, **lid** via
+  `AppleClamshellState`, **power** via `pmset -g batt`, displays, build
+  provenance + CLI/daemon mismatch warning, system_profiler), `version.txt`,
+  `daemon-log.txt` (tail 500), `system-log.txt`, `windowserver.txt`
+  (WindowServer + displaypolicyd, `--debug --info`), `sleep-wake.txt` (pmset),
+  `ioreg.txt` (IODisplayConnect + dcpext). **Self-bounding window**: parses the
+  daemon log's `[sleep]`/`[wake]` markers, anchors `--start` on the *incident*
+  wake (most recent wake after a >60 s sleep) − 90 s and `--end` at the most
+  recent wake + 90 s. Override: `--minutes N` or `--start "T" --end "T"`.
+- **(A) wake-path fix** (`AppDelegate.m`, commit `Run wake-settle flow on
+  disconnect path`): `systemDidWake:` no longer early-returns on the
+  disconnected-during-sleep path, so `handleSystemWake` (settle timer →
+  post-settle recommit + P0 re-blackout) runs on every wake. This fixes the
+  **convergence bug** (built-in left un-blacked-out with external present —
+  "both active"). It does NOT fix cursor-on-black.
+- **Docs:** `docs/technical-debt.md` **P28** (early-return/convergence +
+  corrections: err=1014 retry now fires; Alt Mode dropout unobserved) and
+  **P29** (cursor-on-black flap→missing-mode hypothesis).
+
+## Key empirical findings (2026-05-25) — these supersede older doc claims
+
+1. **No Alt Mode "+30 s dropout" observed.** ADR 0003 / P2 / the
+   displayrecommitd README describe a USB-C Alt Mode dropout ~30 s after wake.
+   None of the 2026-05-25 captures show it. Treat as *hypothesized*, not
+   established.
+2. **The CG recommit is a no-op and does not recover cursor-on-black.**
+   blackoutd's and displayrecommitd's recommits are identical
+   (`CGBeginDisplayConfiguration`/`CGCompleteDisplayConfiguration(…,
+   kCGConfigureForSession)`, nothing changed between). In `-192959` it fired at
+   +3 s and black persisted ~129 s. "Recommit recovers it" is unproven and
+   mechanically cannot install a mode.
+3. **Convergence bug ≠ cursor-on-black.** They are independent. (A) fixes the
+   former. `-155349` had cursor-on-black on the *normal* path; `-170616` was
+   clean on the *buggy* early-return path.
+4. **Candidate signature + root cause (P29).** Black wakes show the external
+   re-attaching with `flags=0x133e` (`add|remove|enabled|disabled` — a coalesced
+   down-then-up "flap"); clean/recovered wakes show `0x111e` (`add|enabled`, no
+   remove) or no external event. In `-192959` WS, the black wake ran **no
+   `[ Display:Mode ]` enumeration** for ~47 s (just `…failed to move window…
+   (invalid)` / `_CGXPackagesSetWindowConstraints: Invalid window`), while the
+   recovery ran a full mode block ("set to previous mode 27", `2048×1152
+   fmt:YCbCr444_10bit`). Hypothesis: the flap re-enumerates the external
+   *without a valid mode-set* → configured-but-not-scanning-out → black. Matches
+   the maintainer's "always comes back at a wrong mode."
+
+## Preferred fix direction (unbuilt)
+
+On a flap wake (blackoutd already logs `0x133e`), **set the external's mode
+explicitly** via `CGConfigureDisplayWithDisplayMode` to the preferred/previous
+mode — public API, no sudo, minimal flicker. Only if a mode-set proves
+insufficient, fall back to a programmatic display-power cycle (`IODisplayWrangler`
+`IORequestIdle` poke — private; or `pmset displaysleepnow` — sudo + flicker).
+
+## Next steps (in order)
+
+1. **Confirm the signature (no code).** Capture 2–3 more incidents at
+   `verbosity 2`; classify each by (external wake `flags`, black or not). Need
+   `0x133e`→black to hold and ideally a `0x133e` that comes up clean to break
+   it. Recover within ~60 s OR let battery idle-recover so failure and recovery
+   fall in one window; run `./build/blackoutd diagnose` after.
+2. **Build `blackoutd recommit`** (one-shot, new `SIGINFO` handler → fire the
+   existing recommit, logged `[manual] — recommit requested`; CLI dispatch +
+   usage; public entry on `DisplayController`). Lets the maintainer blind-test a
+   *late* recommit during black (cue in terminal pre-sleep, Apple-Watch/TouchID
+   auth, blind Return). Tests timing vs mechanism. Leading guess: insufficient
+   by mechanism (recommit is a no-op).
+3. **If recommit fails → implement the mode-set fix** (`CGConfigureDisplayWith-
+   DisplayMode` on flap detection). Add a `blackoutd recover` to blind-test the
+   primitive first if useful.
+4. **inject_edid `--mode` reader** (connection mode / pixel encoding; the
+   external is YCbCr444_10bit). Surface in `diagnose` first; build out the
+   inject_edid convergence later. Not on the cursor-on-black critical path until
+   the mode-set fix needs the current-vs-preferred mode.
+
+## Capture inventory (`docs/debug/`)
+
+- `-122138`, `-135711`: lid-closed, disconnected-during-sleep path, black,
+  ended both-active (convergence bug, pre-(A)).
+- `-150108`: black + err=1014 storm during dark-wake/re-sleep thrash; built-in
+  restored mirror-primary=external.
+- `-155349`: lid-open sleep, normal path, recommit fired, **still black**,
+  hot-corner recovered. Proves recommit insufficient.
+- `-170616`: lid-closed, old daemon, **clean** (no black) — intermittency.
+- `-192959`: build g24, black wake `0x133e` + no Display:Mode for ~47 s;
+  recovery wake `0x111e` + full mode block. Added WS log
+  `ws-20260525-201956.log` spans the black wake. Best root-cause evidence.
+
+## Reading list for a fresh session
+
+`docs/technical-debt.md` (esp. P0, P1, P2, P20, P25, P28, P29);
+`docs/decisions/0003-wake-settle-quiet-timer.md`, `0009-sp2309w-color-quirk.md`;
+`src/main.m`, `src/AppDelegate.m`, `src/DisplayController.m`;
+`../displayrecommitd/{displayrecommitd.m,README.md,CLAUDE.md}`.
+
+## Update — 2026-05-25 (later)
+
+**Signature confirmed across 8 captures** (P29): black ⇔ external
+post-wake/restore `0x133e` flap; clean ⇔ no post-wake flap. Black: 122138,
+135711, 150108, 155349, 192959, 212847. Clean: 170616, 213717. No
+counterexample yet (no `0x133e` that came up clean); one more clean capture
+should try to break it. `-213717` also confirms (A): restore → settle →
+recommit → re-blackout → `isBlackedOut=1`, no black (AC).
+
+**Recommit overclaim corrected**: do NOT assert the CG recommit is insufficient
+in all cases. It only failed to recover in two *early*-fired captures
+(`-155349`, `-192959`). It was brought into blackoutd because it was believed
+to recover some occurrences (`docs/architecture.md`, ADR 0003, the
+displayrecommitd repo, `displayrecommitd/scripts/displayprobe2.m`). A *late*
+recommit is untested. Keep open in both directions.
+
+**IOServiceRequestProbe is a known dead end** (`AGENTS.md`): on
+`DCPDPDeviceProxy` it returns `kIOReturnUnsupported` (`0xe00002c7`) on Apple
+Silicon — do NOT propose it as recovery. `displayprobe2.m` remains useful only
+for its `dcpext` discovery recipe (`IOServiceMatching("DCPDPDeviceProxy")` +
+IOService path containing `dcpext`; built-in is `dcp` without suffix) that a
+`--mode` reader can reuse to locate the external controller. `AGENTS.md` also
+lists `CGDisplaySleep`/`CGDisplayWake` and `pmset displaysleepnow` as flicker
+dead ends, and battery-at-sleep as a coincidental (non-causative) predictor.
+Realistic untried recovery candidates are just two: a *late* recommit and an
+explicit `CGConfigureDisplayWithDisplayMode` mode-set.
+
+**`fmt:YCbCr444_10bit`** is the SP2309W's faulty-EDID advertising; it renders.
+The panel is really RGB 8-bit (inject_edid's domain, ADR 0009). Orthogonal to
+the black (which is the missing mode-set, not the encoding) — do not conflate.
+
+## Build plan (maintainer approved all three)
+
+1. **Automatic late recommit — DONE + TESTED NEGATIVE** (`DisplayController.m`
+   `scheduleLateRecommits`). g26 capture `-223301`: the settle recommit plus all
+   four late recommits (settle+5/15/30/60 s) logged `ok`, external stayed black
+   ~66 s until a hot-corner power cycle recovered it. Recommit is insufficient
+   early AND late. Action: one more confirming black capture, then DISABLE
+   (remove the `scheduleLateRecommits` call / empty `kOffsets`) and move to the
+   mode-set. See P29 "Update (g26)".
+2. **Mode-set fix — now the leading candidate** (replaces the recommit
+   approach). On a `0x133e` flap wake, set the external to its preferred mode via
+   `CGConfigureDisplayWithDisplayMode` (preferred mode from
+   `CGDisplayCopyAllDisplayModes`; public API, no sudo, minimal flicker). This
+   directly installs the mode the flap skipped (P29). If insufficient, fall back
+   to a display-power cycle (flicker accepted by the maintainer as a last
+   resort). blackoutd already detects the flap (`0x133e`) to key this on.
+3. **`blackoutd recommit` CLI** — now LOW value (recommit shown insufficient
+   early and late); build only if a manual one-shot is still wanted.
+4. **diagnose `--mode` reader** — still useful: pixel-encoding/mode via the
+   `dcpext` IOService (displayprobe2 discovery recipe; find the key in
+   `ioreg.txt`). Surface in `diagnose`; first piece of inject_edid convergence.
+
+Reading needed before building: `src/DisplayController.m` (the recommit method
+`recommitDisplayConfiguration`, the wake-settle timer, `applyEnable`) and the
+`src/AppDelegate.m` signal-handling section.
+
+**Where to continue**: items 2–3 are build/test/commit work — best done in
+Claude Code, which can run `clang-format`/`clang-tidy`/`make dev`/`git`
+directly and iterate (removing the round-trip friction of the chat +
+Filesystem-MCP setup, where Claude cannot compile). Point it at `AGENTS.md`,
+`docs/technical-debt.md` (P28/P29), and this file first. Keep a chat session
+for analysis-heavy turns (classifying captures, challenging docs) if preferred.
+
+**Signature tally (running)**: black-with-`0x133e`-flap: `-122138`, `-135711`,
+`-150108`, `-155349`, `-192959`, `-212847`. Clean-without-flap: `-170616`,
+`-213717`, `-220028`. No counterexample yet. `-213717`/`-220028` also re-confirm
+(A) (disconnect path → restore → settle → recommit → re-blackout → converged).
