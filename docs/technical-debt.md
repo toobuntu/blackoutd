@@ -1314,6 +1314,10 @@ grepping free text, and diag bundles can filter by category.
       text matching.
 
 **Priority**: low (hygiene; current logging works). Not a `newsyslog` task.
+Interim (2026-05-26): `make dev` and `make reinstall` rotate
+`~/Library/Logs/blackoutd.log` via `scripts/rotate-log.sh` during the
+bootout→bootstrap gap (agent stopped, fd released), keeping 5 archives — so the
+file stays bounded across rebuilds until this migration lands and removes it.
 
 **Files**: `src/*.m` (every `NSLog`), the launchd plist template, the diag
 script. Rationale recorded in the shared logging ADR (repo-foundation

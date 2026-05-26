@@ -14,6 +14,8 @@ AGENT_PLIST    = $(BUNDLE_ID).plist
 AGENT_DST      = $(AGENT_DIR)/$(AGENT_PLIST)
 AGENT_TEMPLATE = blackoutd.plist.template
 UID            = $(shell id -u)
+LOG_FILE       = $(HOME)/Library/Logs/$(BINARY).log
+LOG_KEEP       = 5
 GIT_DESCRIBE   := $(shell git -C $(CURDIR) describe --tags --always --dirty 2>/dev/null || echo unknown)
 BUILD_TIME     := $(shell date -u -Iseconds)
 
@@ -87,6 +89,7 @@ postinstall:
 # Use 'make install' for a full production install to /usr/local/bin.
 dev: $(TARGET)
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
+	@scripts/rotate-log.sh "$(LOG_FILE)" $(LOG_KEEP)
 	install -d $(AGENT_DIR)
 	install -d $(HOME)/Library/Logs
 	sed -e 's|{{BUNDLE_ID}}|$(BUNDLE_ID)|g' \
@@ -104,6 +107,7 @@ dev: $(TARGET)
 # MUST be run as the logged-in user, not under sudo (see install above).
 reinstall: $(TARGET) postinstall
 	-launchctl bootout gui/$(UID)/$(AGENT_LABEL)
+	@scripts/rotate-log.sh "$(LOG_FILE)" $(LOG_KEEP)
 	sudo install -d /usr/local/bin
 	sudo install -m 755 $(TARGET) $(INSTALL_BIN)
 	sudo install -d $(SHARE_BUNDLE)/Contents/Resources
