@@ -1,0 +1,62 @@
+--- blackoutd diagnostic info ---
+
+daemon          : running
+daemon pid      : 38407
+built-in (CG)   : offline
+daemon log tail : 2026-05-26 09:37:11.144 blackoutd[38407:7311416] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+auto-blackout   : enabled
+verbosity       : 2
+bundle-id       : io.github.toobuntu.blackoutd
+lid             : open (AppleClamshellState=No)
+power           : Now drawing from 'Battery Power'
+macOS           : 26.5.0
+arch            : arm64
+
+--- build provenance ---
+cli build       : v0.2.0-39-ga0fe7f4-dirty (built 2026-05-26T06:43:33+00:00)
+daemon startup  : 2026-05-26 02:43:36.194 blackoutd[38407:7311416] [startup] — build=v0.2.0-39-ga0fe7f4-dirty built=2026-05-26T06:43:33+00:00
+
+--- Displays (1 online) ---
+
+Display 2 (external)
+  Active          : yes
+  Vendor          : 0x10ac
+  Model           : 0xd01d
+  Serial          : 0x304d5353
+  Resolution      : 2048 x 1152
+  Physical size   : 510.0mm x 289.7mm
+
+--- system_profiler ---
+2026-05-26 09:38:18.905 system_profiler[39718:7390909] hw.cpufamily: 0xda33d83d
+Hardware:
+
+    Hardware Overview:
+
+      Model Name: MacBook Air
+      Model Identifier: Mac14,2
+      Model Number: Z160000B1LL/A
+      Chip: Apple M2
+      Total Number of Cores: 8 (4 Performance and 4 Efficiency)
+      Memory: 16 GB
+      System Firmware Version: 18000.120.36
+      OS Loader Version: 18000.120.36
+
+Graphics/Displays:
+
+    Apple M2:
+
+      Chipset Model: Apple M2
+      Type: GPU
+      Bus: Built-In
+      Total Number of Cores: 8
+      Vendor: Apple (0x106b)
+      Metal Support: Metal 4
+      Displays:
+        DELL SP2309W:
+          Resolution: 2048 x 1152
+          UI Looks like: 2048 x 1152 @ 60.00Hz
+          Main Display: Yes
+          Mirror: Off
+          Online: Yes
+          Rotation: Supported
+

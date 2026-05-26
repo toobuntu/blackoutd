@@ -1,0 +1,497 @@
+Timestamp               Ty Process[PID:TID]
+2026-05-26 14:06:12.683 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:12.766 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:12.767 Df blackoutd[38407:6f9038] [builtin] id=1 action=restore result=pending isBlackedOut=1
+2026-05-26 14:06:12.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:06:13.979 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:13.979 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:06:13.979 Df blackoutd[38407:6f9038] [builtin] recommit before restore: ok
+2026-05-26 14:06:13.980 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigurePermanently
+2026-05-26 14:06:13.980 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: Display 0x00000001: kCGSDisplayConfigEnable on
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15523
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15524
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15525
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidWake
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15526
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15527
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15528
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayMovedOnConsoleInternal
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15529
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayPrepareForReprobing
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15530
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayWillReconfigure
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15531
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.983 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15532
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15533
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15534
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15534
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayUpdateInternalState
+2026-05-26 14:06:13.985 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayHardwareChanged
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=19
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=37b
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidReconfigure2
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayReconfigureHappened
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.986 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15534 -> 15535
+2026-05-26 14:06:13.988 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=9
+2026-05-26 14:06:13.988 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=269
+2026-05-26 14:06:13.989 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:13.989 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15536 -> 15536
+2026-05-26 14:06:14.156 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:14.156 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 14, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [builtin] id=1 action=restore result=complete isBlackedOut=0
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15537
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15538
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15539
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayWillReconfigure
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15540
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15541
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15542
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.157 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15543
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15544
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15545
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15545
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayUpdateInternalState
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000001: Mode 14, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayHardwareChanged
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=1
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=261
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:14.158 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidReconfigure2
+2026-05-26 14:06:14.160 Df blackoutd[38407:6f9038] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:66734B8A-86D6-4816-82C0-4EA6D8B41EDB] Sending action(s) in update: NSSceneFenceAction
+2026-05-26 14:06:14.295 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayReconfigureHappened
+2026-05-26 14:06:14.295 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.295 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15545 -> 15546
+2026-05-26 14:06:14.537 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=9
+2026-05-26 14:06:14.537 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=269
+2026-05-26 14:06:14.542 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.542 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15548 -> 15547
+2026-05-26 14:06:14.542 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:14.542 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15548 -> 15548
+2026-05-26 14:06:14.545 Df blackoutd[38407:6f9038] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:66734B8A-86D6-4816-82C0-4EA6D8B41EDB] Sending action(s) in update: NSSceneFenceAction
+2026-05-26 14:06:16.258 Df blackoutd[38407:6f9038] [builtin] id=1 action=restore result=settled isBlackedOut=0
+2026-05-26 14:06:16.258 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.259 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:06:16.283 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:16.283 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 14, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:16.283 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.283 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.283 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.284 Df blackoutd[38407:6f9038] [builtin] id=1 action=blackout result=pending isBlackedOut=0
+2026-05-26 14:06:16.284 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigurePermanently
+2026-05-26 14:06:16.284 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: Display 0x00000001: kCGSDisplayConfigEnable off
+2026-05-26 14:06:16.331 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:16.331 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 0, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:16.354 Df blackoutd[38407:6f9038] [builtin] id=1 action=blackout result=complete isBlackedOut=1
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15553 -> 15549
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayWillReconfigure
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15553 -> 15550
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.355 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15553 -> 15551
+2026-05-26 14:06:16.368 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.368 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15553 -> 15552
+2026-05-26 14:06:16.368 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.368 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15553 -> 15553
+2026-05-26 14:06:16.368 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.368 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15553 -> 15553
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000001: Mode 0, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayUpdateInternalState
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayHardwareChanged
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=1
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=261
+2026-05-26 14:06:16.464 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidReconfigure2
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15554
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15555
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15556
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15557
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15558
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15559
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15560
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15561
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15562
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15563
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15564
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15565
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15566
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15567
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15568
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15569
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15570
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15571
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15572
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15573
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15574
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15575
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15576
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15577
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15578
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15579
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15580
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15581
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15582
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15583
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15584
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15585
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15586
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15587
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15588
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15589
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15590
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15591
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.465 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15592
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15593
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15594
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15595
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15596
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15597
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15598
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15599
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15600
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15601
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15602
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15603
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15604
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15605
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15606
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15607
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15608
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15609
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15610
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15611
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15612
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15613
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15614
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15615
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15616
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15617
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15618
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15619
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15620
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15621
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15622
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15623
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15624
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15625
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15626
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15627
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15628
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.503 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15628 -> 15629
+2026-05-26 14:06:16.504 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.504 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15630
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15631
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15632
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15633
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15634
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15635
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.505 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15636
+2026-05-26 14:06:16.508 Df blackoutd[38407:6f9038] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:66734B8A-86D6-4816-82C0-4EA6D8B41EDB] Sending action(s) in update: NSSceneFenceAction
+2026-05-26 14:06:16.532 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.532 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15636 -> 15637
+2026-05-26 14:06:16.548 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.548 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15638 -> 15638
+2026-05-26 14:06:16.915 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayReconfigureHappened
+2026-05-26 14:06:16.915 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:16.915 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15638 -> 15639
+2026-05-26 14:06:16.921 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=9
+2026-05-26 14:06:16.921 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=269
+2026-05-26 14:06:17.074 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:17.074 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15641 -> 15640
+2026-05-26 14:06:17.074 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:17.074 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15641 -> 15641
+2026-05-26 14:06:17.077 Df blackoutd[38407:6f9038] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:66734B8A-86D6-4816-82C0-4EA6D8B41EDB] Sending action(s) in update: NSSceneFenceAction
+2026-05-26 14:06:18.391 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:18.391 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15641 -> 15642
+2026-05-26 14:06:18.554 Df blackoutd[38407:6f9038] [builtin] id=1 action=blackout result=settled isBlackedOut=1
+2026-05-26 14:06:18.555 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:21.462 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:06:21.462 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15642 -> 15643
+2026-05-26 14:06:21.857 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:06:21.857 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:21.857 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 0, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:21.857 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:23.089 A  blackoutd[43154:71d01a] (libsystem_info.dylib) Retrieve User by ID
+2026-05-26 14:06:23.093 Df blackoutd[43154:71d01a] [com.apple.xpc:connection] [0x104688e70] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-05-26 14:06:23.093 Df blackoutd[43154:71d01b] [com.apple.xpc:connection] [0x10468a040] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.agent
+2026-05-26 14:06:23.095 A  blackoutd[43154:71d01a] (TCC) TCCAccessRequest() IPC
+2026-05-26 14:06:23.095 Df blackoutd[43154:71d01a] [com.apple.xpc:connection] [0x104689cb0] activating connection: mach=true listener=false peer=false name=com.apple.tccd.system
+2026-05-26 14:06:23.115 Df blackoutd[43154:71d01a] [com.apple.xpc:connection] [0x104689cb0] invalidated after the last release of the connection object
+2026-05-26 14:06:23.115 Df blackoutd[43154:71d01a] [com.apple.SkyLight:default] server port 0x0000210f, session port 0x0000210f
+2026-05-26 14:06:32.852 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:06:32.853 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:32.853 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 0, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:32.853 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:06:49.349 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:06:49.349 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:06:49.349 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 0, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:06:49.349 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:07:22.349 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:07:22.349 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:07:22.349 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 0, (0 x 0) [2048 x 1152], Depth 32 BPP, inactive
+2026-05-26 14:07:22.349 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:17.730 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:17.810 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayWillSleep
+2026-05-26 14:12:17.810 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:17.810 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15643 -> 15644
+2026-05-26 14:12:17.811 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:17.811 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15645 -> 15645
+2026-05-26 14:12:32.501 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:32.501 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15645 -> 15646
+2026-05-26 14:12:33.220 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:33.254 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15661 -> 15647
+2026-05-26 14:12:33.450 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayMovedOffConsoleInternal
+2026-05-26 14:12:33.450 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:33.450 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15661 -> 15648
+2026-05-26 14:12:33.450 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayPrepareForReprobing
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] updateAllDisplayInfoAsNeeded, 666: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15671 -> 15649
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayWillReconfigure
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15671 -> 15650
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:33.930 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15671 -> 15651
+2026-05-26 14:12:34.544 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.544 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15671 -> 15652
+2026-05-26 14:12:34.544 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.544 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15671 -> 15653
+2026-05-26 14:12:34.544 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.544 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15671 -> 15653
+2026-05-26 14:12:34.559 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayUpdateInternalState
+2026-05-26 14:12:34.559 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayHardwareChanged
+2026-05-26 14:12:34.561 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=9
+2026-05-26 14:12:34.561 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=269
+2026-05-26 14:12:34.563 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.760 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.760 E  blackoutd[38407:6f9038] [com.apple.SkyLight:default] Invalid display 0x00000082
+2026-05-26 14:12:34.760 Df blackoutd[38407:6f9038] [change] id=130 event=connected class=virtual
+2026-05-26 14:12:34.760 Df blackoutd[38407:6f9038] [verbose=2] [change] id=130 event=connected class=virtual flags=<private> connectivity=<private>
+2026-05-26 14:12:34.764 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.764 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.764 Df blackoutd[38407:6f9038] [change] id=2 event=connected class=hardware
+2026-05-26 14:12:34.764 Df blackoutd[38407:6f9038] [verbose=2] [change] id=2 event=connected class=hardware flags=<private> connectivity=<private>
+2026-05-26 14:12:34.764 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.764 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidReconfigure2
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayReconfigureHappened
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15654
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15655
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayMovedOnConsoleInternal
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15656
+2026-05-26 14:12:34.765 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayPrepareForReprobing
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15657
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayWillReconfigure
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15658
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.766 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15659
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15660
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15661
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15661
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayUpdateInternalState
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayHardwareChanged
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15662
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.767 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15663
+2026-05-26 14:12:34.839 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.839 E  blackoutd[38407:6f9038] [com.apple.SkyLight:default] Invalid display 0x00000082
+2026-05-26 14:12:34.839 Df blackoutd[38407:6f9038] [change] id=130 event=disconnected class=virtual
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] [verbose=2] [change] id=130 event=disconnected class=virtual flags=<private> connectivity=<private>
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidReconfigure2
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.840 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15664
+2026-05-26 14:12:34.853 Df blackoutd[38407:6f9038] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:66734B8A-86D6-4816-82C0-4EA6D8B41EDB] Sending action(s) in update: NSSceneFenceAction
+2026-05-26 14:12:34.942 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayReconfigureHappened
+2026-05-26 14:12:34.942 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.942 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15665
+2026-05-26 14:12:34.942 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.942 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15666
+2026-05-26 14:12:34.942 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDidWake
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15667
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15668
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15669
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15670
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15671
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:34.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15672
+2026-05-26 14:12:35.018 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:35.018 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15673
+2026-05-26 14:12:35.018 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:35.018 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15674
+2026-05-26 14:12:35.293 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:35.293 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15674 -> 15675
+2026-05-26 14:12:35.313 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:35.313 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15676 -> 15676
+2026-05-26 14:12:36.943 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:36.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:12:36.945 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:12:36.945 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:12:36.945 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:36.945 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:36.945 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:37.972 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: got notification kCGSDisplayDisplaySystemStateChanged
+2026-05-26 14:12:37.972 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] [38407] CGSDisplayNotifyProc: display system state seed 15676 -> 15677
+2026-05-26 14:12:37.981 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) displaySetChanges=9
+2026-05-26 14:12:37.981 Df blackoutd[38407:6f9038] [com.apple.AppKit:Screen] NSApplication._react(to:) reactions=269
+2026-05-26 14:12:37.989 Df blackoutd[38407:6f9038] [com.apple.FrontBoard:SceneClient] [com.apple.controlcenter:66734B8A-86D6-4816-82C0-4EA6D8B41EDB] Sending action(s) in update: NSSceneFenceAction
+2026-05-26 14:12:42.443 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:12:42.454 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:12:42.454 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:12:42.454 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:12:53.443 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:12:53.449 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:12:53.449 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:12:53.450 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:13:09.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:13:09.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:13:09.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:13:09.943 Df blackoutd[38407:6f9038] <private>
+2026-05-26 14:13:42.943 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption: kCGSConfigureForSession
+2026-05-26 14:13:42.944 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000002: Mode 27, (0 x 0) [2048 x 1152], Depth 32 BPP, active
+2026-05-26 14:13:42.944 Df blackoutd[38407:6f9038] [com.apple.SkyLight:default] SLSCompleteDisplayConfigurationWithOption, 2532: Display 0x00000001: Mode 6, (0 x 0) [1470 x 956], Depth 32 BPP, inactive
+2026-05-26 14:13:42.944 Df blackoutd[38407:6f9038] <private>

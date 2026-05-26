@@ -1,0 +1,40 @@
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11362.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5e4 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11362.preventuseridlesleep" 00:00:22  id:0x0x10000a5e2 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11346.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5c3 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11346.preventuseridlesleep" 00:00:22  id:0x0x10000a5c2 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11342.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5bb [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11342.preventuseridlesleep" 00:00:22  id:0x0x10000a5ba [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11338.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5b3 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11338.preventuseridlesleep" 00:00:22  id:0x0x10000a5b2 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11337.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5b1 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11337.preventuseridlesleep" 00:00:22  id:0x0x10000a5b0 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11345.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5c1 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11345.preventuseridlesleep" 00:00:22  id:0x0x10000a5c0 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11355.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5d5 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11355.preventuseridlesleep" 00:00:22  id:0x0x10000a5d4 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11360.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5df [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11360.preventuseridlesleep" 00:00:22  id:0x0x10000a5de [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11334.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5ab [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11334.preventuseridlesleep" 00:00:22  id:0x0x10000a5aa [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11339.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5b5 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11339.preventuseridlesleep" 00:00:22  id:0x0x10000a5b4 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11353.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5d1 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11353.preventuseridlesleep" 00:00:22  id:0x0x10000a5d0 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleDisplaySleep "com.apple.audio.context11356.preventuseridledisplaysleep" 00:00:22  id:0x0x50000a5d7 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 627(coreaudiod) Released PreventUserIdleSystemSleep "com.apple.audio.context11356.preventuseridlesleep" 00:00:22  id:0x0x10000a5d6 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:28 -0400 Assertions          	PID 670(mDNSResponder) Released MaintenanceWake "mDNSResponder:maintenance" 00:00:00  id:0x0xd0000a603 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:31:29 -0400 Assertions          	PID 619(WindowServer) Released PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x70000a604 [System: PrevIdle DeclUser IPushSrvc kCPU kDisp]          
+2026-05-25 22:32:54 -0400 Assertions          	PID 560(powerd) Released PreventUserIdleSystemSleep "Powerd - Prevent sleep while display is on" 00:01:25  id:0x0x10000a648 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:32:54 -0400 Assertions          	PID 1190(useractivityd) Summary PreventUserIdleSystemSleep "BTLEAdvertisement.805FC257-C0A3-448F-8411-2F4EF3CBD49E" 00:00:01  id:0x0x10000a6a8 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:32:54 -0400 Assertions          	PID 995(sharingd) Summary PreventUserIdleSystemSleep "Handoff" 00:01:22  id:0x0x10000a655 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:32:54 -0400 Assertions          	PID 560(powerd) Summary UserIsActive "com.apple.powermanagement.kernel.useractive AppleM68Buttons:sleepDisplayTickle kIOMessageSystemWillSleep" 00:01:48  id:0x0x90000a5a6 [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:32:54 -0400 Assertions          	PID 619(WindowServer) Created PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x70000a6ac [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:32:54 -0400 Assertions          	PID 619(WindowServer) Released PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x70000a6ac [System: PrevIdle DeclUser kDisp]          
+2026-05-25 22:33:04 -0400 Assertions          	PID 995(sharingd) Released PreventUserIdleSystemSleep "Handoff" 00:01:33  id:0x0x10000a655 [System: PrevIdle DeclUser kDisp]          
+Total Sleep/Wakes since boot:1655
+   PreventUserIdleDisplaySleep    0
+   PreventSystemSleep             0
+   PreventUserIdleSystemSleep     1
+   pid 560(powerd): [0x0006797d0001a6ab] 00:00:19 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  
+   pid 1190(useractivityd): [0x000679900001a6b1] 00:00:01 PreventUserIdleSystemSleep named: "BTLEAdvertisement.805FC257-C0A3-448F-8411-2F4EF3CBD49E"  
+   pid 995(sharingd): [0x000679900001a6b2] 00:00:01 PreventUserIdleSystemSleep named: "Handoff"  
