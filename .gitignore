@@ -29,7 +29,6 @@ worktrees/
 # Working files for AI-assisted development sessions; not part of the
 # repository's tracked content. Keep them locally for reference but do
 # not commit.
-docs/debug/
 docs/HANDOFF.md
 docs/HANDOFF-claude-code.md
 docs/pr*.diff
@@ -37,6 +36,9 @@ docs/reviews/
 scripts/find_unicode_control2*/
 _user-claude-config/
 ACTION-ITEMS-handoff.md
+
+docs/debug/*
+!docs/debug/REPRO.md
 
 # Sandbox metadata written by scripts/sandbox-enter.sh inside a fresh
 # clone for later restoration by scripts/sandbox-exit.sh. The clone
