@@ -184,17 +184,22 @@ dead ends, and battery-at-sleep as a coincidental (non-causative) predictor.
 Realistic untried recovery candidates are just two: a *late* recommit and an
 explicit `CGConfigureDisplayWithDisplayMode` mode-set.
 
-**`fmt:YCbCr444_10bit` is the SP2309W's normal, usable encoding — it renders
-fine and is not a defect.** It is not constantly present and is orthogonal to
-cursor-on-black (the black is the missing mode-set, not the encoding). Separate
-matter: the pink/green **color cast**. The maintainer first saw it via Brisync
-or Lunar (czarny/brisync#45) and on wake when using the blackout-built-in
-feature of Lunar / BetterDisplay — conjecturally (maintainer's word) from those
-tools driving brightness with a gamma overlay. That cast led to the faulty-EDID
-discovery (ADR 0009 / inject_edid) and motivated a FOSS blackout (blackoutd). It
-does NOT occur under the maintainer's current setup — blackoutd plus
-MonitorControlLite (no DDC, no cast). Do not imply YCbCr is the problem or that
-the cast is present under blackoutd.
+**SP2309W EDID defect (ADR 0009 / inject_edid; see
+`inject_edid/docs/sp2309w-display-notes.md`).** The panel is a 2008 8-bit RGB TN,
+native 2048×1152. Its EDID is *defective*: block 0 says RGB, but the CTA-861
+extension wrongly advertises YCbCr 4:4:4/4:2:2 + consumer-TV formats, so a PC
+host negotiates YCbCr — which this monitor has no mode to decode and renders as
+shifted RGB (pink cast; the YPbPr OSD gives green instead). A 2010 unit shipped a
+corrected RGB-only EDID; there is no firmware update for this one, so correction
+stays host-side. Correct connection mode: `encoding:rgb+range:full+bpc:8`;
+10-bit wastes bandwidth and the monitor rejects it. The cast is *triggered by
+DDC* renegotiation (Lunar, MonitorControl, BetterDisplay); MonitorControlLite
+avoids DDC and does not trigger it — which is why blackoutd + MonitorControlLite
+shows no cast. **This whole matter is orthogonal to cursor-on-black**: the
+`fmt:YCbCr444_10bit` in the `-192959` recovery-wake WS log is just the
+bad-EDID-driven negotiated encoding, not the cause of the black (the *absence*
+of a mode-set). Keep the two investigations separate; do not call YCbCr
+"usable/fine" on this panel.
 
 ## Build plan (maintainer approved all three)
 
@@ -229,12 +234,14 @@ Filesystem-MCP setup, where Claude cannot compile). Point it at `AGENTS.md`,
 `docs/technical-debt.md` (P28/P29), and this file first. Keep a chat session
 for analysis-heavy turns (classifying captures, challenging docs) if preferred.
 
-**Signature tally (running)**: black-with-`0x133e`-flap: `-122138`, `-135711`,
-`-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`, `-225050`
-(nine). Clean-without-flap: `-170616`, `-213717`, `-220028`, `-222940`,
-`-224742`, `-230242` (six). No counterexample. Late recommit confirmed
-insufficient by `-223301` + `-225050` (n=2). Because recommits do not silently
-recover a flap, a wake the user perceives as clean genuinely had no flap — so
-"clean" reports are now reliable no-flap evidence. `-213717`/`-220028`/`-222940`
-also re-confirm (A) (disconnect path → restore → settle → recommit → re-blackout
-→ converged).
+**Signature tally (running)**: black (maintainer-observed) `-122138`,
+`-135711`, `-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`,
+`-225050`; clean `-170616`, `-213717`, `-220028`, `-222940`, `-224742`,
+`-230242`. No counterexample. Late recommit confirmed insufficient by `-223301`
+(clean log evidence: flap at 22:31:30, all recommits fired, black persisted
+~66 s, hot-corner recovered) and corroborated by `-225050`. **Classify
+per-wake, not by grep**: each bundle's `daemon-log.txt` is a cumulative
+`tail -500` across pids/incidents, so grepping it for `0x133e` finds residual
+flaps from earlier incidents (the `-223301` flap rides along in `-224742` /
+`-230242`). Verified `0x111e` clean at own wake: `-220028`, `-222940`,
+`-224742`, `-230242`. `-213717`/`-220028`/`-222940` also re-confirm (A).

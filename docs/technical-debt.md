@@ -1431,15 +1431,21 @@ on the external correlates with how the external re-attaches on wake.
   post-wake external hardware event, or the external reconnecting during sleep
   without a post-wake flap (`-170616`, `-213717`, and every recovery).
 
-Tally as of 2026-05-25: nine black-with-flap (`-122138`, `-135711`, `-150108`,
-`-155349`, `-192959`, `-212847`, `-222732`, `-223301`, `-225050`), six
-clean-without (`-170616`, `-213717`, `-220028`, `-222940`, `-224742`,
-`-230242`), no counterexample (no `0x133e` that came up clean). Because
-recommits do not silently recover a flap (g26 update below), a wake the user
-perceives as clean genuinely had no flap — so user-perceived "clean" is now
-reliable no-flap evidence, not a possibly-hidden flap. (`0x133e` log-verified
-this session on `-223301`, `-225050`; `0x111e` on `-220028`, `-222940`; the rest
-by prior reads or maintainer report.)
+Tally as of 2026-05-25: black (maintainer-observed) `-122138`, `-135711`,
+`-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`, `-225050`;
+clean `-170616`, `-213717`, `-220028`, `-222940`, `-224742`, `-230242`. No
+counterexample so far (no wake verified as clean `0x111e`/no-flap that was also
+black).
+
+**Classify per-wake, not by grep.** Each bundle's `daemon-log.txt` is a
+cumulative `tail -500` spanning multiple pids and prior incidents, so a `grep
+0x133e` on a bundle surfaces *residual* flaps from earlier incidents — e.g. the
+`-223301` 22:31:30 flap reappears in the later `-224742` and `-230242` logs.
+Classification must read the capture's *own* wake. Verified that way this
+session: `0x111e` clean at own wake on `-220028`, `-222940`, `-224742`,
+`-230242`; `0x133e` flap on `-223301` (22:31:30). Note the flap is sometimes
+logged at the post-wake reconnect and sometimes at an in-sleep reconnect (no
+verbose flag while sleeping), a further reason grep is not a classifier.
 
 In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
 **no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
@@ -1448,11 +1454,12 @@ window … (invalid)` and `_CGXPackagesSetWindowConstraints: Invalid window`
 (windows placed on a display with no valid scanout). The recovery wake
 (19:29:40) emits a full `[ Display:Mode ]` block (41 timing / 8 color modes,
 "set to previous mode 27", `2048 x 1152 fmt:YCbCr444_10bit`) and the external
-renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27. (`YCbCr444` here
-is the SP2309W's normal, usable encoding — it renders fine and is not the
-defect; the black is the *absence* of a mode-set, not the encoding. The
-pink/green color cast is a separate matter that does not occur under blackoutd
-— see ADR 0009 and the session-handoff note.)
+renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27. (The
+`fmt:YCbCr444_10bit` here is the encoding macOS *mis-negotiates* from the
+SP2309W's defective EDID — the panel is really 8-bit RGB and has no YCbCr decode
+path; see ADR 0009 / `inject_edid/docs/sp2309w-display-notes.md`. It is
+orthogonal to cursor-on-black: the black is the *absence* of a mode-set, not the
+encoding. Do not conflate the two investigations.)
 
 **Hypothesis**: the flap re-enumerates the external without a valid
 display-mode set, leaving it configured-but-not-scanning-out → black with the
