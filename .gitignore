@@ -37,8 +37,43 @@ scripts/find_unicode_control2*/
 _user-claude-config/
 ACTION-ITEMS-handoff.md
 
+# Diagnostic bundles are large (~20 MB WindowServer log + ~31k-line ioreg
+# each), so ignore docs/debug/ by default and allowlist only the curated
+# bundles that each document a distinct finding (see docs/technical-debt.md
+# P29 and docs/SESSION-HANDOFF-2026-05-25.md).
 docs/debug/*
 !docs/debug/REPRO.md
+
+# Early mechanism evidence (WS: no Display:Mode during the black wake).
+!docs/debug/blackoutd-diag-20260525-192959/
+# Decisive recommit-negative: all late recommits fired, black persisted.
+!docs/debug/blackoutd-diag-20260525-223301/
+# Clean own-wake at 0x111e — WS comparison baseline vs the black wakes.
+!docs/debug/blackoutd-diag-20260525-224742/
+# Scripted repro: black at 0x111e (flag counterexample) with a fully healthy
+# WS mode-set; paired with its hot-corner recovery.
+!docs/debug/blackoutd-diag-20260526-001343/
+!docs/debug/blackoutd-diag-20260526-001426/
+# Scripted repro black + recovery; same-wake ioreg diff (the 0->4 was the
+# built-in DCP, i.e. blackout state — not an external scanout signal).
+!docs/debug/blackoutd-diag-20260526-015528/
+!docs/debug/blackoutd-diag-20260526-015648/
+# Long-sleep lid-close; external self-recovered to active.
+!docs/debug/blackoutd-diag-20260526-085729/
+# displaysleepnow saga; role reversal (built-in went black, then the external).
+!docs/debug/blackoutd-diag-20260526-093747/
+!docs/debug/blackoutd-diag-20260526-093819/
+# Clean: external actively rendering (external DCP reads 4, as it does always).
+!docs/debug/blackoutd-diag-20260526-140624/
+# AC scripted repro, cursor-on-black — bug is NOT power-source-dependent.
+!docs/debug/blackoutd-diag-20260526-141433/
+# AC, post-displaysleep recovery half.
+!docs/debug/blackoutd-diag-20260526-141502/
+#
+# The later repro runs (143947/144023, 144217/144253, 144512, 150254/150327,
+# 150459/150533) only re-confirm the now-settled "external DCPPowerState is
+# constant" result; they are intentionally NOT allowlisted. If they were
+# force-committed, `git rm` them to avoid bloat, or add `!` lines to retain.
 
 # Sandbox metadata written by scripts/sandbox-enter.sh inside a fresh
 # clone for later restoration by scripts/sandbox-exit.sh. The clone
