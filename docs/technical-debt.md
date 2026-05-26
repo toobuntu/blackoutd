@@ -1423,7 +1423,7 @@ P0, P1, P20, P25.
 
 ---
 
-## P29 — Cursor-on-black: flap wake → missing display-mode set (hypothesis)
+## P29 — Cursor-on-black: DCP/scanout failure below WindowServer
 
 **Observation (2026-05-25, builds g19–g25, verbosityLevel=2; FALSIFIED
 2026-05-26 — see below)**: cursor-on-black on the external *appeared* to
@@ -1437,7 +1437,7 @@ correlate with how the external re-attaches on wake.
   without a post-wake flap (`-170616`, `-213717`, and every recovery).
 
 Tally: black (maintainer-observed) `-122138`, `-135711`, `-150108`, `-155349`,
-`-192959`, `-212847`, `-222732`, `-223301`, `-225050`, `-001343`; clean
+`-192959`, `-212847`, `-222732`, `-223301`, `-225050`, `-001343`, `-015528`; clean
 `-170616`, `-213717`, `-220028`, `-222940`, `-224742`, `-230242`, `-001426`.
 **Counterexample found (`-001343`)**: a black wake whose own incident reconnect
 was `0x111e`, not a flap (see Falsified, below). The flag does not separate
@@ -1463,10 +1463,24 @@ the screen was black regardless. So `0x133e`⇔black / `0x111e`⇔clean is wrong
 lid-close / trackpad wakes, not the cause or a reliable predictor. Recovery via
 hot corner in `-001426` produced **no** reconfiguration callback at all (no
 re-enumeration), so "recovery = clean re-enumeration" is also not general.
-Consequence: a fix cannot key on the reconfig flag. What survives is the
-*mechanism* hypothesis below (black = absence of a valid mode-set / scanout),
-which is flag-independent; verify it against `-001343`'s `windowserver.txt`
-(expect no `[ Display:Mode ]` during the black, as in `-192959`).
+Consequence: a fix cannot key on the reconfig flag.
+
+**Mechanism also falsified (2026-05-26) — the black is below WindowServer.**
+`-001343`'s `windowserver.txt` was read: at the black wake (00:12:20) the
+external got a *full, healthy* bring-up — `Display 2 hot plug 1`, `41 timing
+modes`, `set power state 1`, `IOMobileFramebufferOpenByName: Framebuffer
+found=1`, a complete `[ Display:Mode ]` block, and **`Display 2 set to previous
+mode 27`** with `current mode == preferred mode == 2048×1152 fmt:YCbCr444_10bit`.
+Across that one log, black wakes (22:31 `-223301`, 00:12 `-001343`), clean wakes
+(22:47 `-224742`, 23:02 `-230242`), and the 22:32:54 hot-corner recovery are
+**indistinguishable** at the WindowServer layer — same `set to previous mode
+27`, same framebuffer-found, same `current mode`. So the mode IS set (to the
+preferred mode) on black wakes; the black originates below CoreGraphics, in the
+DCP/scanout. This kills the "missing mode-set" mechanism and, with it, the
+`CGConfigureDisplayWithDisplayMode`-to-preferred fix (current already ==
+preferred, so the call is a no-op). It also means blackoutd has **no CG-visible
+signal** that the display is black — a detection problem, not just a recovery
+problem.
 
 In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
 **no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
@@ -1480,17 +1494,25 @@ renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27. (The
 SP2309W's defective EDID — the panel is really 8-bit RGB and has no YCbCr decode
 path; see ADR 0009 / `inject_edid/docs/sp2309w-display-notes.md`. It is
 orthogonal to cursor-on-black: the black is the *absence* of a mode-set, not the
-encoding. Do not conflate the two investigations.)
+encoding. Do not conflate the two investigations.) **(2026-05-26: `-001343`'s
+black wake DID emit a full `[ Display:Mode ]` block with `set to previous mode
+27` — contradicting the "no `[ Display:Mode ]` at black" reading taken from
+`-192959`. Either `-192959`'s window cut off its mode block or the two are
+distinct failure modes; the deterministic `-001343` evidence supersedes for the
+mechanism. The `…failed to move window… (invalid)` storm also runs continuously
+here, ~170/min for hours, so it is not a black-specific marker.)**
 
-**Hypothesis (flag-independent, still standing)**: the wake re-enumerates the
-external without a valid display-mode set, leaving it
-configured-but-not-scanning-out → black with the hardware cursor. A
-display-power cycle (hot corner / idle-off / on-battery system sleep) usually
-recovers it; in `-001343`/`-001426` the hot corner recovered with no logged
-reconfiguration at all, so the recovery is a scanout/mode resumption rather than
-necessarily a re-enumeration. This matches the maintainer's standing
-observation that the external "always comes back at a wrong mode." The flap
-(`0x133e`) is no longer part of the hypothesis — it was falsified above.
+**Mechanism (revised 2026-05-26)**: the black is a DCP/scanout failure *below*
+WindowServer. On a black wake the external is enumerated, powered (`set power
+state 1`), framebuffer-opened, and set to its preferred mode (mode 27) —
+WindowServer / CoreGraphics see a fully configured, healthy display. Nothing at
+the CG layer distinguishes black from rendering, so no CG-layer operation
+(recommit, mode-set, reconfigure) can detect *or* fix it. Only a display-power
+cycle recovers it (hot corner), acting at the DCP/scanout level. Note the
+natural wake already toggles `setEnabled 0→1` / `power state 0→1` without
+recovering, so the effective recovery is the hot corner's deeper display-sleep
+(DCP link re-init), not a CG power-state toggle. The flap (`0x133e`) and the
+"missing mode-set" idea are both falsified above.
 
 **Recommit efficacy — open, not settled**: blackoutd's post-settle recommit
 and displayrecommitd's are *identical* — `CGBeginDisplayConfiguration` +
@@ -1531,18 +1553,29 @@ not key on a reconfig flag. Heed the known dead ends in `AGENTS.md` first:
 `CGDisplaySleep`/`CGDisplayWake` and `pmset displaysleepnow` flicker. The
 realistic, untried candidates are:
 
-1. A *late* CG recommit (automatic, settle+5/15/30/60 s) — **tested g26,
-   negative** (`-223301`: all fired `ok`, external stayed black ~66 s until a
-   hot-corner power cycle recovered it; `-225050` confirms, n=2). Recommit is
-   insufficient early and late; ready to disable.
+1. A *late* CG recommit — **tested g26, negative** (`-223301`/`-225050`: all
+   fired `ok`, black persisted, hot corner recovered). Ready to disable.
 2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the preferred
-   mode (from `CGDisplayCopyAllDisplayModes`), applied on every post-wake settle
-   (not keyed on a flag) — public API, no sudo, minimal flicker; directly
-   installs the mode the black wake lacks (the flag-independent mechanism
-   above). The leading untried candidate; test against the scripted repro.
-3. Display-power cycle (what the hot corner does). Flickers, but the maintainer
-   accepts flicker if it proves the definitive fix. Use if the mode-set is
-   insufficient.
+   mode — **predicted no-op, do not pursue**: `-001343`'s WS shows the black
+   wake already at `current == preferred` mode 27, so re-setting it changes
+   nothing (the same reason the recommit fails). A CG-layer operation cannot
+   fix a below-CG scanout failure.
+3. Display-power cycle that reaches the DCP (hot-corner equivalent) — the only
+   approach with evidence behind it (the hot corner is the sole observed
+   recovery). Flicker is accepted by the maintainer for a definitive fix. Open:
+   which API reproduces the hot corner's effect — a *CG* power-state toggle
+   (`CGDisplaySleep`/`Wake`) likely does NOT suffice (the natural wake already
+   toggles `power state 0→1` without recovering); candidates that reach the DCP
+   link are `IODisplayWrangler` `IORequestIdle` (private) or `pmset
+   displaysleepnow` (sudo). Both flicker.
+
+**Detection is the harder half.** Because black is invisible at the CG layer
+(see Mechanism), blackoutd cannot tell a black wake from a good one. A fix that
+power-cycles on *every* wake-with-external would flicker every wake; a targeted
+fix needs a below-CG black signal (a DCP / `dcpext` scanout property in
+`ioreg.txt` — the `inject_edid --mode` reader is the place to look). If neither
+is acceptable, document the manual hot-corner recovery and treat auto-recovery
+as out of scope.
 
 **Open / to confirm**:
 
@@ -1552,10 +1585,13 @@ realistic, untried candidates are:
 - ~~Manual/late recommit recovers?~~ **Answered: no** (g26 late recommit tested
   negative, `-223301`/`-225050`). A `blackoutd recommit` CLI is therefore low
   value.
-- What mode does the black wake hold vs the preferred mode? This is now the
-  central question. Confirm with `-001343`'s `windowserver.txt` (expect no
-  `[ Display:Mode ]` during black) and an `inject_edid` `--mode` reader; then
-  test the `CGConfigureDisplayWithDisplayMode` fix against the scripted repro.
+- ~~What mode does the black wake hold vs preferred?~~ **Answered: the
+  preferred mode** (`-001343` WS: black wake at `current == preferred` mode 27).
+  The black is below CoreGraphics, not a mode mismatch.
+- New central question: is there a below-CG (DCP / `dcpext`) property that
+  distinguishes black from rendering, to drive *detection*? Look in `ioreg.txt`
+  via the `inject_edid --mode` reader. Without one, only an unconditional
+  power-cycle-on-wake (flicker) or manual hot-corner recovery remain.
 
 **Files**: investigation only so far. Relates to P2, P20, P28, ADR 0003, ADR
 0009 (SP2309W YCbCr), and a future inject_edid `--mode` reader.

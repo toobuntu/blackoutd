@@ -106,17 +106,24 @@ sleep) + input. Intermittent.
    recovery ran a full mode block ("set to previous mode 27", `2048×1152
    fmt:YCbCr444_10bit`). Hypothesis: the flap re-enumerates the external
    *without a valid mode-set* → configured-but-not-scanning-out → black. Matches
-   the maintainer's "always comes back at a wrong mode." **(2026-05-26: the
-   `0x133e` flap correlation is FALSIFIED — `-001343` was black at `0x111e`. The
-   missing-mode mechanism stands; the flap does not. See the tally at the end.)**
+   the maintainer's "always comes back at a wrong mode." **(2026-05-26: FALSIFIED twice. (a) The `0x133e` flap correlation — `-001343`
+   was black at `0x111e`. (b) The missing-mode mechanism itself — `-001343`'s WS
+   shows the black wake fully set up (`set to previous mode 27`, framebuffer
+   found, `current == preferred`), indistinguishable from clean/recovery wakes.
+   The black is below CoreGraphics (DCP/scanout); no CG-layer fix can see or fix
+   it. See P29.)**
 
 ## Preferred fix direction (unbuilt)
 
-On **every** wake-with-external (the flap is not a usable trigger — falsified
-2026-05-26), **set the external's mode explicitly** via
-`CGConfigureDisplayWithDisplayMode` to the preferred mode — public API, no sudo, minimal flicker. Only if a mode-set proves
-insufficient, fall back to a programmatic display-power cycle (`IODisplayWrangler`
-`IORequestIdle` poke — private; or `pmset displaysleepnow` — sudo + flicker).
+**Superseded 2026-05-26 (see P29).** The mode-set idea is dropped: `-001343`'s WS
+shows the black wake already at the preferred mode (mode 27), so a CG mode-set is
+a no-op. The black is below CoreGraphics, so the only evidenced recovery is a
+DCP-level display-power cycle (hot-corner equivalent; `IODisplayWrangler`
+`IORequestIdle` — private; or `pmset displaysleepnow` — sudo; both flicker). A
+plain `CGDisplaySleep`/`Wake` may not reach deep enough (the natural wake already
+toggles `power state 0→1` without recovering). Detection is the open problem —
+blackoutd has no CG-visible black signal, so it would flicker every wake or need
+a below-CG (`dcpext`) scanout property.
 
 ## Next steps (in order)
 
@@ -211,14 +218,15 @@ of a mode-set). Keep the two investigations separate; do not call YCbCr
    early AND late. Action: one more confirming black capture, then DISABLE
    (remove the `scheduleLateRecommits` call / empty `kOffsets`) and move to the
    mode-set. See P29 "Update (g26)".
-2. **Mode-set fix — the leading candidate** (replaces the recommit approach).
-   On **every** post-wake settle (the flap is falsified as a trigger,
-   2026-05-26), set the external to its preferred mode via
-   `CGConfigureDisplayWithDisplayMode` (preferred mode from
-   `CGDisplayCopyAllDisplayModes`; public API, no sudo, minimal flicker).
-   Installs the mode the black wake lacks (flag-independent mechanism). If
-   insufficient, fall back to a display-power cycle (flicker accepted as a last
-   resort). Test against the scripted repro in P29.
+2. **Mode-set fix — DROPPED (predicted no-op).** `-001343`'s WS shows the black
+   wake already at `current == preferred` mode 27, so
+   `CGConfigureDisplayWithDisplayMode` changes nothing. Black is below
+   CoreGraphics; the only evidenced recovery is a DCP-level display-power cycle
+   (hot-corner equivalent), flicker accepted — but a plain
+   `CGDisplaySleep`/`Wake` may not reach deep enough (the natural wake already
+   cycles `power state 0→1`). Detection is unsolved: blackoutd has no CG-visible
+   black signal, so it would either flicker every wake or need a below-CG
+   (`dcpext`) scanout property. See P29.
 3. **`blackoutd recommit` CLI** — now LOW value (recommit shown insufficient
    early and late); build only if a manual one-shot is still wanted.
 4. **diagnose `--mode` reader** — still useful: pixel-encoding/mode via the
@@ -238,7 +246,7 @@ for analysis-heavy turns (classifying captures, challenging docs) if preferred.
 
 **Signature tally (running)**: black (maintainer-observed) `-122138`,
 `-135711`, `-150108`, `-155349`, `-192959`, `-212847`, `-222732`, `-223301`,
-`-225050`, `-001343`; clean `-170616`, `-213717`, `-220028`, `-222940`,
+`-225050`, `-001343`, `-015528`; clean `-170616`, `-213717`, `-220028`, `-222940`,
 `-224742`, `-230242`, `-001426`. **Counterexample: `-001343` was black at
 `0x111e`** (2026-05-26) — the flap signature is falsified; the reconfig flag
 does not separate black from clean. Late recommit confirmed insufficient by
