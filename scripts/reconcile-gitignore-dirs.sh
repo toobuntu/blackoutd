@@ -14,7 +14,7 @@ list_present() {
 }
 
 list_tracked() {
-    git ls-files "${DEBUG_DIR}" | cut -d/ -f3 | sort -u
+    git ls-files "${DEBUG_DIR}" | grep --invert-match --extended-regexp '^docs/debug/REPRO.md$' | cut -d/ -f3 | sort -u
 }
 
 list_allowed() {
@@ -47,7 +47,7 @@ main() {
     report_diff 'ALLOWED BUT NOT TRACKED' "${allowed}" "${tracked}"
     report_diff 'TRACKED BUT NOT ALLOWED' "${tracked}" "${allowed}"
 
-    printf '\n=== RAW HEAVY LOGS TRACKED (should be empty; commit .zst) ===\n'
+    printf '\n=== RAW HEAVY LOGS TRACKED (should be empty; commit .gz) ===\n'
     git ls-files "${DEBUG_DIR}/*/windowserver.txt" "${DEBUG_DIR}/*/ioreg.txt"
 }
 
