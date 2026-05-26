@@ -382,21 +382,49 @@ static NSString *logWindowArgs(int minutes, NSString *start, NSString *end) {
   return [NSString stringWithFormat:@"--last %dm", minutes];
 }
 
-// Derives a self-bounding log-window start from the daemon's own most recent
-// [wake] line, less a lead margin to include the pre-wake sleep and any
-// dark-wake churn. nil if no wake is recorded (caller falls back to a fixed
-// window). Lets `diagnose` bound the capture without user-supplied times.
-static NSString *autoWindowStart(void) {
-  NSString *wake = lastLogToken(@"[wake]");
-  if (wake.length < 19)
-    return nil;
+// Self-bounds the diagnostic window from the daemon's own sleep/wake markers.
+// The "incident wake" is the most recent wake that followed a substantive
+// sleep (gap > 60 s) — a real system wake rather than a brief recovery
+// sleep/wake cycle. The window runs from a lead before that wake to a tail
+// after the most recent wake (which may be a recovery cycle). Sets *startOut
+// and *endOut to "yyyy-MM-dd HH:mm:ss" strings, or leaves them untouched if no
+// wake is recorded. Lets `diagnose` bound the capture without user input.
+static void deriveWindow(NSString **startOut, NSString **endOut) {
+  NSString *log = daemonLogPath();
+  if (![NSFileManager.defaultManager fileExistsAtPath:log])
+    return;
+  NSString *cmd = [NSString
+      stringWithFormat:@"grep --fixed-strings -e 'resuming display change' "
+                       @"-e 'ignoring display changes' '%@' | tail -40",
+                       log];
+  NSString *out = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
+  if (!out.length)
+    return;
+
   NSDateFormatter *f = [[NSDateFormatter alloc] init];
   f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
   f.dateFormat = @"yyyy-MM-dd HH:mm:ss";
-  NSDate *wakeDate = [f dateFromString:[wake substringToIndex:19]];
-  if (!wakeDate)
-    return nil;
-  return [f stringFromDate:[wakeDate dateByAddingTimeInterval:-90]];
+
+  NSDate *prevSleep = nil, *lastWake = nil, *incidentWake = nil;
+  for (NSString *line in [out componentsSeparatedByString:@"\n"]) {
+    if (line.length < 19)
+      continue;
+    NSDate *t = [f dateFromString:[line substringToIndex:19]];
+    if (!t)
+      continue;
+    if ([line containsString:@"ignoring display changes"]) {
+      prevSleep = t;
+    } else {
+      lastWake = t;
+      if (prevSleep && [t timeIntervalSinceDate:prevSleep] > 60)
+        incidentWake = t;
+    }
+  }
+  NSDate *anchor = incidentWake ?: lastWake;
+  if (!anchor)
+    return;
+  *startOut = [f stringFromDate:[anchor dateByAddingTimeInterval:-90]];
+  *endOut = [f stringFromDate:[lastWake dateByAddingTimeInterval:90]];
 }
 
 // Collects a diagnostic bundle into /tmp and prints the report to stdout.
@@ -438,10 +466,18 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
     runShellToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
                    [NSString stringWithFormat:@"tail -500 '%@'", log]);
 
-  // Self-bounding default: derive the window from the daemon's last wake.
-  // Explicit --start/--end or --minutes override.
-  if (!start.length && minutes <= 0)
-    start = autoWindowStart();
+  // Self-bounding default: derive a window around the most recent incident
+  // from the daemon's own sleep/wake markers. Explicit --start/--end or
+  // --minutes override.
+  if (!start.length && minutes <= 0) {
+    NSString *autoStart = nil, *autoEnd = nil;
+    deriveWindow(&autoStart, &autoEnd);
+    if (autoStart) {
+      start = autoStart;
+      if (!end.length)
+        end = autoEnd;
+    }
+  }
   NSString *window = logWindowArgs(minutes > 0 ? minutes : 3, start, end);
   runShellToFile(
       [dir stringByAppendingPathComponent:@"system-log.txt"],
