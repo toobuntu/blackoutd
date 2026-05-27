@@ -1314,8 +1314,344 @@ grepping free text, and diag bundles can filter by category.
       text matching.
 
 **Priority**: low (hygiene; current logging works). Not a `newsyslog` task.
+Interim (2026-05-26): `make dev` and `make reinstall` rotate
+`~/Library/Logs/blackoutd.log` via `scripts/rotate-log.sh` during the
+bootout→bootstrap gap (agent stopped, fd released), keeping 5 archives — so the
+file stays bounded across rebuilds until this migration lands and removes it.
 
 **Files**: `src/*.m` (every `NSLog`), the launchd plist template, the diag
 script. Rationale recorded in the shared logging ADR (repo-foundation
 `0009-logging-os_log-vs-newsyslog`) with the file-log alternative recipe in
 repo-foundation `docs/newsyslog-log-rotation.md`.
+
+---
+
+## P28 — `systemDidWake:` early-return skips the post-settle recommit
+
+**Problem**: On the disconnected-during-sleep wake path, `systemDidWake:`
+restores the built-in and `return`s before calling `handleSystemWake`. The
+wake-settle quiet timer (ADR 0003) is therefore never armed on that path,
+so on a *successful* restore the settle handler `wakeSettleTimerFired`
+never runs: no post-settle recommit (P2 / ADR 0003) and no P0 re-blackout.
+The daemon ends `isBlackedOut=0` with the external present and
+auto-blackout enabled — both displays active — and the external is never
+re-absorbed by the settle recommit. ADR 0003's own confirmation criterion
+(`[wake] — recommit after settle: ok` must appear on every user wake;
+absence indicates the quiet timer never fired) is the detector: the line
+is absent in the failing captures and present in the succeeding one.
+
+**Empirical basis (2026-05-25, verbosityLevel=2)**:
+
+- `blackoutd-diag-20260525-122138` and `-135711`: lid-closed sleep; the
+  external's coalesced flap callback (`flags` carrying both `add` and
+  `remove`) arrives *during* sleep, sets `_externalDisconnectedDuringSleep`,
+  the wake takes the early-return path, the restore succeeds, no
+  `recommit after settle` line appears, and the daemon ends
+  `isBlackedOut=0` (both displays active).
+- `-150108`: same path, but the restore additionally hits an err=1014
+  storm during a dark-wake / re-sleep thrash (see P25); WS confirms the
+  restored built-in returns mirror-primary=external, so it shows the
+  external's black source — both panels black with the lid open.
+- `-155349`: lid-open sleep. The coalesced flap arrives *after*
+  `NSWorkspaceDidWakeNotification` clears `_systemSleeping`, so the flag is
+  NOT set, the wake takes the normal path, and the settle timer fires
+  (`recommit after settle: ok`). Convergence is correct (`isBlackedOut=1`).
+  But cursor-on-black STILL occurred and was cleared only by a hot-corner
+  display-power cycle ~14 s after the recommit. Key result: the post-settle
+  recommit fired and did NOT recover the external — the display-power cycle
+  did. So cursor-on-black is independent of the early-return path and of the
+  recommit.
+
+The differentiator is a race (flap-before-wake-notification vs after), not
+the lid directly; lid-closed clamshell sleep appears to bias the flap to
+arrive during sleep.
+
+**Corrections to existing entries (data-driven, this session)**:
+
+- **err=1014 retry now fires.** P1's acceptance checkbox and P20's note
+  state the retry "never arms (wrong-constant guard, 1004 vs 1014)." That
+  was fixed in PR#12 (commit 318c69c): the guard now retries on any
+  non-`kCGErrorIllegalArgument` failure, and `-150108` shows
+  `err=1014 — arming retry 1/3` firing. Those notes are stale.
+- **Alt Mode dropout not observed.** None of the four 2026-05-25 captures
+  exhibits the "~30 s spontaneous Alt Mode dropout" described in P2, ADR
+  0003, and the displayrecommitd README. The only post-wake display-power
+  transition in `-155349` is the deliberate hot-corner recovery, not a
+  spontaneous hotplug-out. Treat the dropout as *hypothesized*, not
+  *established*, until reconfirmed with data.
+- **The post-settle recommit does not recover cursor-on-black.** In
+  `-155349` the recommit fired (`recommit after settle: ok`) and the
+  external stayed black until a hot-corner display-power cycle. P2 / ADR
+  0003 / the README imply the no-op CGConfig recommit re-absorbs the
+  external; this capture shows it is insufficient on its own — recovery
+  needs a stronger action (a display-power cycle, as the hot corner does;
+  cf. BetterDisplay's `_reinitializeOnWake`). Open question for P20: is the
+  recommit insufficient by *mechanism*, or did it merely fire too early
+  (+2 s quiet) before the external finished re-attaching? A manual recommit
+  fired late, during the black, would distinguish the two.
+- **Cursor-on-black is intermittent and path-independent.** `-170616`
+  (lid-closed sleep, old daemon, the buggy early-return path) was clean;
+  `-155349` (normal path) was not. So cursor-on-black is neither
+  deterministic nor tied to the early-return path.
+
+**Proposed fix**: in `systemDidWake:`, do not `return` after the
+disconnected-during-sleep restore — fall through to
+`[_displayController handleSystemWake]` so the settle timer arms and the
+ADR 0003 flow (post-settle recommit + safety re-check + P0 re-blackout)
+runs on every wake, as ADR 0003 already specifies. Keep the immediate
+safety restore. Pairs with P25 (avoid nested CG transactions) and P1
+(retry budget) for the err=1014 thrash variant, which this change does not
+by itself resolve. Scope: (A) fixes the convergence bug only. Per the
+recommit finding above it is NOT expected to resolve cursor-on-black, whose
+recovery needs a display-power-cycle-class action tracked under P20.
+
+**Acceptance criteria**:
+
+- [ ] `[wake] — recommit after settle: ok` appears on the
+      disconnected-during-sleep path, not only the normal path.
+- [ ] After a disconnected-during-sleep wake with external present and
+      auto-blackout on, the daemon converges to `isBlackedOut=1` (not both
+      active).
+- [ ] A fresh `verbosityLevel=2` capture shows the settle recommit firing
+      on this path and correct convergence. Cursor-on-black recovery is NOT
+      expected from this change (`-155349` shows the recommit insufficient);
+      that recovery is tracked under P20.
+- [ ] No regression on the normal wake path (`-155349` behavior).
+
+**Files**: `src/AppDelegate.m` (`systemDidWake:`). Relates to ADR 0003 and
+P0, P1, P20, P25.
+
+---
+
+## P29 — Cursor-on-black: DCP/scanout failure below WindowServer
+
+**Observation (2026-05-25, builds g19–g25, verbosityLevel=2; FALSIFIED
+2026-05-26 — see below)**: cursor-on-black on the external *appeared* to
+correlate with how the external re-attaches on wake.
+
+- Black wakes: the external's reconfig callback is `flags=0x133e`
+  (`add|remove|enabled|disabled|…`) — a coalesced down-then-up "flap"
+  (`-122138`, `-135711`, `-150108`, `-155349`, `-192959`, `-212847`).
+- Clean / recovered wakes: `flags=0x111e` (`add|enabled`, no remove bit), no
+  post-wake external hardware event, or the external reconnecting during sleep
+  without a post-wake flap (`-170616`, `-213717`, and every recovery).
+
+Tally: black (maintainer-observed) `-122138`, `-135711`, `-150108`, `-155349`,
+`-192959`, `-212847`, `-222732`, `-223301`, `-225050`, `-001343`, `-015528`; clean
+`-170616`, `-213717`, `-220028`, `-222940`, `-224742`, `-230242`, `-001426`.
+**Counterexample found (`-001343`)**: a black wake whose own incident reconnect
+was `0x111e`, not a flap (see Falsified, below). The flag does not separate
+black from clean.
+
+**Classify per-wake, not by grep.** Each bundle's `daemon-log.txt` is a
+cumulative `tail -500` spanning multiple pids and prior incidents, so a `grep
+0x133e` on a bundle surfaces *residual* flaps from earlier incidents — e.g. the
+`-223301` 22:31:30 flap reappears in the later `-224742` and `-230242` logs.
+Classification must read the capture's *own* wake. Verified that way this
+session: `0x111e` clean at own wake on `-220028`, `-222940`, `-224742`,
+`-230242`; `0x133e` flap on `-223301` (22:31:30). Note the flap is sometimes
+logged at the post-wake reconnect and sometimes at an in-sleep reconnect (no
+verbose flag while sleeping), a further reason grep is not a classifier.
+
+**Falsified (2026-05-26) — the reconfig flag does not discriminate.** Scripted
+repro (deterministic): `sudo pmset schedule wake "$(date -j -v+15S "+%m/%d/%y
+%H:%M:%S")"; pmset sleepnow; sleep 90; ./build/blackoutd diagnose`. In `-001343`
+(black, maintainer-confirmed, before recovery) the incident wake (00:12:21)
+brought the external back at **`0x111e`** — the supposedly "clean" flag — and
+the screen was black regardless. So `0x133e`⇔black / `0x111e`⇔clean is wrong:
+`0x111e` can be black. The flap was a coincidental correlate of the earlier
+lid-close / trackpad wakes, not the cause or a reliable predictor. Recovery via
+hot corner in `-001426` produced **no** reconfiguration callback at all (no
+re-enumeration), so "recovery = clean re-enumeration" is also not general.
+Consequence: a fix cannot key on the reconfig flag.
+
+**Mechanism also falsified (2026-05-26) — the black is below WindowServer.**
+`-001343`'s `windowserver.txt` was read: at the black wake (00:12:20) the
+external got a *full, healthy* bring-up — `Display 2 hot plug 1`, `41 timing
+modes`, `set power state 1`, `IOMobileFramebufferOpenByName: Framebuffer
+found=1`, a complete `[ Display:Mode ]` block, and **`Display 2 set to previous
+mode 27`** with `current mode == preferred mode == 2048×1152 fmt:YCbCr444_10bit`.
+Across that one log, black wakes (22:31 `-223301`, 00:12 `-001343`), clean wakes
+(22:47 `-224742`, 23:02 `-230242`), and the 22:32:54 hot-corner recovery are
+**indistinguishable** at the WindowServer layer — same `set to previous mode
+27`, same framebuffer-found, same `current mode`. So the mode IS set (to the
+preferred mode) on black wakes; the black originates below CoreGraphics, in the
+DCP/scanout. This kills the "missing mode-set" mechanism and, with it, the
+`CGConfigureDisplayWithDisplayMode`-to-preferred fix (current already ==
+preferred, so the call is a no-op). It also means blackoutd has **no CG-visible
+signal** that the display is black — a detection problem, not just a recovery
+problem.
+
+In `-192959` WS (`ws-20260525-201956.log`): the black wake (19:27:23) shows
+**no `[ Display:Mode ]` enumeration** for display 2 across ~47 s of black —
+only a storm of `PKGWindowMoveOnMatchingDisplayChangedSeed failed to move
+window … (invalid)` and `_CGXPackagesSetWindowConstraints: Invalid window`
+(windows placed on a display with no valid scanout). The recovery wake
+(19:29:40) emits a full `[ Display:Mode ]` block (41 timing / 8 color modes,
+"set to previous mode 27", `2048 x 1152 fmt:YCbCr444_10bit`) and the external
+renders. Mode-block count by minute: 85 at 19:29, 0 at 19:27. (The
+`fmt:YCbCr444_10bit` here is the encoding macOS *mis-negotiates* from the
+SP2309W's defective EDID — the panel is really 8-bit RGB and has no YCbCr decode
+path; see ADR 0009 / `inject_edid/docs/sp2309w-display-notes.md`. It is
+orthogonal to cursor-on-black: the black is the *absence* of a mode-set, not the
+encoding. Do not conflate the two investigations.) **(2026-05-26: `-001343`'s
+black wake DID emit a full `[ Display:Mode ]` block with `set to previous mode
+27` — contradicting the "no `[ Display:Mode ]` at black" reading taken from
+`-192959`. Either `-192959`'s window cut off its mode block or the two are
+distinct failure modes; the deterministic `-001343` evidence supersedes for the
+mechanism. The `…failed to move window… (invalid)` storm also runs continuously
+here, ~170/min for hours, so it is not a black-specific marker.)**
+
+**Mechanism (revised 2026-05-26)**: the black is a DCP/scanout failure *below*
+WindowServer. On a black wake the external is enumerated, powered (`set power
+state 1`), framebuffer-opened, and set to its preferred mode (mode 27) —
+WindowServer / CoreGraphics see a fully configured, healthy display. Nothing at
+the CG layer distinguishes black from rendering, so no CG-layer operation
+(recommit, mode-set, reconfigure) can detect *or* fix it. Only a display-power
+cycle recovers it (hot corner), acting at the DCP/scanout level. Note the
+natural wake already toggles `setEnabled 0→1` / `power state 0→1` without
+recovering, so the effective recovery is the hot corner's deeper display-sleep
+(DCP link re-init), not a CG power-state toggle. The flap (`0x133e`) and the
+"missing mode-set" idea are both falsified above.
+
+**Recommit efficacy — open, not settled**: blackoutd's post-settle recommit
+and displayrecommitd's are *identical* — `CGBeginDisplayConfiguration` +
+`CGCompleteDisplayConfiguration(…, kCGConfigureForSession)`, nothing changed
+between. In the two captured black cases (`-155349`, `-192959`) it fired
+*early* (~+3 s) and black persisted (~129 s in `-192959`); a no-op transaction
+re-commits the current config and may not, on its own, install a mode. This
+does NOT establish the recommit is useless in all cases: it was brought into
+blackoutd because it was believed to recover *some* occurrences (see
+`docs/architecture.md`, ADR 0003, the displayrecommitd repo, and
+`displayrecommitd/scripts/displayprobe2.m`), and a *late* recommit (well after
+the flap settles) is untested. Treat "recommit recovers cursor-on-black" as
+unproven in either direction pending a late-recommit test. (The Alt Mode
+"+30 s dropout" framing in P2 / ADR 0003 / the README is separately unobserved
+in 2026-05-25 data; see P28.)
+
+**Update (2026-05-25, build g26 — late recommit tested, negative)**: the
+automatic late-recommit probe ran in `-223301`. The settle recommit plus all
+four late recommits (settle+5/15/30/60 s) logged `ok`, yet the external stayed
+black through all of them (~66 s) until a hot-corner display-power cycle
+produced a clean `0x111e` re-enumeration and recovered it. So a *late* recommit
+does not recover this cursor-on-black either — the no-op recommit is now
+empirically insufficient both early and late in the captured cases. `-225050`
+confirms `-223301`: late recommits 1/4–3/4 fired `ok` while black, the screen
+stayed black, and only the hot-corner power cycle recovered it (n=2; the
+cycle-1 settle+60 s fire was correctly preempted when the hot corner slept the
+system). The late recommit has served its purpose and can be disabled.
+The silent-recovery hypothesis (that "clean" wakes are flaps quietly fixed by a
+recommit) is also refuted: `-222940` (clean) shows a genuine `0x111e`
+enumeration, not a `0x133e` flap; and `-223301` shows recommits do not silently
+fix a flap.
+
+**Recovery candidates.** The flap is not a usable trigger (falsified above), so
+a fix must apply on *every* wake-with-external (in `wakeSettleTimerFired`),
+not key on a reconfig flag. Heed the known dead ends in `AGENTS.md` first:
+`IOServiceRequestProbe` on `DCPDPDeviceProxy` returns `kIOReturnUnsupported`
+(`0xe00002c7`) on Apple Silicon (confirmed in displayrecommitd);
+`CGDisplaySleep`/`CGDisplayWake` and `pmset displaysleepnow` flicker. The
+realistic, untried candidates are:
+
+1. A *late* CG recommit — **tested g26, negative** (`-223301`/`-225050`: all
+   fired `ok`, black persisted, hot corner recovered). Ready to disable.
+2. Explicit mode-set via `CGConfigureDisplayWithDisplayMode` to the preferred
+   mode — **predicted no-op, do not pursue**: `-001343`'s WS shows the black
+   wake already at `current == preferred` mode 27, so re-setting it changes
+   nothing (the same reason the recommit fails). A CG-layer operation cannot
+   fix a below-CG scanout failure.
+3. Display-power cycle that reaches the DCP (hot-corner equivalent) — the only
+   approach with evidence behind it (the hot corner is the sole observed
+   recovery). Flicker is accepted by the maintainer for a definitive fix. Open:
+   which API reproduces the hot corner's effect — a *CG* power-state toggle
+   (`CGDisplaySleep`/`Wake`) likely does NOT suffice (the natural wake already
+   toggles `power state 0→1` without recovering); candidates that reach the DCP
+   link are `IODisplayWrangler` `IORequestIdle` (private) or `pmset
+   displaysleepnow` (sudo). Both flicker.
+
+**Detection is the harder half.** Because black is invisible at the CG layer
+(see Mechanism), blackoutd cannot tell a black wake from a good one. A fix that
+power-cycles on *every* wake-with-external would flicker every wake; a targeted
+fix needs a below-CG black signal (a DCP / `dcpext` scanout property in
+`ioreg.txt` — the `inject_edid --mode` reader is the place to look). If neither
+is acceptable, document the manual hot-corner recovery and treat auto-recovery
+as out of scope.
+
+**Open / to confirm**:
+
+- ~~Does `0x133e` reliably predict black?~~ **Answered: no** (falsified
+  2026-05-26; `-001343` was black at `0x111e`). The reconfig flag is not a
+  classifier.
+- ~~Manual/late recommit recovers?~~ **Answered: no** (g26 late recommit tested
+  negative, `-223301`/`-225050`). A `blackoutd recommit` CLI is therefore low
+  value.
+- ~~What mode does the black wake hold vs preferred?~~ **Answered: the
+  preferred mode** (`-001343` WS: black wake at `current == preferred` mode 27).
+  The black is below CoreGraphics, not a mode mismatch.
+- New central question: is there a below-CG (DCP / `dcpext`) property that
+  distinguishes black from rendering, to drive *detection*? Look in `ioreg.txt`
+  via the `inject_edid --mode` reader. Without one, only an unconditional
+  power-cycle-on-wake (flicker) or manual hot-corner recovery remain.
+
+**Update (2026-05-26) — below-CG confirmed; a candidate detector; role reversal.**
+- *Mechanism confirmed.* Same-wake ioreg diff (`-015528` black vs `-015648`
+  recovered) isolates the change to the external `dcpext` node: `DCPPowerState`
+  0→4 and `DCPPowerAssertionCount` 0→1 (the `DCPDPDeviceProxy` /
+  `DCPAVVideoInterfaceProxy` proxies also (re)register on recovery). The
+  built-in `dcp` stays `DCPPowerState=4` throughout. So black = external DCP not
+  powered to scanout, below CoreGraphics — as the WS evidence implied.
+- *Candidate detector (promising, unverified).* External `dcpext`
+  `DCPPowerState` reads 0 in both controlled black captures (`-001343`,
+  `-015528`) and 4 in their recoveries (`-001426`, `-015648`) — a clean 0/4
+  split. BUT two uncontrolled captures break it: `-085729` (external active)
+  read 0 and `-093747` (black, mid-saga) read 4 — likely capture-instant timing
+  (powersave ramp / role-reversal). DPMS powersave also reads 0. So
+  `DCPPowerState` is the best below-CG signal found but is NOT yet a trustworthy
+  sole trigger. Validate by capturing *at the black instant* (not ~90 s later)
+  with the observed on-screen state recorded, repeatedly, and confirm
+  0⇔black / 4⇔rendering. Surface `dcpext` `DCPPowerState` /
+  `DCPPowerAssertionCount` in `diagnose` to make this cheap.
+  **(2026-05-26, later — REFUTED as read.** The cross-file readout is unsound:
+  there are two `AppleDCPExpert` nodes (built-in + external) and they cannot be
+  told apart by position. Validation captures invert the naive signal —
+  `-140624` (external actively rendering) read 0; `-141433` (cursor-on-black, on
+  AC) read 4. Pooled by observed state: black `{0,0,4,4}` vs active `{4,4,0,0}`,
+  i.e. no correlation. The *only* sound observation is the within-pair diff
+  `-015528`→`-015648`, where the `DCPEXT` block's value went 0→4 — n=1. So
+  `DCPPowerState` is NOT a usable detector as currently read.
+  **(2026-05-26, settled — DEAD.** Re-extracted with correct attribution: each
+  `AppleDCPExpert` carries `"role" = "DCP"` (built-in) or `"DCPEXT"` (external).
+  Keyed on role, the **external `DCPEXT` `DCPPowerState` is 4 in every capture**
+  — black, clean, and recovered alike; it never varies. The 0→4 I had seen
+  (including the `-015528`→`-015648` within-pair diff) was the **built-in's**
+  DCP, which reads 0 when the built-in is blacked out
+  (`CGSConfigureDisplayEnabled(false)`) and 4 when active — i.e. it tracks
+  blackout state, not the external scanout. So `DCPPowerState` carries no
+  cursor-on-black signal. Consistent with the WS finding: the stalled scanout
+  is not surfaced to ioreg at all. There is no below-CG detector here; treat
+  ioreg-based black detection as unavailable, and use unconditional recovery on
+  every wake-with-external. `diagnose` may still record both DCPs (labeled by
+  role) for forensics, but not as a detector.)**
+- *Role reversal (new; `-093747`/`-093819` saga, battery).* After `pmset
+  displaysleepnow` + trackpad wake, the **built-in** was briefly cursor-on-black,
+  then it moved to the external. The black is not external-specific; it lands on
+  whichever display the DCP fails to scan out. Reinforces firmware/DCP scanout,
+  and a fix must handle either display.
+- *Recovery levers.* (a) `pmset displaysleepnow` (a DCP-level display sleep)
+  eventually recovered, with messy intermediate states — consistent with the hot
+  corner. (b) **Reuse blackoutd's own primitive**: blackout = `applyEnable:` →
+  `CGSConfigureDisplayEnabled(…, false/true)`. A disable→enable cycle on the
+  *external* tears down and rebuilds its config — a stronger lever than the
+  no-op recommit, worth testing as recovery, though still CG-level so it may not
+  reach the DCP. Sequence carefully (never leave zero active displays — keep or
+  restore the built-in during the external cycle); expect flicker.
+- *Power source.* No controlled comparison yet; cursor-on-black reproduces on
+  battery (scripted and natural). AC was clean in `-213717`/`-220028`, but those
+  were not the scripted repro. To attribute power-source dependence, run the
+  same `pmset schedule wake` repro on AC. AGENTS.md already flags
+  battery-at-sleep as a coincidental non-predictor.
+  **(2026-05-26: done — `-141433` ran the scripted repro on AC and was
+  cursor-on-black. The bug is NOT power-source-dependent; AC reproduces it.)**
+
+**Files**: investigation only so far. Relates to P2, P20, P28, ADR 0003, ADR
+0009 (SP2309W YCbCr), and a future inject_edid `--mode` reader.

@@ -1,0 +1,40 @@
+2026-05-26 01:54:05 -0400 Assertions          	PID 560(powerd) Created InternalPreventSleep "PM configd - Wait for Device enumeration" 00:00:00  id:0x0xd0000896a [System: PrevIdle DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:05 -0400 com.apple.sleepservices.sessionStarted	SleepService: window begins with cap time=180 secs                         	          
+2026-05-26 01:54:05 -0400 DarkWake            	DarkWake from Deep Idle [CDNP] : due to smc.sysState.Wake(0x70070000) wifibt SMC.OutboxNotEmpty E_RX_IP_PACKET ARPT/ Using AC (Charge:34%) 7 secs    
+2026-05-26 01:54:05 -0400 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+2026-05-26 01:54:05 -0400 WakeTime            	WakeTime: 0.481 sec                                                        	          
+2026-05-26 01:54:05 -0400 Kernel Client Acks  	Delays to Wake notifications: [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(68 ms)] [AppleCS42L84Audio driver is slow(msg: DidChangeState to 1)(76 ms)] [Codec Output driver is slow(msg: WillChangeState to 1)(76 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(119 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(124 ms)] [AppleAVD driver is slow(msg: SetState to 1)(504 ms)]           
+2026-05-26 01:54:05 -0400 Assertions          	PID 560(powerd) Created InternalPreventSleep "com.apple.powermanagement.acwakelinger" 00:00:00  id:0x0xd0000896c [System: PrevIdle DeclUser PushSrvc SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:05 -0400 Assertions          	Summary- [System: PrevIdle DeclUser PushSrvc SRPrevSleep kCPU kDisp] Using AC(Charge: 34)          
+2026-05-26 01:54:07 -0400 com.apple.sleepservices.sessionTerminated	SleepService: window has terminated.                                       	          
+2026-05-26 01:54:12 -0400 Assertions          	PID 560(powerd) Created UserIsActive "com.apple.powermanagement.wakeschedule" 00:00:00  id:0x0x900008972 [System: PrevIdle DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:12 -0400 Wake                	DarkWake to FullWake from Deep Idle [CDNVA] : due to HID Activity Using AC (Charge:34%)           
+2026-05-26 01:54:12 -0400 WakeDetails         	DriverReason:smc.sysState.Wake(0x70070000) - DriverDetails:                
+2026-05-26 01:54:12 -0400 WakeTime            	WakeTime: 0.054 sec                                                        	          
+2026-05-26 01:54:12 -0400 Kernel Client Acks  	Delays to Wake notifications: [RTBuddy(ANS2) driver is slow(msg: SetState to 2)(68 ms)] [AppleCS42L84Audio driver is slow(msg: DidChangeState to 1)(76 ms)] [Codec Output driver is slow(msg: WillChangeState to 1)(76 ms)] [AppleConvergedIPCOLYBTControl driver is slow(msg: SetState to 1)(119 ms)] [AppleMultiFunctionManager driver is slow(msg: SetState to 1)(124 ms)] [AppleAVD driver is slow(msg: SetState to 1)(504 ms)]           
+2026-05-26 01:54:12 -0400 Assertions          	PID 619(WindowServer) Created PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x7000089b7 [System: PrevIdle PrevSleep DeclUser SRPrevSleep IPushSrvc kCPU kDisp]          
+2026-05-26 01:54:13 -0400 Assertions          	PID 619(WindowServer) Released PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x7000089b7 [System: PrevIdle DeclUser SRPrevSleep IPushSrvc kCPU kDisp]          
+2026-05-26 01:54:14 -0400 Assertions          	PID 560(powerd) TimedOut UserIsActive "com.apple.powermanagement.wakeschedule" 00:00:02  id:0x0x900008972 [System: PrevIdle DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:14 -0400 Assertions          	PID 619(WindowServer) Created PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x7000089bc [System: PrevIdle PrevSleep DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:14 -0400 Assertions          	PID 619(WindowServer) Released PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x7000089bc [System: PrevIdle DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:16 -0400 Assertions          	PID 22668(cloudd) Created SystemIsActive "NSURLSessionTask 8EC0D1BB-3C42-4D46-9826-781D2E7E8601" 00:00:00  id:0x0xc00008a0e [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:16 -0400 Assertions          	PID 619(WindowServer) Created PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x700008a14 [System: PrevIdle PrevSleep DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:17 -0400 Assertions          	PID 619(WindowServer) Released PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x700008a14 [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:19 -0400 Assertions          	PID 22668(cloudd) Released SystemIsActive "NSURLSessionTask 8EC0D1BB-3C42-4D46-9826-781D2E7E8601" 00:00:03  id:0x0xc00008a0e [System: PrevIdle DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:47 -0400 Assertions          	PID 22668(cloudd) Created SystemIsActive "NSURLSessionTask F9F68C08-1C8A-4A41-8A6F-422BC6C6F3A2" 00:00:00  id:0x0xc00008a21 [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:47 -0400 Assertions          	PID 22847(PowerUIAgent) Created MaintenanceWake "com.apple.obc" 00:00:00  id:0x0xd00008a23 [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:47 -0400 Assertions          	PID 22847(PowerUIAgent) Released MaintenanceWake "com.apple.obc" 00:00:00  id:0x0xd00008a23 [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:48 -0400 Assertions          	PID 22668(cloudd) Created SystemIsActive "NSURLSessionTask 1D7CEBBE-B325-4189-9172-25CF7AD3BD3A" 00:00:00  id:0x0xc00008a24 [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:50 -0400 Assertions          	PID 560(powerd) Released InternalPreventSleep "PM configd - Wait for Device enumeration" 00:00:45  id:0x0xd0000896a [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:54:50 -0400 Assertions          	PID 560(powerd) TimedOut InternalPreventSleep "com.apple.powermanagement.acwakelinger" 00:00:45  id:0x0xd0000896c [System: PrevIdle DeclUser SysAct SRPrevSleep kCPU kDisp]          
+2026-05-26 01:55:33 -0400 Assertions          	PID 995(sharingd) Released PreventUserIdleSystemSleep "Handoff" 00:01:18  id:0x0x1000089bd [System: PrevIdle DeclUser kDisp]          
+2026-05-26 01:56:03 -0400 Assertions          	PID 22847(PowerUIAgent) Created MaintenanceWake "com.apple.obc" 00:00:00  id:0x0xd00008a50 [System: PrevIdle DeclUser SRPrevSleep kCPU kDisp]          
+2026-05-26 01:56:03 -0400 Assertions          	PID 22847(PowerUIAgent) Released MaintenanceWake "com.apple.obc" 00:00:00  id:0x0xd00008a50 [System: PrevIdle DeclUser kDisp]          
+2026-05-26 01:56:35 -0400 Assertions          	PID 560(powerd) Released PreventUserIdleSystemSleep "Powerd - Prevent sleep while display is on" 00:02:23  id:0x0x1000089b8 [System: DeclUser kDisp]          
+2026-05-26 01:56:36 -0400 Assertions          	PID 619(WindowServer) Created PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x700008a61 [System: PrevIdle PrevSleep DeclUser SysAct kCPU kDisp]          
+2026-05-26 01:56:36 -0400 Assertions          	PID 619(WindowServer) Released PreventSystemSleep "com.apple.WindowServer.PUIDS" 00:00:00  id:0x0x700008a61 [System: PrevIdle DeclUser SysAct kDisp]          
+Total Sleep/Wakes since boot:1659
+   PreventUserIdleDisplaySleep    0
+   PreventSystemSleep             0
+   PreventUserIdleSystemSleep     1
+   pid 560(powerd): [0x0006a92b00018a60] 00:00:18 PreventUserIdleSystemSleep named: "Powerd - Prevent sleep while display is on"  

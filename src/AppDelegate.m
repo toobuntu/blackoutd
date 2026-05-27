@@ -284,16 +284,20 @@ static NSBundle *BDResourceBundle(void) {
   _displayController.systemSleeping = NO;
   BOOL externalUnplugged = [_displayController invalidateDisplayState];
   if (externalUnplugged) {
+    // Immediate safety restore so the user has a usable built-in now. Do NOT
+    // return: the wake-settle flow below must still run on this path so the
+    // post-settle recommit and the auto-blackout re-check happen. Without it,
+    // a successful restore here leaves the external un-recommitted and the
+    // built-in un-blacked-out with the external present (see P28).
     NSLog(@"[wake] — external disconnected during sleep — disabling blackout");
     [_defaults setBool:NO forKey:kBlackoutActiveKey];
     [_displayController disableBlackout];
-    return;
   }
 
-  // Arm the post-wake settle timer. The timer resets on each display callback
-  // and fires when the pipeline has been quiet for 2 seconds. On fire it
-  // issues a no-op CGConfig recommit (P2, USB-C Alt Mode recovery) and
-  // re-applies auto-blackout if needed (P0, wake auto-blackout fix).
+  // Arm the post-wake settle timer (always, both paths). The timer resets on
+  // each display callback and fires when the pipeline has been quiet for 2
+  // seconds. On fire it issues a no-op CGConfig recommit (P2 / ADR 0003) and
+  // re-checks the safety invariant / re-applies auto-blackout (P0).
   [_displayController handleSystemWake];
 }
 

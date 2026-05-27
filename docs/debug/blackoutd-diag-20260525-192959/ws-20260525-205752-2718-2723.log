@@ -1,0 +1,556 @@
+Timestamp               Ty Process[PID:TID]
+2026-05-25 19:27:21.803 I  WindowServer[619:68eadb] [com.apple.iohid:connection] 2B690965-E7B9-4ABC-AE80-1738B2DFACDC: HID activity: 0 -> 1 (service:0x10000037f event:3)
+2026-05-25 19:27:21.803 I  WindowServer[619:68eadb] [com.apple.iohid:connection] 2B690965-E7B9-4ABC-AE80-1738B2DFACDC: iohideventsystem_client_dispatch_properties_changed:0x10004003
+2026-05-25 19:27:21.821 I  WindowServer[619:68c93e] [com.apple.iohid:default] [4294969682] powerNotificationCallback IOPMCapabilityBits:0x8019
+2026-05-25 19:27:21.851 Df WindowServer[619:68c93e] [com.apple.CoreRCPlugin:default] CoreRCDisplayPowerNotification in IOPM callback
+2026-05-25 19:27:21.851 Df WindowServer[619:68eadb] [com.apple.SkyLight:display] [ Display:Power      ] X-I: -1, P: 7:0, C: 1:1, T: 0.00:0, p: 2300000021d, U: 541
+2026-05-25 19:27:21.851 Df WindowServer[619:68eadb] [com.apple.SkyLight:display] [ Display:Power      ] X-I: -1, P: 2:1, C: 0:0, T: 0.00:0, p: 2300000021e, U: 542
+2026-05-25 19:27:21.851 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ] S-I: 1, P: 2:0, C: 1, T: 0.00, p: 2300000021d, U: 541
+2026-05-25 19:27:21.851 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] clamshell state:1 sent to IOMFB
+2026-05-25 19:27:21.852 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ]   Work (D/C/W/S/P/R): 0/0/0/0/0/0
+2026-05-25 19:27:21.852 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ] CH-S: 0, U: 541
+2026-05-25 19:27:21.853 Df WindowServer[619:68c93e] [com.apple.xpc:connection] [0x703dfd040] activating connection: mach=true listener=false peer=false name=com.apple.iokit.powerdxpc
+2026-05-25 19:27:21.853 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferred hotplugs cannot be processed in a non-wake state
+2026-05-25 19:27:21.854 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ] S-I: ffffffff, P: 2:0, C: 0, T: 0.00, p: 2300000021e, U: 542
+2026-05-25 19:27:21.854 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:CBPolicy   ] Policy reset
+2026-05-25 19:27:21.854 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ] Broadcast: Will Wake
+2026-05-25 19:27:21.854 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Display 1 setEnabled:1
+2026-05-25 19:27:21.854 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=1 seed=0 current_state=off target_state=off new_target_state=on
+2026-05-25 19:27:21.855 Df WindowServer[619:68c93e] [com.apple.xpc:connection] [0x703dfd040] invalidated after the last release of the connection object
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::update_power_state display_id=1 current_power_state=0 target_power_state=0 new_target_power_state=1 sync=0 raw_power_state=1 power_assertions=0
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:Indicators] SIL State Unknown -> Unknown
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 1 set power state 1
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 1 error 0xe00002bc fetching current digital mode
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::set_display_state display_id=1 current_state=off target_state=on
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=1 seed=0 current_state=off target_state=on result=queued
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::update_power_state display_id=1 current_power_state=0 target_power_state=1 new_target_power_state=1 sync=0 raw_power_state=1 power_assertions=0
+2026-05-25 19:27:21.857 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::complete_display_state_transition display_id=1, current_state=on
+2026-05-25 19:27:21.858 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Name: Valid, Attributes: Valid
+2026-05-25 19:27:21.858 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Presets:Shim ] <private>
+2026-05-25 19:27:21.858 Df WindowServer[619:112f] [com.apple.ProDisplayLibrary:ProDisplay] <private>
+2026-05-25 19:27:21.858 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Presets:Shim ] <private>
+2026-05-25 19:27:21.881 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:HDR ] Display 1 has override file at <private>
+2026-05-25 19:27:21.886 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ] Display 1 set to starting mode 6
+2026-05-25 19:27:21.886 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:HDR ] Not populating capabilities for builtin display 1 set to sdr mode and brightness slider support is enabled.
+2026-05-25 19:27:21.887 Df WindowServer[619:112f] [com.apple.Multitouch:Plugin] [HID] [MT] <private><private><private> Momentum scroll dispatch rate set - requested value 60.000000 -> set value 60.000000
+2026-05-25 19:27:21.888 Df WindowServer[619:112f] [com.apple.SkyLight:default] pid 94398 failed to act on a ping it dequeued before timing out.
+2026-05-25 19:27:21.888 Df WindowServer[619:112f] [com.apple.SkyLight:default] pid 1188 failed to act on a ping it dequeued before timing out.
+2026-05-25 19:27:21.888 Df WindowServer[619:112f] [com.apple.SkyLight:default] pid 1222 failed to act on a ping it dequeued before timing out.
+2026-05-25 19:27:21.890 Df WindowServer[619:112f] [com.apple.SkyLight:default] pid 930 failed to act on a ping it dequeued before timing out.
+2026-05-25 19:27:21.891 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Presets:Shim ] <private>
+2026-05-25 19:27:21.891 Df WindowServer[619:112f] [com.apple.ProDisplayLibrary:ProDisplay] <private>
+2026-05-25 19:27:21.891 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Presets:Shim ] <private>
+2026-05-25 19:27:21.891 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ] Virtual display 0 set to mode 0
+2026-05-25 19:27:21.908 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Display 101 setEnabled:1
+2026-05-25 19:27:21.908 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=101 seed=0 current_state=off target_state=off new_target_state=on
+2026-05-25 19:27:21.908 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] VirtualDisplay::set_display_state display_id=101 current_state=off target_state=on
+2026-05-25 19:27:21.908 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=101 seed=0 current_state=off target_state=on result=queued
+2026-05-25 19:27:21.908 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] VirtualDisplay::complete_display_state_transition display_id=101, current_state=on
+2026-05-25 19:27:21.911 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x714ff3. Client state: Data count: 16388 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:21.912 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Detected match in persistent store.
+2026-05-25 19:27:21.912 Df WindowServer[619:112f] [com.apple.SkyLight:default] Found match = true, preGlowC = false
+2026-05-25 19:27:21.912 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Desired config set is valid.
+2026-05-25 19:27:21.913 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Applying configuration changes (<private>)
+2026-05-25 19:27:21.913 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]   display 0x65
+2026-05-25 19:27:21.913 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]     added
+2026-05-25 19:27:21.913 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]     setting unmirror mode 0
+2026-05-25 19:27:21.913 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]   display 0x2 removed
+2026-05-25 19:27:21.917 Df WindowServer[619:68eadb] [com.apple.xpc:connection] [0x703dfd040] activating connection: mach=true listener=false peer=false name=com.apple.iokit.powerdxpc
+2026-05-25 19:27:21.918 Df WindowServer[619:68eadb] [com.apple.xpc:connection] [0x703dfd040] invalidated after the last release of the connection object
+2026-05-25 19:27:21.922 Df WindowServer[619:68f456] [com.apple.Multitouch:Plugin] [HID] [MT] <private><private><private> Momentum scroll dispatch rate set - requested value 60.000000 -> set value 60.000000
+2026-05-25 19:27:21.983 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45100 with state "none"; now 8 window(s) exist.
+2026-05-25 19:27:21.983 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45100 from "none" to "hidden".
+2026-05-25 19:27:21.996 Df WindowServer[619:68c93e] [com.apple.CoreRCPlugin:default] serviceNotificationAnalyticsPCON service published: 0x1000D5436 : DCPDPDeviceProxy
+2026-05-25 19:27:22.004 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45101 with state "none"; now 9 window(s) exist.
+2026-05-25 19:27:22.004 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45101 from "none" to "hidden".
+2026-05-25 19:27:22.005 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45102 with state "none"; now 10 window(s) exist.
+2026-05-25 19:27:22.005 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45102 from "none" to "hidden".
+2026-05-25 19:27:22.009 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45103 with state "none"; now 11 window(s) exist.
+2026-05-25 19:27:22.009 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45103 from "none" to "hidden".
+2026-05-25 19:27:22.017 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 4020f[OrderWindowGroupFrontConditionally]: order window: b028 op: 1 relative: 0
+2026-05-25 19:27:22.056 Df WindowServer[619:68c93e] (CoreRCPlugin) PCON <private>
+2026-05-25 19:27:22.097 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45104 with state "none"; now 9 window(s) exist.
+2026-05-25 19:27:22.097 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45104 from "none" to "hidden".
+2026-05-25 19:27:22.115 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45105 with state "none"; now 9 window(s) exist.
+2026-05-25 19:27:22.115 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45105 from "none" to "hidden".
+2026-05-25 19:27:22.131 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45106 with state "none"; now 11 window(s) exist.
+2026-05-25 19:27:22.131 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45106 from "none" to "hidden".
+2026-05-25 19:27:22.138 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45109 with state "none"; now 10 window(s) exist.
+2026-05-25 19:27:22.138 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45109 from "none" to "hidden".
+2026-05-25 19:27:22.147 Df WindowServer[619:124d] [com.apple.coreanimation:WindowServer] Display 2 hot plug 1
+2026-05-25 19:27:22.147 Df WindowServer[619:124d] (IOMobileFramebuffer)  kern_CopyProperty key : IOMFBHotplugKeysChangedKey not found
+2026-05-25 19:27:22.147 Df WindowServer[619:124d] (IOMobileFramebuffer)  kern_CopyProperty key : IOMFBHotplugKeysChangedKey not found
+2026-05-25 19:27:22.147 Df WindowServer[619:124d] (IOMobileFramebuffer)  kern_CopyProperty key : VirtualDisplayMode not found
+2026-05-25 19:27:22.147 Df WindowServer[619:124d] [com.apple.coreanimation:WindowServer] Display 2 uuid set
+2026-05-25 19:27:22.147 Df WindowServer[619:124d] (IOMobileFramebuffer)  kern_CopyProperty key : DisplayContainerID not found
+2026-05-25 19:27:22.157 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: af35 op: 0 relative: 0
+2026-05-25 19:27:22.157 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: af34 op: 0 relative: 0
+2026-05-25 19:27:22.157 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: af33 op: 0 relative: 0
+2026-05-25 19:27:22.157 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: af32 op: 0 relative: 0
+2026-05-25 19:27:22.157 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45110 with state "none"; now 11 window(s) exist.
+2026-05-25 19:27:22.157 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45110 from "none" to "hidden".
+2026-05-25 19:27:22.158 Df WindowServer[619:124d] [com.apple.coreanimation:WindowServer] Display 2 hotplug-state 1 updating digital modes: color 0x6fdd91ad0; timing 0x6fdd93330
+2026-05-25 19:27:22.158 Df WindowServer[619:124d] [com.apple.coreanimation:WindowServer] Display 2 41 timing modes, 8 color modes
+2026-05-25 19:27:22.159 Df WindowServer[619:124d] [com.apple.coreanimation:WindowServer] Display 2 current mode (2048 x 1152) [32 77], preferred mode (2048 x 1152) [32 77]
+2026-05-25 19:27:22.159 Df WindowServer[619:124d] [com.apple.SkyLight:display] [ Display:Hotplug    ] Replacing existing hotplug event for state "out" with "in", display id: 2
+2026-05-25 19:27:22.163 Df WindowServer[619:68c93e] [com.apple.CoreRCPlugin:default] serviceNotificationAnalyticsEDID service published: 0x1000D5446 : DCPAVVideoInterfaceProxy
+2026-05-25 19:27:22.167 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.167 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.167 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.167 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.167 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.177 Df WindowServer[619:6900d1] [com.apple.iohid:service] 0x1000007a3: set report interval:200000 client:A44E1B63-C961-42FD-9271-0178D89A3DA6
+2026-05-25 19:27:22.177 Df WindowServer[619:68c93e] (CoreRCPlugin) EDID <private>
+2026-05-25 19:27:22.179 I  WindowServer[619:6900d1] [com.apple.iohid:service] 0x1000007a3: Set report interval current:0 new:200000 result:1 events:{
+    AmbientLightSensor = 1262091;
+}
+2026-05-25 19:27:22.187 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44850; now 10 window(s) remain.
+2026-05-25 19:27:22.195 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44851; now 9 window(s) remain.
+2026-05-25 19:27:22.198 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.198 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45111 with state "none"; now 12 window(s) exist.
+2026-05-25 19:27:22.198 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45111 from "none" to "hidden".
+2026-05-25 19:27:22.199 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44852; now 8 window(s) remain.
+2026-05-25 19:27:22.203 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44853; now 7 window(s) remain.
+2026-05-25 19:27:22.206 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45112 with state "none"; now 12 window(s) exist.
+2026-05-25 19:27:22.206 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45112 from "none" to "hidden".
+2026-05-25 19:27:22.206 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45113 with state "none"; now 10 window(s) exist.
+2026-05-25 19:27:22.206 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45113 from "none" to "hidden".
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x7882db, PID 12052)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x7a7c3f, PID 11983)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x495a87, PID 8864)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x82c553, PID 8660)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x2431db, PID 8124)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x7f4c3b, PID 4316)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x75f6cb, PID 4312)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x7a000b, PID 4114)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x15b7fb, PID 78717)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x2d091f, PID 96735)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x8c57f, PID 82022)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x11bc23, PID 26983)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x3ab103, PID 19859)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x19b81b, PID 7479)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x26d6c3, PID 6514)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x26e433, PID 6395)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x115317, PID 1520)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x8cb03, PID 1503)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x50207, PID 1358)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0xa7a13, PID 1412)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x69d5b, PID 1526)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x6a7cb, PID 1510)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x6be03, PID 1506)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x7c303, PID 1245)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x56003, PID 1128)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x4cbb3, PID 1101)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x49603, PID 956)
+2026-05-25 19:27:22.211 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x49103, PID 1021)
+2026-05-25 19:27:22.214 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Detected match in persistent store.
+2026-05-25 19:27:22.214 Df WindowServer[619:112f] [com.apple.SkyLight:default] process_presentation_displays: no_config = false, default_config = true, default_policy = 0
+2026-05-25 19:27:22.220 I  WindowServer[619:6900d1] [com.apple.iohid:default] [4294969682] powerNotificationCallback IOPMCapabilityBits:0x1f
+2026-05-25 19:27:22.220 Df WindowServer[619:6900d1] [com.apple.iohid:default] [4294969682] wake CapsLockState: 0
+2026-05-25 19:27:22.227 Df WindowServer[619:68c93e] [com.apple.CoreRCPlugin:default] CoreRCDisplayPowerNotification in IOPM callback
+2026-05-25 19:27:22.266 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: order window: 5 op: 1 relative: 0
+2026-05-25 19:27:22.267 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Persist    ] Saving configuration: session, permanent store.
+2026-05-25 19:27:22.268 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ]   Work (D/C/W/S/P/R): 0/1/0/0/0/0
+2026-05-25 19:27:22.268 E  WindowServer[619:112f] [com.apple.SkyLight:default] Invalid notification transition from "PowerStateNotificationTypeNone".  Expected: "PowerStateNotificationTypeNone" but received: "PowerStateNotificationTypeDidWake"
+2026-05-25 19:27:22.268 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ] Broadcast: Did Wake
+2026-05-25 19:27:22.268 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ] CH-S: 2, U: 542
+2026-05-25 19:27:22.268 I  WindowServer[619:6900d9] [com.apple.iohid:default] displayNotificationCallback : displayState change 0x0 -> 0x2
+2026-05-25 19:27:22.268 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Processing hotplug "in" for display id: 2 (CA)
+2026-05-25 19:27:22.268 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Display 2 setEnabled:1
+2026-05-25 19:27:22.268 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=2 seed=0 current_state=off target_state=off new_target_state=on
+2026-05-25 19:27:22.269 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::update_power_state display_id=2 current_power_state=0 target_power_state=0 new_target_power_state=1 sync=0 raw_power_state=1 power_assertions=0
+2026-05-25 19:27:22.270 Df WindowServer[619:112f] [com.apple.coreanimation:Indicators] SIL State Unknown -> Unknown
+2026-05-25 19:27:22.270 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 set power state 1
+2026-05-25 19:27:22.270 Df WindowServer[619:112f] (IOMobileFramebuffer)  kern_CopyProperty key : VirtualDisplayMode not found
+2026-05-25 19:27:22.270 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 uuid cleared
+2026-05-25 19:27:22.270 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 uuid set
+2026-05-25 19:27:22.270 Df WindowServer[619:112f] (IOMobileFramebuffer)  kern_CopyProperty key : DisplayContainerID not found
+2026-05-25 19:27:22.273 Df WindowServer[619:68c93e] [com.apple.CoreRCPlugin:default] CoreRCDisplayPowerNotification in SLS callback
+2026-05-25 19:27:22.273 Df WindowServer[619:68c93e] [com.apple.CoreRCPlugin:default] System is awake
+2026-05-25 19:27:22.283 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 hotplug-state 1 updating digital modes: color 0x7144277e0; timing 0x6fdd91590
+2026-05-25 19:27:22.283 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 41 timing modes, 8 color modes
+2026-05-25 19:27:22.284 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 current mode (2048 x 1152) [32 77], preferred mode (2048 x 1152) [32 77]
+2026-05-25 19:27:22.285 Df WindowServer[619:112f] (IOMobileFramebuffer) IOMobileFramebufferSetDigitalOutMode
+2026-05-25 19:27:22.356 A  WindowServer[619:6900d1] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.357 Df WindowServer[619:6900d1] [com.apple.runningboard:monitor] Received state update for 1503 (app<application.com.apple.MobileSMS.1152921500311888381.1152921500311888451(501)>, running-active-NotVisible
+2026-05-25 19:27:22.357 I  WindowServer[619:6900d1] [com.apple.SkyLight:packages] 0[outside of RPC]: resumed connection 8cb03
+2026-05-25 19:27:22.391 A  WindowServer[619:68c93e] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.392 Df WindowServer[619:68c93e] [com.apple.runningboard:monitor] Received state update for 70452 (xpcservice<com.apple.weather.widget([osservice<com.apple.chronod(501)>:1101])(501)>{vt hash: 80458965}[uuid:7BF1A0C9-B885-42B2-BDF2-2421254E35F6]{definition:com.apple.weather.widget[extension][client]}, running-active-NotVisible
+2026-05-25 19:27:22.392 I  WindowServer[619:6900d1] [com.apple.SkyLight:packages] 0[outside of RPC]: resumed connection 1726e7
+2026-05-25 19:27:22.442 A  WindowServer[619:6900d1] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.442 Df WindowServer[619:6900d1] [com.apple.runningboard:monitor] Received state update for 1503 (app<application.com.apple.MobileSMS.1152921500311888381.1152921500311888451(501)>, running-active-NotVisible
+2026-05-25 19:27:22.492 A  WindowServer[619:68c93e] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.492 Df WindowServer[619:68c93e] [com.apple.runningboard:monitor] Received state update for 70452 (xpcservice<com.apple.weather.widget([osservice<com.apple.chronod(501)>:1101])(501)>{vt hash: 80458965}[uuid:7BF1A0C9-B885-42B2-BDF2-2421254E35F6]{definition:com.apple.weather.widget[extension][client]}, running-active-NotVisible
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] set digital mode [77 32] 2048x1152 59hz YCbCr444_10bit
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] (IOMobileFramebuffer)  kern_CopyProperty key : IOMFBSupportsHeadOfLineSwaps not found
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 1 posting brightness notification
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 posting brightness notification
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:WindowServer] Display 2 EDR scaling applied in GP: 1
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::set_display_state display_id=2 current_state=off target_state=on
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=2 seed=0 current_state=off target_state=on result=queued
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::update_power_state display_id=2 current_power_state=0 target_power_state=1 new_target_power_state=1 sync=0 raw_power_state=1 power_assertions=0
+2026-05-25 19:27:22.522 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] IOMFBDisplay::complete_display_state_transition display_id=2, current_state=on
+2026-05-25 19:27:22.523 Df WindowServer[619:6900d1] [com.apple.CoreBrightness:default] BCAppleBacklightBrtControl: cleaning up monitor
+2026-05-25 19:27:22.524 Df WindowServer[619:6900d1] [com.apple.CoreBrightness:default] BCAppleBacklightBrtControl: got back service 46595
+2026-05-25 19:27:22.524 Df WindowServer[619:6900d1] [com.apple.BCBrtControl.AppleBacklight:default] driver params = {
+    BrightnessMicroAmps =     {
+        max = 58009;
+        min = 200;
+        value = 3834;
+    };
+    BrightnessMilliNits =     {
+        max = 2129139;
+        min = 8089;
+        uncalMilliNits = 36195;
+        value = 168112;
+    };
+    brightness =     {
+        max = 65536;
+        min = 0;
+        value = 32768;
+    };
+    rawBrightness =     {
+        max = 2047;
+        min = 0;
+        value = 1547;
+    };
+}
+2026-05-25 19:27:22.524 Df WindowServer[619:6900d1] [com.apple.CoreBrightness.CBAPEndpoint:BuiltIn] <private>:-[CBAPEndpoint copyProperty:] called for key: backlight-calibration-parameters
+2026-05-25 19:27:22.525 Df WindowServer[619:6900d1] [com.apple.xpc:connection] [0x703dfc8c0] invalidated after the last release of the connection object
+2026-05-25 19:27:22.525 E  WindowServer[619:6900d1] [com.apple.defaults:User Defaults] All kCFPreferencesCurrentUser domains in this process will be volatile, because homeDirPath starts with /var/empty
+2026-05-25 19:27:22.525 Df WindowServer[619:6900d1] [com.apple.xpc:connection] [0x703dfc8c0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-05-25 19:27:22.527 Df WindowServer[619:112f] (IOMobileFramebuffer) iomfb_populate_all_display_infos: All Display Instances enumerated successfully - FB Count = 2
+2026-05-25 19:27:22.527 Df WindowServer[619:6900d1] [com.apple.BCBrtControl.AppleBacklight:default] capabilities = {
+    BLRCCTWarning = 3500;
+    BatterySavingFeatures = 1;
+    BuiltIn = 1;
+    CBGammaContrastPreservation =     {
+        "gcp-ambient-factor" = "0.6";
+        "gcp-ambient-max" = 150000;
+        "gcp-ambient-min" = "0.5";
+        "gcp-as-b" = "1.25";
+        "gcp-gamma-factor-high" = "0.6";
+        "gcp-gamma-factor-low" = 1;
+        "gcp-gamma-max" = "1.75";
+        "gcp-gamma-min" = "0.25";
+        "gcp-k-b" = "1.1504";
+        "gcp-k-l" = "0.98";
+        "gcp-nits-max" = 10000;
+        "gcp-nits-min" = "0.1";
+        "gcp-ramp-down-duration" = 5;
+        "gcp-ramp-down-lux-threshold" = "0.5";
+        "gcp-ramp-up-duration" = 2;
+        "gcp-ramp-up-lux-threshold" = "0.5";
+        "gcp-ramp-update-rate" = 60;
+        "gcp-reference-ambient-lux" = 16;
+        "gcp-reference-white-nits" = 203;
+        "supports-gcp" = 0;
+    };
+    DCP = 1;
+    EDRPotentialHeadroom = 2;
+    EDRReferenceHeadroom = 0;
+    HarmonyShiftA = 4294672384;
+    HarmonyShiftB = 137626;
+    LmaxProduct = 525;
+    MaxNits = "5
+2026-05-25 19:27:22.528 Df WindowServer[619:112f] (IOMobileFramebuffer)  IOMobileFramebufferOpen:  success, return 0
+2026-05-25 19:27:22.528 Df WindowServer[619:112f] (IOMobileFramebuffer)  kern_CopyProperty key : hdcp-hoover-protocol not found
+2026-05-25 19:27:22.528 Df WindowServer[619:112f] (IOMobileFramebuffer)  IOMobileFramebufferOpenByName: Framebuffer found=1 return 0 Name = external-0
+2026-05-25 19:27:22.529 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Name: Valid, Attributes: Valid
+2026-05-25 19:27:22.529 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Persist    ] v: 0x000010ac m: 0x0000d01d s: 0x304d5353 y: 0x000007d8 w: 0x0000002b asn: <private> p: 0xdeadbeef
+2026-05-25 19:27:22.529 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Presets:Shim ] <private>
+2026-05-25 19:27:22.529 Df WindowServer[619:112f] [com.apple.ProDisplayLibrary:ProDisplay] <private>
+2026-05-25 19:27:22.529 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Presets:Shim ] <private>
+2026-05-25 19:27:22.531 Df WindowServer[619:6900d1] (IOMobileFramebuffer)  kern_CopyProperty key : DisplayContainerID not found
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ] Generating modes for display 0x2 (external-0, DELL SP2309W)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   current mode:   <CADisplayMode 2048 x 1152 fmt:YCbCr444_10bit range:limited>
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   preferred mode: <CADisplayMode 2048 x 1152 fmt:YCbCr444_10bit range:limited>
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   physical size:  20.079" x 11.417"
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   canvas size:    2048 x 1152
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   frame size:     2048 x 1152
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   native size:    2048 x 1152
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   min/max width:  32, 6144
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   max area:       28311552
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   min, max scale: 0.500, 4.000
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   pixel format:   &b38
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   aspect ratio:   16:9:0.5625
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   orientation:    0, portrait
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ] resolved mode list for DELL SP2309W display:
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   00 &b38 [ 800 x  600 ( 800 x  600) 1x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   01 &b38 [ 800 x  600 ( 800 x  600) 1x @ 60.0Hz], dp-x = 0.391, dp-y = 0.521 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   02 &b38 [ 800 x  600 (1600 x 1200) 2x @ 60.0Hz], dp-x = 0.781, dp-y = 1.042 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   03 &b38 [ 840 x  525 (1680 x 1050) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   04 &b38 [ 960 x  540 (1920 x 1080) 2x @ 60.0Hz], dp-x = 0.938, dp-y = 0.938 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   05 &b38 [ 960 x  540 (1920 x 1080) 2x @ 50.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   06 &b38 [ 960 x  540 (1920 x 1080) 2x @ 25.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   07 &b38 [ 960 x  540 (1920 x 1080) 2x @ 24.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   08 &b38 [1024 x  576 (2048 x 1152) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (scaler, native, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   09 &b38 [1024 x  576 (1024 x  576) 1x @ 60.0Hz], dp-x = 0.500, dp-y = 0.500 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   10 &b38 [1024 x  768 (1024 x  768) 1x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   11 &b38 [1024 x  768 (1024 x  768) 1x @ 60.0Hz], dp-x = 0.500, dp-y = 0.667 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   12 &b38 [1152 x  864 (1152 x  864) 1x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   13 &b38 [1280 x  720 (1280 x  720) 1x @ 60.0Hz], dp-x = 0.625, dp-y = 0.625 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   14 &b38 [1280 x  720 (1280 x  720) 1x @ 50.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   15 &b38 [1280 x  960 (1280 x  960) 1x @ 60.0Hz], dp-x = 0.625, dp-y = 0.833 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   16 &b38 [1280 x 1024 (1280 x 1024) 1x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   17 &b38 [1280 x 1024 (1280 x 1024) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   18 &b38 [1344 x  756 (1344 x  756) 1x @ 60.0Hz], dp-x = 0.656, dp-y = 0.656 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   19 &b38 [1344 x 1008 (1344 x 1008) 1x @ 60.0Hz], dp-x = 0.656, dp-y = 0.875 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   20 &b38 [1600 x  900 (1600 x  900) 1x @ 60.0Hz], dp-x = 0.781, dp-y = 0.781 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   21 &b38 [1600 x 1200 (1600 x 1200) 1x @ 60.0Hz], dp-x = 0.781, dp-y = 1.042 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   22 &b38 [1680 x 1050 (1680 x 1050) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   23 &b38 [1920 x 1080 (1920 x 1080) 1x @ 60.0Hz], dp-x = 0.938, dp-y = 0.938 (scaler, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   24 &b38 [1920 x 1080 (1920 x 1080) 1x @ 50.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   25 &b38 [1920 x 1080 (1920 x 1080) 1x @ 25.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   26 &b38 [1920 x 1080 (1920 x 1080) 1x @ 24.0Hz], dp-x = 1.000, dp-y = 1.000 (link, safe)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   27 &b38 [2048 x 1152 (2048 x 1152) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (scaler, native, safe, default)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   28 &b38 [1024 x  768 (2048 x 1536) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.333 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   29 &b38 [1280 x  720 (2560 x 1440) 2x @ 60.0Hz], dp-x = 1.250, dp-y = 1.250 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   30 &b38 [1280 x  960 (2560 x 1920) 2x @ 60.0Hz], dp-x = 1.250, dp-y = 1.667 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   31 &b38 [1344 x  756 (2688 x 1512) 2x @ 60.0Hz], dp-x = 1.312, dp-y = 1.312 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   32 &b38 [1344 x 1008 (2688 x 2016) 2x @ 60.0Hz], dp-x = 1.312, dp-y = 1.750 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   33 &b38 [1600 x  900 (3200 x 1800) 2x @ 60.0Hz], dp-x = 1.562, dp-y = 1.562 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   34 &b38 [1600 x 1200 (3200 x 2400) 2x @ 60.0Hz], dp-x = 1.562, dp-y = 2.083 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   35 &b38 [1920 x 1080 (3840 x 2160) 2x @ 60.0Hz], dp-x = 1.875, dp-y = 1.875 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   36 &b38 [2048 x 1152 (4096 x 2304) 2x @ 75.0Hz], dp-x = 3.200, dp-y = 2.250 (link, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   37 &b38 [2048 x 1152 (4096 x 2304) 2x @ 60.0Hz], dp-x = 2.000, dp-y = 2.000 (scaler, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   38 &b38 [2048 x 1152 (4096 x 2304) 2x @ 50.0Hz], dp-x = 2.133, dp-y = 2.133 (link, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   39 &b38 [2048 x 1152 (4096 x 2304) 2x @ 25.0Hz], dp-x = 2.133, dp-y = 2.133 (link, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   40 &b38 [2048 x 1152 (4096 x 2304) 2x @ 24.0Hz], dp-x = 2.133, dp-y = 2.133 (link, safe, fake_vfm)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   41 &b38 [ 400 x  300 ( 800 x  600) 2x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   42 &b38 [ 400 x  300 ( 800 x  600) 2x @ 60.0Hz], dp-x = 0.391, dp-y = 0.521 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   43 &b38 [ 400 x  300 ( 800 x  600) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   44 &b38 [ 512 x  384 (1024 x  768) 2x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   45 &b38 [ 512 x  384 (1024 x  768) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   46 &b38 [ 512 x  384 (1024 x  768) 2x @ 60.0Hz], dp-x = 0.500, dp-y = 0.667 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   47 &b38 [ 576 x  432 (1152 x  864) 2x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   48 &b38 [ 640 x  360 (1280 x  720) 2x @ 60.0Hz], dp-x = 0.625, dp-y = 0.625 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   49 &b38 [ 640 x  360 (1280 x  720) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   50 &b38 [ 640 x  360 (1280 x  720) 2x @ 50.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   51 &b38 [ 640 x  480 (1280 x  960) 2x @ 60.0Hz], dp-x = 0.625, dp-y = 0.833 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   52 &b38 [ 640 x  480 ( 640 x  480) 1x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   53 &b38 [ 640 x  480 ( 640 x  480) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   54 &b38 [ 640 x  480 ( 640 x  480) 1x @ 60.0Hz], dp-x = 0.312, dp-y = 0.417 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   55 &b38 [ 640 x  512 (1280 x 1024) 2x @ 75.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   56 &b38 [ 640 x  512 (1280 x 1024) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   57 &b38 [ 672 x  378 (1344 x  756) 2x @ 60.0Hz], dp-x = 0.656, dp-y = 0.656 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   58 &b38 [ 672 x  504 (1344 x 1008) 2x @ 60.0Hz], dp-x = 0.656, dp-y = 0.875 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   59 &b38 [ 720 x  480 ( 720 x  480) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   60 &b38 [ 720 x  576 ( 720 x  576) 1x @ 50.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   61 &b38 [ 800 x  450 (1600 x  900) 2x @ 60.0Hz], dp-x = 0.781, dp-y = 0.781 (scaler, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   62 &b38 [ 800 x  600 ( 800 x  600) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   63 &b38 [ 960 x  540 (1920 x 1080) 2x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   64 &b38 [1024 x  768 (1024 x  768) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   65 &b38 [1280 x  720 (1280 x  720) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ]   66 &b38 [1920 x 1080 (1920 x 1080) 1x @ 60.0Hz], dp-x = 1.000, dp-y = 1.000 (link, unsupported)
+2026-05-25 19:27:22.533 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Mode       ] Display 2 set to previous mode 27
+2026-05-25 19:27:22.534 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:HDR ] Not populating capabilities for external display 2 set to sdr mode and brightness slider support is enabled.
+2026-05-25 19:27:22.534 Df WindowServer[619:112f] [com.apple.Multitouch:Plugin] [HID] [MT] <private><private><private> Momentum scroll dispatch rate set - requested value 59.908791 -> set value 60.000000
+2026-05-25 19:27:22.538 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Display 101 setEnabled:0
+2026-05-25 19:27:22.538 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=101 seed=0 current_state=on target_state=on new_target_state=off
+2026-05-25 19:27:22.538 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] VirtualDisplay::set_display_state display_id=101 current_state=on target_state=off
+2026-05-25 19:27:22.538 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] Server::set_display_state display_id=101 seed=0 current_state=on target_state=off result=queued
+2026-05-25 19:27:22.538 Df WindowServer[619:112f] [com.apple.coreanimation:DisplayState] VirtualDisplay::complete_display_state_transition display_id=101, current_state=off
+2026-05-25 19:27:22.539 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Detected match in persistent store.
+2026-05-25 19:27:22.539 Df WindowServer[619:112f] [com.apple.SkyLight:default] Found match = true, preGlowC = false
+2026-05-25 19:27:22.539 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Desired config set is valid.
+2026-05-25 19:27:22.540 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Applying configuration changes (<private>)
+2026-05-25 19:27:22.540 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]   display 0x2
+2026-05-25 19:27:22.540 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]     added
+2026-05-25 19:27:22.540 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ]   display 0x65 removed
+2026-05-25 19:27:22.542 Df WindowServer[619:6900d1] [com.apple.xpc:connection] [0x703dfcb40] activating connection: mach=true listener=false peer=false name=com.apple.iokit.powerdxpc
+2026-05-25 19:27:22.542 Df WindowServer[619:6900d1] [com.apple.xpc:connection] [0x703dfcb40] invalidated after the last release of the connection object
+2026-05-25 19:27:22.543 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x6032b7. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 0
+2026-05-25 19:27:22.546 Df WindowServer[619:68f456] [com.apple.Multitouch:Plugin] [HID] [MT] <private><private><private> Momentum scroll dispatch rate set - requested value 59.908791 -> set value 60.000000
+2026-05-25 19:27:22.549 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window c2 owner a7f3b (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window be owner a7f3b (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window bd owner a7f3b (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 485 owner a5f03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 1872 owner a5f03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 46 owner a5f03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 45 owner a5f03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window cb6 owner 8cb03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 21dd owner 8cb03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 3126 owner 8cb03 (invalid seed 99a)
+2026-05-25 19:27:22.550 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window 6b owner 8cb03 (invalid seed 99a)
+2026-05-25 19:27:22.554 A  WindowServer[619:6900d1] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.554 Df WindowServer[619:6900d1] [com.apple.runningboard:monitor] Received state update for 1503 (app<application.com.apple.MobileSMS.1152921500311888381.1152921500311888451(501)>, running-active-NotVisible
+2026-05-25 19:27:22.554 I  WindowServer[619:68ffc2] [com.apple.SkyLight:packages] 0[outside of RPC]: resumed connection 8cb03
+2026-05-25 19:27:22.556 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:HDR ] Not populating capabilities for builtin display 1 set to sdr mode and brightness slider support is enabled.
+2026-05-25 19:27:22.557 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188400
+2026-05-25 19:27:22.558 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.558 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.558 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.558 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.558 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.559 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45115 with state "none"; now 13 window(s) exist.
+2026-05-25 19:27:22.559 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45115 from "none" to "hidden".
+2026-05-25 19:27:22.565 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188411
+2026-05-25 19:27:22.565 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188410
+2026-05-25 19:27:22.565 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188409
+2026-05-25 19:27:22.565 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188407
+2026-05-25 19:27:22.565 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45116 with state "none"; now 11 window(s) exist.
+2026-05-25 19:27:22.565 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45116 from "none" to "hidden".
+2026-05-25 19:27:22.566 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 66503[OrderWindow]: window b03a joined space 1
+2026-05-25 19:27:22.566 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 66503[OrderWindow]: order window: b03a op: 1 relative: 0
+2026-05-25 19:27:22.575 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 66503[TerminateWindow]: order window: b027 op: 0 relative: 0
+2026-05-25 19:27:22.576 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 66503[TerminateWindow]: window b027 parted space 1
+2026-05-25 19:27:22.579 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.583 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45119 with state "none"; now 14 window(s) exist.
+2026-05-25 19:27:22.583 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45119 from "none" to "hidden".
+2026-05-25 19:27:22.588 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45121 with state "none"; now 12 window(s) exist.
+2026-05-25 19:27:22.588 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45121 from "none" to "hidden".
+2026-05-25 19:27:22.609 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.624 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 4020f[OrderWindowGroupFrontConditionally]: order window: b028 op: 1 relative: 0
+2026-05-25 19:27:22.633 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188417
+2026-05-25 19:27:22.633 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188416
+2026-05-25 19:27:22.640 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.640 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.640 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.641 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45130 with state "none"; now 13 window(s) exist.
+2026-05-25 19:27:22.641 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45130 from "none" to "hidden".
+2026-05-25 19:27:22.648 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45133 with state "none"; now 14 window(s) exist.
+2026-05-25 19:27:22.648 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45133 from "none" to "hidden".
+2026-05-25 19:27:22.650 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.650 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.650 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.650 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.652 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45134 with state "none"; now 15 window(s) exist.
+2026-05-25 19:27:22.652 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45134 from "none" to "hidden".
+2026-05-25 19:27:22.655 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.655 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 88903[OrderWindowGroup]: order window: 53 op: 1 relative: 0
+2026-05-25 19:27:22.656 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45135 with state "none"; now 16 window(s) exist.
+2026-05-25 19:27:22.656 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45135 from "none" to "hidden".
+2026-05-25 19:27:22.663 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45137 with state "none"; now 8 window(s) exist.
+2026-05-25 19:27:22.663 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45137 from "none" to "hidden".
+2026-05-25 19:27:22.668 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 4020f[OrderWindowGroupFrontConditionally]: order window: b028 op: 1 relative: 0
+2026-05-25 19:27:22.668 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45140 with state "none"; now 9 window(s) exist.
+2026-05-25 19:27:22.668 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45140 from "none" to "hidden".
+2026-05-25 19:27:22.671 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.672 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188423
+2026-05-25 19:27:22.672 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45141 with state "none"; now 10 window(s) exist.
+2026-05-25 19:27:22.672 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45141 from "none" to "hidden".
+2026-05-25 19:27:22.688 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45143 with state "none"; now 15 window(s) exist.
+2026-05-25 19:27:22.688 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45143 from "none" to "hidden".
+2026-05-25 19:27:22.689 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45144 with state "none"; now 11 window(s) exist.
+2026-05-25 19:27:22.689 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45144 from "none" to "hidden".
+2026-05-25 19:27:22.693 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45146 with state "none"; now 13 window(s) exist.
+2026-05-25 19:27:22.693 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45146 from "none" to "hidden".
+2026-05-25 19:27:22.695 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45147 with state "none"; now 16 window(s) exist.
+2026-05-25 19:27:22.695 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45147 from "none" to "hidden".
+2026-05-25 19:27:22.695 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.696 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45148 with state "none"; now 14 window(s) exist.
+2026-05-25 19:27:22.696 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45148 from "none" to "hidden".
+2026-05-25 19:27:22.701 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45149 with state "none"; now 17 window(s) exist.
+2026-05-25 19:27:22.701 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45149 from "none" to "hidden".
+2026-05-25 19:27:22.702 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.705 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45150 with state "none"; now 15 window(s) exist.
+2026-05-25 19:27:22.705 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45150 from "none" to "hidden".
+2026-05-25 19:27:22.709 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45151 with state "none"; now 18 window(s) exist.
+2026-05-25 19:27:22.709 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45151 from "none" to "hidden".
+2026-05-25 19:27:22.713 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> adding window 45152 with state "none"; now 16 window(s) exist.
+2026-05-25 19:27:22.713 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> updated window 45152 from "none" to "hidden".
+2026-05-25 19:27:22.729 E  WindowServer[619:1252] [com.apple.coreanimation:Render] timed out fence 2658585188428
+2026-05-25 19:27:22.732 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.763 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.787 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.792 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window b039 owner 6e3333 (invalid seed 99a)
+2026-05-25 19:27:22.792 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window b031 owner 6e3333 (invalid seed 99a)
+2026-05-25 19:27:22.792 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window b041 owner 6e3333 (invalid seed 99a)
+2026-05-25 19:27:22.792 E  WindowServer[619:112f] [com.apple.SkyLight:default] PKGWindowMoveOnMatchingDisplayChangedSeed failed to move window b03c owner 6e3333 (invalid seed 99a)
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: af52 op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: af51 op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: af50 op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: af4f op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: b041 op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: b03c op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: b039 op: 0 relative: 0
+2026-05-25 19:27:22.792 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 6e3333[OrderWindow]: order window: b031 op: 0 relative: 0
+2026-05-25 19:27:22.793 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.793 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44882; now 15 window(s) remain.
+2026-05-25 19:27:22.796 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44879; now 14 window(s) remain.
+2026-05-25 19:27:22.798 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: b02f op: 0 relative: 0
+2026-05-25 19:27:22.799 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: b02e op: 0 relative: 0
+2026-05-25 19:27:22.799 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: b02d op: 0 relative: 0
+2026-05-25 19:27:22.799 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 1c9a0f[OrderWindow]: order window: b02c op: 0 relative: 0
+2026-05-25 19:27:22.799 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44880; now 13 window(s) remain.
+2026-05-25 19:27:22.809 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 44881; now 12 window(s) remain.
+2026-05-25 19:27:22.814 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45113; now 11 window(s) remain.
+2026-05-25 19:27:22.820 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45101; now 10 window(s) remain.
+2026-05-25 19:27:22.823 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Hotplug    ] Deferring hotplug processing; display reconfig in progress
+2026-05-25 19:27:22.826 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45105; now 10 window(s) remain.
+2026-05-25 19:27:22.827 A  WindowServer[619:6900d1] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.827 Df WindowServer[619:6900d1] [com.apple.runningboard:monitor] Received state update for 1503 (app<application.com.apple.MobileSMS.1152921500311888381.1152921500311888451(501)>, running-active-NotVisible
+2026-05-25 19:27:22.831 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45103; now 9 window(s) remain.
+2026-05-25 19:27:22.833 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45121; now 9 window(s) remain.
+2026-05-25 19:27:22.834 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45102; now 8 window(s) remain.
+2026-05-25 19:27:22.836 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45116; now 8 window(s) remain.
+2026-05-25 19:27:22.838 Df WindowServer[619:112f] [com.apple.FuseBoard:SkyBridge] <private> removing window 45100; now 7 window(s) remain.
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x784fdb, PID 97824)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x15b7fb, PID 78717)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x19b81b, PID 7479)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x26d6c3, PID 6514)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x62623, PID 6490)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x26e433, PID 6395)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x115317, PID 1520)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x56003, PID 1128)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x49603, PID 956)
+2026-05-25 19:27:22.852 Df WindowServer[619:112f] [com.apple.SkyLight:default] Timed out 0.250 second wait for reply from "<private>" for synchronous notification type 115 (kCGSDisplayDidReconfigure2) (CID 0x49103, PID 1021)
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x75203. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x75403. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x75a0b. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 0
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5d203. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x76d03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5cc03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5c803. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x77503. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x77903. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5c203. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5c003. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5bb03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x78a03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5b45f. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x79103. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x79503. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5af03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5a907. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5a803. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x59f03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x59b03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x7c08b. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x5913f. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x7be03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 1
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x56e03. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 0
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x4f27b. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 0
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0xef73. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 0
+2026-05-25 19:27:22.853 E  WindowServer[619:112f] [com.apple.SkyLight:default] Clearing datagram buffer for cid 0x14dc3. Client state: Data count: 16384 connectionIsUnresponsive: 0 clientMayIgnoreEvents: 1 clientIsSuspended: 0
+2026-05-25 19:27:22.854 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Detected match in persistent store.
+2026-05-25 19:27:22.854 Df WindowServer[619:112f] [com.apple.SkyLight:default] process_presentation_displays: no_config = false, default_config = true, default_policy = 0
+2026-05-25 19:27:22.904 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Persist    ] Saving configuration: session, permanent store.
+2026-05-25 19:27:22.905 Df WindowServer[619:112f] [com.apple.xpc:connection] [0x703dfc8c0] invalidated after the last release of the connection object
+2026-05-25 19:27:22.905 Df WindowServer[619:112f] [com.apple.xpc:connection] [0x703dfcb40] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-05-25 19:27:22.908 Df WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: user_is_idle_for_appearance_switch user is idle
+2026-05-25 19:27:22.908 Df WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: PKGReconcileAutomaticAppearanceTheme kicking idle timer
+2026-05-25 19:27:22.908 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: create space 3395 (managed? 0)
+2026-05-25 19:27:22.911 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Power      ]   Work (D/C/W/S/P/R): 0/0/0/0/1/2
+2026-05-25 19:27:22.912 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Detected match in persistent store.
+2026-05-25 19:27:22.912 Df WindowServer[619:112f] [com.apple.SkyLight:default] Found match = true, preGlowC = false
+2026-05-25 19:27:22.912 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] Desired config set is valid.
+2026-05-25 19:27:22.912 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Config     ] No change between prior and requested configuration.
+2026-05-25 19:27:22.912 Df WindowServer[619:112f] [com.apple.SkyLight:display] [ Display:Persist    ] Saving configuration: session, permanent store.
+2026-05-25 19:27:22.917 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.917 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.917 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.917 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.918 E  WindowServer[619:112f] [com.apple.SkyLight:default] _CGXPackagesSetWindowConstraints: Invalid window
+2026-05-25 19:27:22.918 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: order window: b01e op: 0 relative: 0
+2026-05-25 19:27:22.919 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: window b01e parted space 25
+2026-05-25 19:27:22.920 Df WindowServer[619:6900d1] [com.apple.xpc:connection] [0x703dfc780] activating connection: mach=true listener=false peer=false name=com.apple.aquaappearancehelper
+2026-05-25 19:27:22.920 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: order window: b01f op: 0 relative: 0
+2026-05-25 19:27:22.920 I  WindowServer[619:112f] [com.apple.SkyLight:packages] 0[outside of RPC]: window b01f parted space 25
+2026-05-25 19:27:22.957 A  WindowServer[619:68c93e] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.957 Df WindowServer[619:68c93e] [com.apple.runningboard:monitor] Received state update for 1503 (app<application.com.apple.MobileSMS.1152921500311888381.1152921500311888451(501)>, running-active-NotVisible
+2026-05-25 19:27:22.965 A  WindowServer[619:68c93e] (RunningBoardServices) observedProcessStatesDidChange
+2026-05-25 19:27:22.965 Df WindowServer[619:68c93e] [com.apple.runningboard:monitor] Received state update for 1503 (app<application.com.apple.MobileSMS.1152921500311888381.1152921500311888451(501)>, running-active-NotVisible
+2026-05-25 19:27:22.965 Df WindowServer[619:68c93e] [com.apple.runningboard:monitor] Received state update for 1526 (app<Unknown(1526)(501)>, running-active-NotVisible
