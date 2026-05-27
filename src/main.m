@@ -481,10 +481,10 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
     return 1;
   }
 
-  [report writeToFile:[dir stringByAppendingPathComponent:@"config.txt"]
-           atomically:YES
-             encoding:NSUTF8StringEncoding
-                error:nil];
+  BOOL complete = YES;
+  if (!writeBundleText(report,
+                       [dir stringByAppendingPathComponent:@"config.txt"]))
+    complete = NO;
 
   NSMutableString *version = [NSMutableString string];
   NSString *ver = [NSBundle.mainBundle
@@ -495,15 +495,15 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   NSString *local = localBuildTimeLine();
   if (local)
     [version appendFormat:@"local: %@\n", local];
-  [version writeToFile:[dir stringByAppendingPathComponent:@"version.txt"]
-            atomically:YES
-              encoding:NSUTF8StringEncoding
-                 error:nil];
+  if (!writeBundleText(version,
+                       [dir stringByAppendingPathComponent:@"version.txt"]))
+    complete = NO;
 
   NSString *log = daemonLogPath();
-  if ([fm fileExistsAtPath:log])
-    runShellToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
-                   [NSString stringWithFormat:@"tail -n 500 '%@'", log]);
+  if ([fm fileExistsAtPath:log] &&
+      !captureToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
+                     @"/usr/bin/tail", @[ @"-n", @"500", log ]))
+    complete = NO;
 
   // Self-bounding default: derive a window around the most recent incident
   // from the daemon's own sleep/wake markers. Explicit --start/--end or
@@ -524,25 +524,35 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
       [@[ @"show" ] arrayByAddingObjectsFromArray:window];
   // runToFile sends stdout+stderr to the file (the old shell `2>&1`) and uses
   // an argv array, so the window values are never parsed by a shell.
-  runToFile(
-      [dir stringByAppendingPathComponent:@"system-log.txt"], @"/usr/bin/log",
-      [logBase arrayByAddingObjectsFromArray:@[
-        @"--predicate", @"process == \"blackoutd\"", @"--style", @"compact"
-      ]]);
-  runToFile([dir stringByAppendingPathComponent:@"windowserver.txt"],
-            @"/usr/bin/log", [logBase arrayByAddingObjectsFromArray:@[
-              @"--debug", @"--info", @"--predicate",
-              @"process == \"WindowServer\" OR process == \"displaypolicyd\"",
-              @"--style", @"compact"
-            ]]);
-  runShellToFile([dir stringByAppendingPathComponent:@"sleep-wake.txt"],
-                 @"pmset -g log 2>/dev/null | grep --extended-regexp "
-                 @"'Sleep|Wake|Clamshell' | tail -n 40");
-  runShellToFile(
-      [dir stringByAppendingPathComponent:@"ioreg.txt"],
-      @"echo '=== IODisplayConnect ==='; ioreg -lw0 -r -c IODisplayConnect; "
-      @"echo; echo '=== dcpext ==='; ioreg -lw0 -p IOService -n dcpext");
+  if (!captureToFile(
+          [dir stringByAppendingPathComponent:@"system-log.txt"],
+          @"/usr/bin/log", [logBase arrayByAddingObjectsFromArray:@[
+            @"--predicate", @"process == \"blackoutd\"", @"--style", @"compact"
+          ]]))
+    complete = NO;
+  if (!captureToFile(
+          [dir stringByAppendingPathComponent:@"windowserver.txt"],
+          @"/usr/bin/log", [logBase arrayByAddingObjectsFromArray:@[
+            @"--debug", @"--info", @"--predicate",
+            @"process == \"WindowServer\" OR process == \"displaypolicyd\"",
+            @"--style", @"compact"
+          ]]))
+    complete = NO;
+  if (!captureShellToFile(
+          [dir stringByAppendingPathComponent:@"sleep-wake.txt"],
+          @"pmset -g log 2>/dev/null | grep --extended-regexp "
+          @"'Sleep|Wake|Clamshell' | tail -n 40"))
+    complete = NO;
+  if (!captureShellToFile(
+          [dir stringByAppendingPathComponent:@"ioreg.txt"],
+          @"echo '=== IODisplayConnect ==='; ioreg -lw0 -r -c "
+          @"IODisplayConnect; echo; echo '=== dcpext ==='; ioreg -lw0 -p "
+          @"IOService -n dcpext"))
+    complete = NO;
 
+  if (!complete)
+    fprintf(stderr,
+            "blackoutd: WARNING — bundle incomplete; some files failed\n");
   printf("\nDiagnostic bundle written to %s/\n", dir.UTF8String);
   printf("  config.txt       — this report (build, lid, displays)\n");
   printf("  version.txt      — CLI build identity\n");
@@ -553,7 +563,7 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
          windowText.UTF8String);
   printf("  sleep-wake.txt   — pmset Sleep/Wake/Clamshell (last 40)\n");
   printf("  ioreg.txt        — IODisplayConnect + dcpext nodes\n");
-  return 0;
+  return complete ? 0 : 1;
 }
 
 static int printStatus(void) {
