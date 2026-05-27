@@ -42,6 +42,7 @@ ACTION-ITEMS-handoff.md
 # bundles that each document a distinct finding (see docs/technical-debt.md
 # P29 and docs/SESSION-HANDOFF-2026-05-25.md).
 docs/debug/*
+!docs/debug/REUSE.toml
 !docs/debug/REPRO.md
 
 # Early mechanism evidence (WS: no Display:Mode during the black wake).
