@@ -17,6 +17,36 @@ if [ "$branch" = "main" ]; then
     exit 1
 fi
 
+# --- Execute-bit check on shipped scripts ---
+# Files in scripts/ and .githooks/ are invoked directly (e.g.
+# `scripts/annotate.sh` from CONTRIBUTING.md examples and
+# `.githooks/pre-commit` from `git config core.hooksPath`). Without the
+# execute bit they fail with "permission denied" at runtime. Mirrored by
+# the lint-perms job in .github/workflows/ci.yml.
+perms_files=$(staged '^(scripts/.*\.sh|\.githooks/[^.])')
+if [ -n "$perms_files" ]; then
+    perms_bad=
+    while IFS= read -r _pf; do
+        [ -n "$_pf" ] || continue
+        # First column of `git ls-files --stage` is the staged file's mode.
+        _mode=$(git ls-files --stage -- "$_pf" | awk '{print $1}')
+        case "$_mode" in
+        100755) ;;
+        *)
+            printf 'error: %s: missing execute bit (mode %s)\n' "$_pf" "$_mode" >&2
+            printf '  Fix: chmod 755 %s && git update-index --chmod=+x %s\n' \
+                "$_pf" "$_pf" >&2
+            perms_bad=1
+            ;;
+        esac
+    done <<_PERMS_EOF_
+$perms_files
+_PERMS_EOF_
+    if [ -n "$perms_bad" ]; then
+        exit 1
+    fi
+fi
+
 # --- Invisible Unicode check (CVE-2021-42574 — Trojan Source) ---
 # Per Red Hat Security Bulletin RHSB-2021-007:
 #   grep -r $'[\u061C\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069]' .
@@ -191,18 +221,59 @@ if [ -n "$workflow_files" ]; then
 fi
 
 # --- REUSE compliance ---
-if command -v reuse >/dev/null 2>&1; then
-    if ! reuse lint --quiet; then
-        reuse lint
-        cat >&2 <<'HINT'
+# `reuse lint-file <staged paths>` was added in reuse-tool 5.x as the
+# pre-commit-friendly subcommand: it checks only the listed files
+# instead of walking the whole repository, which is faster, scopes the
+# check to what's about to land, and avoids unstaged-file noise (e.g.
+# from `git commit -p` partial commits or in-flight WIP elsewhere in
+# the tree).
+#
+# `--no-multiprocessing` is added defensively for two reasons. First,
+# Python's `concurrent.futures.ProcessPoolExecutor` calls
+# `os.sysconf("SC_SEM_NSEMS_MAX")` during pool setup, which the macOS
+# Seatbelt sandbox blocks at the syscall level (Operation not
+# permitted) — see fsfe/reuse-tool#280 and openai/codex#2486 for the
+# upstream history. Second, multiprocessing setup overhead beats serial
+# execution for the small file counts typical in a single commit, so
+# this is a measurable speedup independent of sandboxing.
+#
+# CI's lint-reuse job (.github/workflows/ci.yml) does the full-repo
+# lint via fsfe/reuse-action; the hook lints only staged files so the
+# two layers are complementary, not redundant.
+#
+# BLACKOUTD_SKIP_REUSE_LINT=1 skips this block entirely. Used by spec/
+# tests that copy the hook into a throwaway repo with no LICENSES/ dir
+# to test other blocks (e.g., the Unicode scanner) in isolation. Not
+# advertised in CONTRIBUTING.md — purely an internal test seam.
+#
+# REUSE.toml caveat: blackoutd uses individual SPDX headers and
+# `.license` sidecars, no REUSE.toml. If a future change introduces
+# REUSE.toml-based annotations, revisit this hook — `lint-file` does
+# combine REUSE.toml declarations with per-file headers, but verify
+# the behavior matches the lint-tree path before relying on it.
+if [ -z "${BLACKOUTD_SKIP_REUSE_LINT:-}" ]; then
+    if command -v reuse >/dev/null 2>&1; then
+        if [ -n "$all_staged" ]; then
+            # `reuse lint-file` exits non-zero on any compliance failure
+            # and prints details to stdout. Run with --quiet for the
+            # detection pass; on failure, re-run without --quiet to give
+            # the user the full report before bailing.
+            if ! printf '%s\n' "$all_staged" \
+                | xargs reuse --no-multiprocessing lint-file --quiet
+            then
+                printf '%s\n' "$all_staged" \
+                    | xargs reuse --no-multiprocessing lint-file
+                cat >&2 <<'HINT'
 
 To annotate unannotated files, run:
 
   scripts/annotate.sh
 
 HINT
-        exit 1
+                exit 1
+            fi
+        fi
+    else
+        echo "warning: reuse not found — skipping REUSE compliance check (brew install reuse)" >&2
     fi
-else
-    echo "warning: reuse not found — skipping REUSE compliance check (brew install reuse)" >&2
 fi
