@@ -437,10 +437,15 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   NSString *dir = [NSString stringWithFormat:@"/tmp/blackoutd-diag-%@",
                                              [fmt stringFromDate:NSDate.date]];
   NSFileManager *fm = NSFileManager.defaultManager;
-  [fm createDirectoryAtPath:dir
-      withIntermediateDirectories:YES
-                       attributes:nil
-                            error:nil];
+  NSError *mkdirErr = nil;
+  if (![fm createDirectoryAtPath:dir
+          withIntermediateDirectories:YES
+                           attributes:nil
+                                error:&mkdirErr]) {
+    fprintf(stderr, "blackoutd: cannot create bundle directory %s: %s\n",
+            dir.UTF8String, mkdirErr.localizedDescription.UTF8String);
+    return 1;
+  }
 
   [report writeToFile:[dir stringByAppendingPathComponent:@"config.txt"]
            atomically:YES
