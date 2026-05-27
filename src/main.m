@@ -370,16 +370,22 @@ static NSString *buildReport(void) {
   return r;
 }
 
-// Builds the `log show` time-window arguments. Explicit --start/--end take
-// precedence (precise, low-noise); otherwise --last <minutes>m.
-static NSString *logWindowArgs(int minutes, NSString *start, NSString *end) {
+// Builds the `log show` time-window arguments as an argv array (passed to
+// NSTask, never a shell), so user-supplied --start/--end values cannot be
+// interpreted by a shell. Explicit --start/--end take precedence (precise,
+// low-noise); otherwise --last <minutes>m.
+static NSArray<NSString *> *logWindowArgs(int minutes, NSString *start,
+                                          NSString *end) {
   if (start.length) {
-    NSString *w = [NSString stringWithFormat:@"--start '%@'", start];
-    if (end.length)
-      w = [w stringByAppendingFormat:@" --end '%@'", end];
+    NSMutableArray<NSString *> *w =
+        [NSMutableArray arrayWithObjects:@"--start", start, nil];
+    if (end.length) {
+      [w addObject:@"--end"];
+      [w addObject:end];
+    }
     return w;
   }
-  return [NSString stringWithFormat:@"--last %dm", minutes];
+  return @[ @"--last", [NSString stringWithFormat:@"%dm", minutes] ];
 }
 
 // Self-bounds the diagnostic window from the daemon's own sleep/wake markers.
@@ -483,19 +489,24 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
         end = autoEnd;
     }
   }
-  NSString *window = logWindowArgs(minutes > 0 ? minutes : 3, start, end);
-  runShellToFile(
-      [dir stringByAppendingPathComponent:@"system-log.txt"],
-      [NSString stringWithFormat:
-                    @"log show %@ --predicate 'process == \"blackoutd\"' "
-                    @"--style compact 2>&1",
-                    window]);
-  runShellToFile(
-      [dir stringByAppendingPathComponent:@"windowserver.txt"],
-      [NSString stringWithFormat:@"log show %@ --debug --info --predicate "
-                                 @"'process == \"WindowServer\" OR process == "
-                                 @"\"displaypolicyd\"' --style compact 2>&1",
-                                 window]);
+  NSArray<NSString *> *window =
+      logWindowArgs(minutes > 0 ? minutes : 3, start, end);
+  NSString *windowText = [window componentsJoinedByString:@" "];
+  NSArray<NSString *> *logBase =
+      [@[ @"show" ] arrayByAddingObjectsFromArray:window];
+  // runToFile sends stdout+stderr to the file (the old shell `2>&1`) and uses
+  // an argv array, so the window values are never parsed by a shell.
+  runToFile(
+      [dir stringByAppendingPathComponent:@"system-log.txt"], @"/usr/bin/log",
+      [logBase arrayByAddingObjectsFromArray:@[
+        @"--predicate", @"process == \"blackoutd\"", @"--style", @"compact"
+      ]]);
+  runToFile([dir stringByAppendingPathComponent:@"windowserver.txt"],
+            @"/usr/bin/log", [logBase arrayByAddingObjectsFromArray:@[
+              @"--debug", @"--info", @"--predicate",
+              @"process == \"WindowServer\" OR process == \"displaypolicyd\"",
+              @"--style", @"compact"
+            ]]);
   runShellToFile([dir stringByAppendingPathComponent:@"sleep-wake.txt"],
                  @"pmset -g log 2>/dev/null | grep --extended-regexp "
                  @"'Sleep|Wake|Clamshell' | tail -n 40");
@@ -509,9 +520,9 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   printf("  version.txt      — CLI build identity\n");
   printf("  daemon-log.txt   — blackoutd.log (last 500 lines)\n");
   printf("  system-log.txt   — blackoutd unified log (%s)\n",
-         window.UTF8String);
+         windowText.UTF8String);
   printf("  windowserver.txt — WindowServer/displaypolicyd (%s)\n",
-         window.UTF8String);
+         windowText.UTF8String);
   printf("  sleep-wake.txt   — pmset Sleep/Wake/Clamshell (last 40)\n");
   printf("  ioreg.txt        — IODisplayConnect + dcpext nodes\n");
   return 0;
