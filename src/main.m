@@ -738,15 +738,35 @@ int main(int argc, const char *argv[]) {
     if (strcmp(cmd, "diagnose") == 0) {
       int minutes = 0;
       NSString *start = nil, *end = nil;
-      for (int i = 2; i + 1 < argc; i += 2) {
-        if (strcmp(argv[i], "--minutes") == 0) {
-          long m = strtol(argv[i + 1], NULL, 10);
-          if (m > 0)
-            minutes = (int)m;
-        } else if (strcmp(argv[i], "--start") == 0) {
-          start = @(argv[i + 1]);
-        } else if (strcmp(argv[i], "--end") == 0) {
-          end = @(argv[i + 1]);
+      for (int i = 2; i < argc; i++) {
+        const char *opt = argv[i];
+        BOOL isMinutes = strcmp(opt, "--minutes") == 0;
+        BOOL isStart = strcmp(opt, "--start") == 0;
+        BOOL isEnd = strcmp(opt, "--end") == 0;
+        if (!isMinutes && !isStart && !isEnd) {
+          fprintf(stderr, "blackoutd: unknown diagnose option '%s'\n", opt);
+          return 1;
+        }
+        if (i + 1 >= argc) {
+          fprintf(stderr, "blackoutd: diagnose option '%s' requires a value\n",
+                  opt);
+          return 1;
+        }
+        const char *val = argv[++i];
+        if (isMinutes) {
+          char *parseEnd = NULL;
+          errno = 0;
+          long m = strtol(val, &parseEnd, 10);
+          if (*parseEnd != '\0' || errno != 0 || m <= 0) {
+            fprintf(stderr,
+                    "blackoutd: --minutes requires a positive integer\n");
+            return 1;
+          }
+          minutes = (int)m;
+        } else if (isStart) {
+          start = @(val);
+        } else {
+          end = @(val);
         }
       }
       return runDiagnose(minutes, start, end);
