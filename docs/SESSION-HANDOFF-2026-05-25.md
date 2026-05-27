@@ -169,10 +169,11 @@ there is no black detector to gate on, and recovery is unconditional.
   plus a one-line daemon-startup build ID for a quick visual match — NOT the
   full daemon-log line — and keep the concluding "bundle written" file
   manifest. Suppress the rest of the chatter.
-- (Optional, low priority now the detector is dead) `diagnose --note "…"`
-  appending an arbitrary operator string to the bundle for forensics. It does
-  NOT inspect collected data; it is just a label the operator types based on
-  what they saw. Not needed for any detector.
+- Defer `--note` AND a post-hoc `--annotate` (label-an-existing-bundle). Both
+  only mattered for pairing a reading with on-screen truth to validate a
+  detector, which is dead. A rare manual label is just
+  `echo cursor-on-black > <bundle>/note.txt` — no code needed. Revisit only if
+  a detection signal ever resurfaces.
 - Leave `diagnose` writing raw text — no compression in blackoutd (avoids an
   external compressor dependency; gzip/zstd aren't invoked by the daemon).
   Compressing the heavy logs is a commit-time step done with the system `gzip`
