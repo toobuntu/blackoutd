@@ -791,6 +791,10 @@ int main(int argc, const char *argv[]) {
           return 1;
         }
         const char *val = argv[++i];
+        if ((isStart || isEnd) && *val == '\0') {
+          fprintf(stderr, "blackoutd: %s requires a non-empty value\n", opt);
+          return 1;
+        }
         if (isMinutes) {
           char *parseEnd = NULL;
           errno = 0;
@@ -806,6 +810,10 @@ int main(int argc, const char *argv[]) {
         } else {
           end = @(val);
         }
+      }
+      if (end && !start) {
+        fprintf(stderr, "blackoutd: --end requires --start\n");
+        return 1;
       }
       return runDiagnose(minutes, start, end);
     }
