@@ -217,9 +217,34 @@ static int runToFile(NSString *filePath, NSString *path,
   return (int)task.terminationStatus;
 }
 
-// Runs a shell pipeline via /bin/sh -c, capturing stdout to a file.
-static int runShellToFile(NSString *filePath, NSString *command) {
-  return runToFile(filePath, @"/bin/sh", @[ @"-c", command ]);
+// Runs a capture into a bundle file. Warns and returns NO only if the tool
+// could not be launched or the file could not be created (runToFile < 0); a
+// nonzero tool exit (e.g. grep with no matches) is not a bundle failure.
+static BOOL captureToFile(NSString *filePath, NSString *path,
+                          NSArray<NSString *> *args) {
+  if (runToFile(filePath, path, args) >= 0)
+    return YES;
+  fprintf(stderr, "blackoutd: failed to capture %s\n", filePath.UTF8String);
+  return NO;
+}
+
+// Runs a fixed /bin/sh -c pipeline (no interpolated values) into a bundle file.
+static BOOL captureShellToFile(NSString *filePath, NSString *command) {
+  return captureToFile(filePath, @"/bin/sh", @[ @"-c", command ]);
+}
+
+// Writes bundle text, warning and returning NO on failure so diagnose does not
+// claim a complete bundle after a partial write.
+static BOOL writeBundleText(NSString *text, NSString *filePath) {
+  NSError *err = nil;
+  if ([text writeToFile:filePath
+             atomically:YES
+               encoding:NSUTF8StringEncoding
+                  error:&err])
+    return YES;
+  fprintf(stderr, "blackoutd: failed to write %s: %s\n", filePath.UTF8String,
+          err.localizedDescription.UTF8String);
+  return NO;
 }
 
 // MARK: - Diagnostics
@@ -255,15 +280,19 @@ static NSString *lastLogToken(NSString *needle) {
   NSString *log = daemonLogPath();
   if (![NSFileManager.defaultManager fileExistsAtPath:log])
     return nil;
-  NSString *cmd = [NSString
-      stringWithFormat:@"grep --fixed-strings -- '%@' '%@' | tail -n 1", needle,
-                       log];
-  NSString *line = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
-  if (!line.length)
+  NSString *out = captureCommand(@"/usr/bin/grep",
+                                 @[ @"--fixed-strings", @"--", needle, log ]);
+  if (!out.length)
     return nil;
-  return [line
-      stringByTrimmingCharactersInSet:NSCharacterSet
-                                          .whitespaceAndNewlineCharacterSet];
+  NSString *last = nil;
+  for (NSString *line in [out componentsSeparatedByString:@"\n"]) {
+    NSString *trimmed = [line
+        stringByTrimmingCharactersInSet:NSCharacterSet
+                                            .whitespaceAndNewlineCharacterSet];
+    if (trimmed.length)
+      last = trimmed;
+  }
+  return last;
 }
 
 // Lid state via the IOKit clamshell key. AppleClamshellState is YES when the
@@ -399,11 +428,10 @@ static void deriveWindow(NSString **startOut, NSString **endOut) {
   NSString *log = daemonLogPath();
   if (![NSFileManager.defaultManager fileExistsAtPath:log])
     return;
-  NSString *cmd = [NSString
-      stringWithFormat:@"grep --fixed-strings -e 'resuming display change' "
-                       @"-e 'ignoring display changes' '%@' | tail -n 40",
-                       log];
-  NSString *out = captureCommand(@"/bin/sh", @[ @"-c", cmd ]);
+  NSString *out = captureCommand(@"/usr/bin/grep", @[
+    @"--fixed-strings", @"-e", @"resuming display change", @"-e",
+    @"ignoring display changes", @"--", log
+  ]);
   if (!out.length)
     return;
 
