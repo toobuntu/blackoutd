@@ -42,7 +42,7 @@ prune_archives() {
     if [[ ${_n} -gt ${_keep} ]]; then
       rm -f -- "${_path}"
     fi
-  done < <(find "${_dir}" -maxdepth 1 -type f -name "${_base}.*" | sort -r)
+  done < <(find "${_dir}" -maxdepth 1 -type f -name "${_base}.*" | sort --reverse)
 }
 
 rotate() {
