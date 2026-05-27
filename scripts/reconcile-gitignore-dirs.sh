@@ -28,9 +28,15 @@ count() {
     printf '%s' "$1" | grep -c . || true
 }
 
+# Emit a sorted set as lines, and nothing at all for the empty set (so comm
+# does not see a spurious empty-string element).
+emit() {
+    [ -n "$1" ] && printf '%s\n' "$1" || true
+}
+
 report_diff() {
     printf '\n=== %s ===\n' "$1"
-    comm -23 <(printf '%s\n' "$2") <(printf '%s\n' "$3")
+    comm -23 <(emit "$2") <(emit "$3")
 }
 
 main() {
