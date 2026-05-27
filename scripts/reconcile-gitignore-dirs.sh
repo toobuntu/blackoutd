@@ -14,7 +14,14 @@ list_present() {
 }
 
 list_tracked() {
-    git ls-files "${DEBUG_DIR}" | grep --invert-match --extended-regexp '^docs/debug/REPRO.md$' | cut -d/ -f3 | sort -u
+    # Valid directory = known name pattern + has content.
+    git ls-files "${DEBUG_DIR}" |
+        awk -F/ '
+            NF > 3 && $3 ~ /^blackoutd-diag-[[:digit:]]{8}-[[:digit:]]{6}$/ {
+                print $3
+            }
+        ' |
+        sort --unique
 }
 
 list_allowed() {
@@ -25,7 +32,7 @@ list_allowed() {
 
 # Count non-empty lines, reporting 0 (not 1) for the empty set.
 count() {
-    printf '%s' "$1" | grep -c . || true
+    printf '%s' "$1" | grep --count . || true
 }
 
 # Emit a sorted set as lines, and nothing at all for the empty set (so comm
