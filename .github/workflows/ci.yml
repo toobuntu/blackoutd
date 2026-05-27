@@ -75,6 +75,34 @@ jobs:
           find src \( -name '*.m' -o -name '*.h' \) -print0 | \
             xargs -0 "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
 
+  lint-perms:
+    # Verifies that shipped scripts retain the execute bit. Mirrored by
+    # the perms stanza in .githooks/pre-commit. Catches the regression
+    # that was fixed manually in commit c7eec89 ("Mark scripts/ shebang
+    # files as executable") if it recurs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Verify execute bit on shipped scripts
+        run: |
+          bad=0
+          for f in scripts/*.sh .githooks/*; do
+            [ -f "$f" ] || continue
+            case "$(basename "$f")" in
+              .*) continue ;;
+            esac
+            mode=$(git ls-files --stage -- "$f" | awk '{print $1}')
+            if [ "$mode" != "100755" ]; then
+              printf '::error file=%s::missing execute bit (mode %s)\n' "$f" "$mode"
+              printf 'Fix: chmod 755 %s && git update-index --chmod=+x %s\n' "$f" "$f"
+              bad=1
+            fi
+          done
+          exit "$bad"
+
   lint-unicode:
     # CI backstop for the pre-commit hook in .githooks/pre-commit.
     # Detects CVE-2021-42574 (Trojan Source) plus enforces UTF-8 without BOM.
