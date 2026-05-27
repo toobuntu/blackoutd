@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Clang-tidy checks for Objective-C / C code.
-# Run: clang-tidy src/*.m -- -fobjc-arc -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' -framework Cocoa -framework CoreGraphics -framework IOKit
-# On macOS, prefix with xcrun if clang-tidy is not in PATH.
+# Run: make tidy  (the Makefile `tidy` target holds the exact invocation;
+# clang-tidy is from Homebrew llvm on macOS, not the Xcode toolchain).
 
 Checks: >
   -*,
