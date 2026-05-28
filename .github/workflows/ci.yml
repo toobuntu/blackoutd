@@ -87,20 +87,22 @@ jobs:
           persist-credentials: false
 
       - name: Verify execute bit on shipped scripts
+        # Pattern mirrors the regex in .githooks/pre-commit so CI scope
+        # and hook scope stay in sync, including nested paths under
+        # scripts/ and .githooks/. Process substitution keeps the loop
+        # in the parent shell so $bad propagates (a piped while would
+        # run in a subshell and lose the flag).
         run: |
           bad=0
-          for f in scripts/*.sh .githooks/*; do
-            [ -f "$f" ] || continue
-            case "$(basename "$f")" in
-              .*) continue ;;
-            esac
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
             mode=$(git ls-files --stage -- "$f" | awk '{print $1}')
             if [ "$mode" != "100755" ]; then
               printf '::error file=%s::missing execute bit (mode %s)\n' "$f" "$mode"
               printf 'Fix: chmod 755 %s && git update-index --chmod=+x %s\n' "$f" "$f"
               bad=1
             fi
-          done
+          done < <(git ls-files | grep --extended-regexp '^(scripts/.*\.sh|\.githooks/[^.])' || true)
           exit "$bad"
 
   lint-unicode:
