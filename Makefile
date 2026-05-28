@@ -56,7 +56,7 @@ CFLAGS = \
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDIR)/Info.plist $(GIT_STAMP)
+$(TARGET): $(SRCS) $(HDRS) $(SRCDIR)/Info.plist $(GIT_STAMP)
 	mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -o $@ $(SRCS)
 	strip $@
@@ -155,9 +155,10 @@ print-bundle-id:
 # running them by hand. clang-format reads .clang-format; clang-tidy reads
 # .clang-tidy.
 
-# Reformat sources in place.
+# Reformat sources in place. --style=file is explicit to match the
+# pre-commit and CI invocations regardless of clang-format's default.
 format:
-	$(CLANG_FORMAT) -i --Werror $(SRCS) $(HDRS)
+	$(CLANG_FORMAT) --style=file -i --Werror $(SRCS) $(HDRS)
 
 # Static analysis. --quiet drops the "N warnings generated / Suppressed N"
 # accounting (HeaderFilterRegex in .clang-tidy already scopes diagnostics to
