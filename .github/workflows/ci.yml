@@ -224,6 +224,20 @@ jobs:
       - name: Run reuse lint
         uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
 
+  lint-adrs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install adrs
+        run: /home/linuxbrew/.linuxbrew/bin/brew install joshrotenberg/brew/adrs
+        # run: cargo install adrs
+
+      - name: Run adrs doctor
+        run: adrs doctor
+
   lint-tidy:
     runs-on: macos-latest
     steps:
@@ -278,17 +292,20 @@ jobs:
 
   spec:
     # Behavioral tests for the pre-commit hook and CI Unicode scanner.
-    # macOS runner so /bin/sh and BSD grep match what developers use.
+    # macOS so /bin/sh (bash --posix) and BSD grep match what the hook
+    # runs under on contributors' machines. Portable Ruby is the same
+    # Ruby `brew ruby` uses locally (see `make test`), so local and CI
+    # share one test toolchain.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@6aaa311d81eba98ae12eaffbcb63296ace0efcde # v1.307.0
+      - name: Set up Homebrew portable Ruby
+        uses: Homebrew/actions/setup-ruby@main
         with:
-          ruby-version: "3.3"
+          portable-ruby: true
           bundler-cache: true
 
       - name: Run RSpec
