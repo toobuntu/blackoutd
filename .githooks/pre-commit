@@ -18,34 +18,16 @@ if [ "$branch" = "main" ]; then
 fi
 
 # --- Execute-bit check on shipped scripts ---
-# Files in scripts/ and .githooks/ are invoked directly (e.g.
-# `scripts/annotate.sh` from CONTRIBUTING.md examples and
-# `.githooks/pre-commit` from `git config core.hooksPath`). Without the
-# execute bit they fail with "permission denied" at runtime. Mirrored by
-# the lint-perms job in .github/workflows/ci.yml.
-perms_files=$(staged '^(scripts/.*\.sh|\.githooks/[^.])')
-if [ -n "$perms_files" ]; then
-    perms_bad=
-    while IFS= read -r _pf; do
-        [ -n "$_pf" ] || continue
-        # First column of `git ls-files --stage` is the staged file's mode.
-        _mode=$(git ls-files --stage -- "$_pf" | awk '{print $1}')
-        case "$_mode" in
-        100755) ;;
-        *)
-            printf 'error: %s: missing execute bit (mode %s)\n' "$_pf" "$_mode" >&2
-            printf '  Fix: chmod 755 %s && git update-index --chmod=+x %s\n' \
-                "$_pf" "$_pf" >&2
-            perms_bad=1
-            ;;
-        esac
-    done <<_PERMS_EOF_
-$perms_files
-_PERMS_EOF_
-    if [ -n "$perms_bad" ]; then
-        exit 1
-    fi
+# Policy + implementation live in scripts/lint-perms.sh; the CI
+# lint-perms job calls the same script with --tracked.
+if [ ! -x scripts/lint-perms.sh ]; then
+    printf 'error: scripts/lint-perms.sh missing or not executable\n' >&2
+    printf '  Required for the executable-bit policy check.\n' >&2
+    printf '  Fix: chmod 755 scripts/lint-perms.sh && \\\n' >&2
+    printf '       git update-index --chmod=+x scripts/lint-perms.sh\n' >&2
+    exit 1
 fi
+scripts/lint-perms.sh --staged
 
 # --- Invisible Unicode check (CVE-2021-42574 — Trojan Source) ---
 # Per Red Hat Security Bulletin RHSB-2021-007:

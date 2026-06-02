@@ -76,10 +76,11 @@ jobs:
             xargs -0 "$LLVM_PREFIX/bin/clang-format" --style=file --dry-run --Werror
 
   lint-perms:
-    # Verifies that shipped scripts retain the execute bit. Mirrored by
-    # the perms stanza in .githooks/pre-commit. Catches the regression
-    # that was fixed manually in commit c7eec89 ("Mark scripts/ shebang
-    # files as executable") if it recurs.
+    # Single source of truth for the scope and check logic is
+    # scripts/lint-perms.sh; .githooks/pre-commit invokes the same
+    # script with --staged. Catches the regression that was fixed
+    # manually in commit c7eec89 ("Mark scripts/ shebang files as
+    # executable") if it recurs.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -87,23 +88,14 @@ jobs:
           persist-credentials: false
 
       - name: Verify execute bit on shipped scripts
-        # Pattern mirrors the regex in .githooks/pre-commit so CI scope
-        # and hook scope stay in sync, including nested paths under
-        # scripts/ and .githooks/. Process substitution keeps the loop
-        # in the parent shell so $bad propagates (a piped while would
-        # run in a subshell and lose the flag).
+        env:
+          LINT_PERMS_FORMAT: ci
         run: |
-          bad=0
-          while IFS= read -r f; do
-            [ -n "$f" ] || continue
-            mode=$(git ls-files --stage -- "$f" | awk '{print $1}')
-            if [ "$mode" != "100755" ]; then
-              printf '::error file=%s::missing execute bit (mode %s)\n' "$f" "$mode"
-              printf 'Fix: chmod 755 %s && git update-index --chmod=+x %s\n' "$f" "$f"
-              bad=1
-            fi
-          done < <(git ls-files | grep --extended-regexp '^(scripts/.*\.sh|\.githooks/[^.])' || true)
-          exit "$bad"
+          if [ ! -x ./scripts/lint-perms.sh ]; then
+            echo "::error file=scripts/lint-perms.sh::missing or not executable in the checkout"
+            exit 1
+          fi
+          ./scripts/lint-perms.sh --tracked
 
   lint-unicode:
     # CI backstop for the pre-commit hook in .githooks/pre-commit.
