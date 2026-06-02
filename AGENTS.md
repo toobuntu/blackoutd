@@ -10,6 +10,8 @@ Authoritative reference for any agent (Claude Code, Codex, Copilot, GPT, etc.)
 or new human contributor working on blackoutd. `CLAUDE.md` is a thin pointer
 to this file (Homebrew pattern); read this first.
 
+@docs/agent-principles.md
+
 ## Project summary
 
 blackoutd is an Objective-C macOS LaunchAgent daemon with a menu bar GUI.
@@ -50,9 +52,9 @@ plutil -lint "$HOME/Library/LaunchAgents/$(make -s print-bundle-id).plist"
 reuse lint
 scripts/annotate.sh   # add SPDX headers to any new uncovered files
 
-# RSpec behavioral tests for hook + CI Unicode scanner
-bundle install
-bundle exec rspec
+# RSpec behavioral tests for hook + CI Unicode scanner (Homebrew
+# portable Ruby; see CONTRIBUTING.md for the one-time gem install).
+make test
 ```
 
 If the LaunchAgent plist has not yet been generated (e.g., on a fresh
@@ -343,8 +345,8 @@ For non-trivial work, an agent should also read:
 
 For PR work specifically, also:
 
-- `docs/HANDOFF.md` (if present) — narrative recap of the current PR's
+- `docs/handoff/chat-claude.md` (if present) — narrative recap of the current PR's
   history
-- `docs/HANDOFF-claude-code.md` (if present) — state snapshot and open
+- `docs/handoff/code-claude.md` (if present) — state snapshot and open
   questions specific to the current Claude Code session
 - `docs/reviews/` (if present) — captured PR reviews from external tools

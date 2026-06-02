@@ -11,6 +11,8 @@
       "Bash(make dev)",
       "Bash(make postinstall)",
       "Bash(make print-bundle-id)",
+      "Bash(make test)",
+      "Bash(make check)",
 
       "Bash(git status:*)",
       "Bash(git log:*)",

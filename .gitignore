@@ -29,10 +29,10 @@ worktrees/
 # Working files for AI-assisted development sessions; not part of the
 # repository's tracked content. Keep them locally for reference but do
 # not commit.
-docs/HANDOFF.md
-docs/HANDOFF-claude-code.md
+docs/handoff/
 docs/pr*.diff
 docs/reviews/
+docs/tests/
 scripts/find_unicode_control2*/
 _user-claude-config/
 ACTION-ITEMS-handoff.md
