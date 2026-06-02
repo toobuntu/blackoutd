@@ -8,7 +8,28 @@
 
 set -e
 
-staged() { git diff --cached --name-only --diff-filter=ACM | /usr/bin/grep -E "$1" || true; }
+# staged() emits matching staged paths newline-delimited; its consumer
+# reads them with `IFS= read -r` (whitespace-safe, though not proof against
+# the pathological case of a newline embedded in a path). staged_z() emits
+# the same set NUL-delimited for consumers that pipe into `xargs -0`.
+# has_files() reports whether any path matches, for gating tools that take
+# no path arguments (e.g. zizmor, which scans the working tree itself).
+#
+# Diff filter ACMRT (Added, Copied, Modified, Renamed, Type-changed) — the
+# same set scripts/lint-perms.sh uses. Renames matter to the content checks,
+# not only to the perms check: git reports a rename carrying a moderate edit
+# (>=50% similarity) as R, not M, so a plain ACM filter would skip a
+# renamed-and-edited file and let the edit — a bidi character, a formatting
+# break, a stripped SPDX header — past the hook at its new path. Including R
+# re-checks it there. The only cost is re-checking the occasional pure
+# (content-identical) rename, which is cheap and always passes. D (deleted)
+# and U (unmerged) are excluded: no present blob to check.
+staged() { git diff --cached --name-only --diff-filter=ACMRT | /usr/bin/grep -E "$1" || true; }
+staged_z() {
+    git diff --cached --name-only --diff-filter=ACMRT -z \
+        | /usr/bin/grep --extended-regexp --null-data "$1" || true
+}
+has_files() { [ "$(staged_z "$1" | wc -c)" -gt 0 ]; }
 
 # Block direct commits to main.
 branch=$(git branch --show-current)
@@ -45,6 +66,12 @@ scripts/lint-perms.sh --staged
 #
 # Rationale, codepoint coverage, and alternatives considered:
 # docs/decisions/0001-trojan-source-detection-strategy.md
+#
+# NOTE: this stanza intentionally still uses staged() (newline-delimited)
+# because of its per-file `git show` + bidi-allow parsing loop. Converting
+# it to NUL transport is a larger refactor tracked as a follow-up; today
+# it is whitespace-safe (IFS= read -r) but vulnerable to embedded newlines
+# in paths.
 
 # Codepoint table: "U+XXXX:OOO_OOO_OOO" where OOO are the UTF-8 octal
 # bytes joined with backslashes for direct use as a printf format string.
@@ -118,7 +145,7 @@ if [ -n "$all_staged" ]; then
         # `git show ":$file"` prints the staged blob (not the working tree).
         # `--binary-files=without-match` skips blobs grep classifies as binary.
         # `LC_ALL=en_US.UTF-8` ensures grep interprets the bracket expression
-        #   as Unicode characters.
+        #  as Unicode characters.
         if git show ":$_bfile" 2>/dev/null \
             | LC_ALL=en_US.UTF-8 /usr/bin/grep \
                 --binary-files=without-match \
@@ -142,120 +169,103 @@ _BIDI_EOF_
 fi
 
 # --- clang-format on staged .m and .h files ---
-objc_files=$(staged '\.(m|h)$')
-if [ -n "$objc_files" ]; then
-    if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
-        if xcrun --find clang-format >/dev/null 2>&1; then
-            printf '%s\n' "$objc_files" | xargs xcrun clang-format --style=file --dry-run --Werror
-        fi
-    else
-        if command -v clang-format >/dev/null 2>&1; then
-            printf '%s\n' "$objc_files" | xargs clang-format --style=file --dry-run --Werror
-        fi
+# xargs -0 -r: NUL-delimited input, no invocation when nothing matches.
+if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
+    if xcrun --find clang-format >/dev/null 2>&1; then
+        staged_z '\.(m|h)$' \
+            | xargs -0 -r xcrun clang-format --style=file --dry-run --Werror
     fi
+elif command -v clang-format >/dev/null 2>&1; then
+    staged_z '\.(m|h)$' \
+        | xargs -0 -r clang-format --style=file --dry-run --Werror
 fi
 
 # --- clang-tidy on staged .m files (macOS only — requires SDK headers) ---
-if [ "$(/usr/bin/uname -s)" = "Darwin" ]; then
-    m_files=$(staged '\.m$')
-    if [ -n "$m_files" ]; then
-        TIDY=""
-        if command -v clang-tidy >/dev/null 2>&1; then
-            TIDY="clang-tidy"
-        else
-            LLVM_MAX_VERSION="$(
-              brew list --formula --versions |
-                grep --extended-regexp '^llvm(@[0-9]+)?[[:space:]]' |
-                sort --key=2 --version-sort |
-                awk 'END{print $1}'
-            )"
-            LLVM_PREFIX="$(brew --prefix)/opt/${LLVM_MAX_VERSION}"
-            if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
-                TIDY="$LLVM_PREFIX/bin/clang-tidy"
-            fi
+# has_files gates the (slow) toolchain probe so it only runs when .m
+# files are actually staged.
+if [ "$(/usr/bin/uname -s)" = "Darwin" ] && has_files '\.m$'; then
+    TIDY=""
+    if command -v clang-tidy >/dev/null 2>&1; then
+        TIDY="clang-tidy"
+    else
+        LLVM_MAX_VERSION="$(
+          brew list --formula --versions |
+            grep --extended-regexp '^llvm(@[0-9]+)?[[:space:]]' |
+            sort --key=2 --version-sort |
+            awk 'END{print $1}'
+        )"
+        LLVM_PREFIX="$(brew --prefix)/opt/${LLVM_MAX_VERSION}"
+        if [ -n "$LLVM_PREFIX" ] && [ -x "$LLVM_PREFIX/bin/clang-tidy" ]; then
+            TIDY="$LLVM_PREFIX/bin/clang-tidy"
         fi
-        if [ -n "$TIDY" ]; then
-            printf '%s\n' "$m_files" | xargs -J % "$TIDY" % -- \
-                -fobjc-arc \
-                -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
-                -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \
-                -framework Cocoa \
-                -framework CoreGraphics \
-                -framework IOKit \
-                -I src
-        fi
+    fi
+    if [ -n "$TIDY" ]; then
+        staged_z '\.m$' | xargs -0 -r -J % "$TIDY" % -- \
+            -fobjc-arc \
+            -DBD_BUNDLE_ID='"io.github.toobuntu.blackoutd"' \
+            -DBD_RESOURCES_BUNDLE='"/usr/local/share/blackoutd.bundle"' \
+            -framework Cocoa \
+            -framework CoreGraphics \
+            -framework IOKit \
+            -I src
     fi
 fi
 
 # --- Lint staged workflow files with actionlint and zizmor ---
-workflow_files=$(staged '\.github/workflows/.*\.yml$')
-if [ -n "$workflow_files" ]; then
+# actionlint takes file arguments (xargs -0 -r); zizmor scans the working
+# tree and takes none, so has_files gates whether to run it at all.
+if has_files '\.github/workflows/.*\.yml$'; then
     if command -v actionlint >/dev/null 2>&1; then
-        printf '%s\n' "$workflow_files" | xargs actionlint
+        staged_z '\.github/workflows/.*\.yml$' | xargs -0 -r actionlint
     else
-        echo "warning: actionlint not found — skipping workflow lint (brew install actionlint)" >&2
+        printf "warning: actionlint not found — skipping workflow lint (brew install actionlint)\n" >&2
     fi
     if command -v zizmor >/dev/null 2>&1; then
-        zizmor .
+        if zizmor --quiet .; then
+            :
+        else
+            status=$?
+            printf "hint: try auto-fix (zizmor --fix .)\n" >&2
+            exit "$status"
+        fi
     else
-        echo "warning: zizmor not found — skipping workflow security scan (brew install zizmor)" >&2
+        printf "warning: zizmor not found — skipping workflow security scan (brew install zizmor)\n" >&2
     fi
 fi
 
-# --- REUSE compliance ---
-# `reuse lint-file <staged paths>` was added in reuse-tool 5.x as the
-# pre-commit-friendly subcommand: it checks only the listed files
-# instead of walking the whole repository, which is faster, scopes the
-# check to what's about to land, and avoids unstaged-file noise (e.g.
-# from `git commit -p` partial commits or in-flight WIP elsewhere in
-# the tree).
+# --- REUSE compliance on staged files ---
+# lint-file (reuse-tool 5.x+) scopes the check to the listed paths;
+# --no-multiprocessing avoids a macOS Seatbelt sandbox failure and is
+# faster for the small file sets typical of a commit. Full rationale,
+# the upstream sandbox-issue links, and the hook-vs-CI split are in
+# ADR 0005 (docs/decisions/0005-reuse-lint-hook-strategy.md).
 #
-# `--no-multiprocessing` is added defensively for two reasons. First,
-# Python's `concurrent.futures.ProcessPoolExecutor` calls
-# `os.sysconf("SC_SEM_NSEMS_MAX")` during pool setup, which the macOS
-# Seatbelt sandbox blocks at the syscall level (Operation not
-# permitted) — see fsfe/reuse-tool#280 and openai/codex#2486 for the
-# upstream history. Second, multiprocessing setup overhead beats serial
-# execution for the small file counts typical in a single commit, so
-# this is a measurable speedup independent of sandboxing.
-#
-# CI's lint-reuse job (.github/workflows/ci.yml) does the full-repo
-# lint via fsfe/reuse-action; the hook lints only staged files so the
-# two layers are complementary, not redundant.
-#
-# BLACKOUTD_SKIP_REUSE_LINT=1 skips this block entirely. Used by spec/
-# tests that copy the hook into a throwaway repo with no LICENSES/ dir
-# to test other blocks (e.g., the Unicode scanner) in isolation. Not
-# advertised in CONTRIBUTING.md — purely an internal test seam.
-#
-# REUSE.toml caveat: blackoutd uses individual SPDX headers and
-# `.license` sidecars, no REUSE.toml. If a future change introduces
-# REUSE.toml-based annotations, revisit this hook — `lint-file` does
-# combine REUSE.toml declarations with per-file headers, but verify
-# the behavior matches the lint-tree path before relying on it.
+# BLACKOUTD_SKIP_REUSE_LINT=1 disables this stanza. It exists so the
+# RSpec hook tests can exercise the other checks (notably the Unicode
+# scanner) against throwaway repos that carry no SPDX headers or
+# LICENSES/ dir, where reuse would otherwise reject every fixture and
+# mask what those tests target. It is an internal test seam — not
+# documented in CONTRIBUTING.md, and not a way to bypass REUSE on a real
+# commit (CI's lint-reuse job has no such escape hatch).
 if [ -z "${BLACKOUTD_SKIP_REUSE_LINT:-}" ]; then
     if command -v reuse >/dev/null 2>&1; then
-        if [ -n "$all_staged" ]; then
-            # `reuse lint-file` exits non-zero on any compliance failure
-            # and prints details to stdout. Run with --quiet for the
-            # detection pass; on failure, re-run without --quiet to give
-            # the user the full report before bailing.
-            if ! printf '%s\n' "$all_staged" \
-                | xargs reuse --no-multiprocessing lint-file --quiet
-            then
-                printf '%s\n' "$all_staged" \
-                    | xargs reuse --no-multiprocessing lint-file
-                cat >&2 <<'HINT'
+        if ! staged_z '.' \
+            | xargs -0 -r reuse --no-multiprocessing lint-file --quiet; then
+            # Re-run without --quiet to surface the report. `|| true` keeps
+            # set -e from killing the hook on this bare pipeline (reuse exits
+            # non-zero by definition in this branch) before the hint and the
+            # explicit exit below can run.
+            staged_z '.' | xargs -0 -r reuse --no-multiprocessing lint-file || true
+            cat >&2 <<'HINT'
 
 To annotate unannotated files, run:
 
   scripts/annotate.sh
 
 HINT
-                exit 1
-            fi
+            exit 1
         fi
     else
-        echo "warning: reuse not found — skipping REUSE compliance check (brew install reuse)" >&2
+        printf "warning: reuse not found — skipping REUSE compliance check (brew install reuse)\n" >&2
     fi
 fi
