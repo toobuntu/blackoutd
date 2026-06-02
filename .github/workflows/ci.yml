@@ -236,7 +236,7 @@ jobs:
         # run: cargo install adrs
 
       - name: Run adrs doctor
-        run: adrs doctor
+        run: /home/linuxbrew/.linuxbrew/bin/adrs doctor
 
   lint-tidy:
     runs-on: macos-latest

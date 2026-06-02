@@ -2,6 +2,10 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# Disable REUSE linting to prevent SPDX-like substrings in test fixtures
+# from being misinterpreted as malformed license metadata.
+# REUSE-IgnoreStart
+
 require "fileutils"
 require "open3"
 require "tmpdir"
@@ -354,3 +358,4 @@ RSpec.describe "CI lint-unicode scanner" do
     end
   end
 end
+# REUSE-IgnoreEnd
