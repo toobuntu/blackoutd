@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-Run `bundle exec rspec` and report the result.
+Run `make test` and report the result.
 
 If tests pass, give a one-line summary (count, time).
 

@@ -25,28 +25,49 @@ BUILD_BUNDLE   = $(BUILDDIR)/$(BUNDLE_NAME)/Contents/Resources
 SHARE_BUNDLE   = /usr/local/share/$(BUNDLE_NAME)
 
 SRCS   = $(SRCDIR)/main.m $(SRCDIR)/AppDelegate.m $(SRCDIR)/DisplayController.m
+HDRS   = $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h
 TARGET = $(BUILDDIR)/$(BINARY)
+GIT_STAMP = $(BUILDDIR)/.git-describe
 CC     = clang
+# Lint tools. clang-format ships with Xcode (xcrun); clang-tidy is not in the
+# Xcode toolchain, so run Homebrew llvm's via `brew exec` (no PATH linking).
+# Override either variable to point at a specific binary.
+CLANG_FORMAT ?= xcrun clang-format
+CLANG_TIDY   ?= brew exec clang-tidy
+# Defines and frameworks, shared by the build and `make tidy` so static
+# analysis sees exactly what the compiler does.
+DEFINES = \
+    -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
+    -DBD_RESOURCES_BUNDLE='"$(SHARE_BUNDLE)"' \
+    -DBD_BUILD_GIT='"$(GIT_DESCRIBE)"' \
+    -DBD_BUILD_TIME='"$(BUILD_TIME)"'
+FRAMEWORKS = -framework Cocoa -framework CoreGraphics -framework IOKit
 CFLAGS = \
     -fobjc-arc \
     -Wall \
     -Wextra \
     -Os \
-    -DBD_BUNDLE_ID='"$(BUNDLE_ID)"' \
-    -DBD_RESOURCES_BUNDLE='"$(SHARE_BUNDLE)"' \
-    -DBD_BUILD_GIT='"$(GIT_DESCRIBE)"' \
-    -DBD_BUILD_TIME='"$(BUILD_TIME)"' \
-    -framework Cocoa \
-    -framework CoreGraphics \
-    -framework IOKit \
+    $(DEFINES) \
+    $(FRAMEWORKS) \
     -sectcreate __TEXT __info_plist $(SRCDIR)/Info.plist
 
+# Shared clang-format file/style args (`format` writes with -i; `lint`
+# checks with --dry-run).
+CLANG_FORMAT_ARGS = --style=file --Werror $(SRCS) $(HDRS)
+# Full clang-tidy invocation, shared by `tidy` and `lint`. Flags after --
+# mirror the build via $(DEFINES)/$(FRAMEWORKS).
+CLANG_TIDY_RUN = $(CLANG_TIDY) --quiet $(SRCS) -- -fobjc-arc $(DEFINES) $(FRAMEWORKS) -I$(SRCDIR)
+# $(call require,command,error-message): abort with the message if the
+# tool is missing. --version probes PATH binaries and the xcrun/brew-exec
+# wrappers alike, which `command -v` cannot resolve.
+require = @$(1) --version >/dev/null 2>&1 || { printf 'error: %s\n' '$(2)' >&2; exit 1; }
+
 .PHONY: all clean install postinstall dev reinstall uninstall load unload \
-        print-bundle-id preflight release
+        print-bundle-id preflight release format tidy lint test check FORCE
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDIR)/Info.plist
+$(TARGET): $(SRCS) $(HDRS) $(SRCDIR)/Info.plist $(GIT_STAMP)
 	mkdir -p $(BUILDDIR)
 	$(CC) $(CFLAGS) -o $@ $(SRCS)
 	strip $@
@@ -54,6 +75,15 @@ $(TARGET): $(SRCS) $(SRCDIR)/AppDelegate.h $(SRCDIR)/DisplayController.h $(SRCDI
 	mkdir -p $(BUILD_BUNDLE)
 	cp $(RESOURCES_SRC)/Info.plist $(BUILDDIR)/$(BUNDLE_NAME)/Contents/
 	cp -R $(RESOURCES_SRC)/*.lproj $(BUILD_BUNDLE)/
+
+# Rewrite the git-describe stamp only when it changes, so $(TARGET) relinks
+# (re-embedding BD_BUILD_GIT) after a commit even when no source file changed,
+# without defeating incremental rebuilds otherwise.
+$(GIT_STAMP): FORCE
+	@mkdir -p $(BUILDDIR)
+	@printf '%s' '$(GIT_DESCRIBE)' | cmp -s - $@ 2>/dev/null || printf '%s' '$(GIT_DESCRIBE)' >$@
+
+FORCE:
 
 clean:
 	rm -rf $(BUILDDIR)
@@ -130,6 +160,48 @@ unload:
 
 print-bundle-id:
 	@echo $(BUNDLE_ID)
+
+# Ad-hoc lint entry points. The .githooks/pre-commit hook runs the same tools
+# in check mode on staged files, and CI runs them repo-wide; these are for
+# running them by hand. clang-format reads .clang-format; clang-tidy reads
+# .clang-tidy.
+
+# Reformat sources in place. --style=file is explicit to match the
+# pre-commit and CI invocations regardless of clang-format's default.
+format:
+	$(CLANG_FORMAT) -i $(CLANG_FORMAT_ARGS)
+
+# Static analysis. --quiet drops the "N warnings generated / Suppressed N"
+# accounting (HeaderFilterRegex in .clang-tidy already scopes diagnostics to
+# src/). Flags after -- mirror the build via $(DEFINES)/$(FRAMEWORKS).
+tidy:
+	$(call require,$(CLANG_TIDY),clang-tidy unavailable (brew install llvm))
+	$(CLANG_TIDY_RUN)
+
+# Run RSpec under Homebrew's portable Ruby — the same Ruby `brew ruby`
+# uses and that CI runs via Homebrew/actions/setup-ruby. Run
+# `bundle install` under that Ruby once first (see CONTRIBUTING.md).
+test:
+	@pr_bin="$$(brew --repository)/Library/Homebrew/vendor/portable-ruby/current/bin"; \
+	env -P"$$pr_bin:$$PATH" bundle exec rspec
+
+# Read-only repo-wide checks — the local equivalent of CI's whole-tree
+# gates (the pre-commit hook only sees staged files and uses
+# `reuse lint-file`). Modifies nothing; requires the full toolchain.
+lint:
+	$(call require,$(CLANG_FORMAT),clang-format unavailable (xcode-select --install && xcode-select --switch /Library/Developer/CommandLineTools))
+	$(call require,$(CLANG_TIDY),clang-tidy unavailable (brew install llvm))
+	$(call require,reuse,reuse not installed (brew install reuse))
+	$(call require,adrs,adrs not installed (brew install adrs))
+	scripts/lint-perms.sh --tracked
+	$(CLANG_FORMAT) --dry-run $(CLANG_FORMAT_ARGS)
+	$(CLANG_TIDY_RUN)
+	reuse lint
+	adrs doctor
+
+# Full local gate: read-only checks plus the behavioral test suite
+# (CI parity). The one command to run before pushing.
+check: lint test
 
 # Verify a clean working tree before doing release work. Run as a
 # prerequisite so the build does not happen if the gate fails.

@@ -1,3 +1,11 @@
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Disable REUSE linting to prevent SPDX-like substrings in test fixtures
+# from being misinterpreted as malformed license metadata.
+# REUSE-IgnoreStart
+
 require "fileutils"
 require "open3"
 require "tmpdir"
@@ -19,6 +27,7 @@ require "tmpdir"
 
 REPO_ROOT = File.expand_path("../../..", __FILE__)
 HOOK_PATH = File.join(REPO_ROOT, ".githooks", "pre-commit")
+LINT_PERMS_PATH = File.join(REPO_ROOT, "scripts", "lint-perms.sh")
 CI_YML_PATH = File.join(REPO_ROOT, ".github", "workflows", "ci.yml")
 
 # Bidi/zero-width/BOM codepoints that must trigger the check.
@@ -38,6 +47,11 @@ EM_DASH           = "\u2014"  # —
 module HookSpecHelpers
   # Creates a temp git repo, configures the local pre-commit hook,
   # writes the given files, stages them, and yields the working dir.
+  #
+  # scripts/lint-perms.sh is also copied in (and staged 0755) because
+  # the hook's perms check trust guard requires its presence. Without
+  # this, the hook would error out before reaching the unicode check
+  # the rest of the suite is testing.
   def with_git_repo(files)
     Dir.mktmpdir("blackoutd-hook-test-") do |dir|
       Dir.chdir(dir) do
@@ -49,6 +63,12 @@ module HookSpecHelpers
         FileUtils.cp(HOOK_PATH, ".githooks/pre-commit")
         File.chmod(0o755, ".githooks/pre-commit")
         run!("git", "config", "core.hooksPath", ".githooks")
+        # Copy the perms-check script so the hook's trust guard passes.
+        FileUtils.mkdir_p("scripts")
+        FileUtils.cp(LINT_PERMS_PATH, "scripts/lint-perms.sh")
+        File.chmod(0o755, "scripts/lint-perms.sh")
+        run!("git", "add", "scripts/lint-perms.sh")
+        run!("git", "update-index", "--chmod=+x", "scripts/lint-perms.sh")
         # Write planted content and stage.
         files.each do |relpath, content|
           FileUtils.mkdir_p(File.dirname(relpath))
@@ -62,8 +82,14 @@ module HookSpecHelpers
 
   # Runs the hook directly (not through `git commit`) so the test can
   # observe its exit status and stderr without committing.
+  #
+  # BLACKOUTD_SKIP_REUSE_LINT=1: these specs target the hook's Unicode
+  # scanner, not its REUSE gate. The throwaway repos carry no SPDX
+  # headers, so with reuse installed the REUSE stanza would reject every
+  # fixture and mask the check under test. The REUSE path has its own
+  # coverage (precommit_reuse_spec.rb and the lint-reuse CI job).
   def run_hook
-    Open3.capture3({ "GIT_DIR" => ".git", "GIT_INDEX_FILE" => ".git/index" },
+    Open3.capture3({ "BLACKOUTD_SKIP_REUSE_LINT" => "1", "GIT_DIR" => ".git", "GIT_INDEX_FILE" => ".git/index" },
                    "./.githooks/pre-commit")
   end
 
@@ -332,3 +358,4 @@ RSpec.describe "CI lint-unicode scanner" do
     end
   end
 end
+# REUSE-IgnoreEnd

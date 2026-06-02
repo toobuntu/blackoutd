@@ -158,11 +158,16 @@ Behavioral tests for the pre-commit hook and CI Unicode scanner live in
 embedded Python from `ci.yml` against planted inputs.
 
 ```sh
-bundle install
-bundle exec rspec
+# RSpec runs under Homebrew's portable Ruby (system Ruby 2.6 is only a
+# fallback). Install the gems under that Ruby once:
+env -P"$(brew --repository)/Library/Homebrew/vendor/portable-ruby/current/bin:$PATH" bundle install
+
+# Then run the suite via the make target (it wraps the same Ruby):
+make test
 ```
 
-The `spec` job in CI runs these on every push and pull request.
+The `spec` job in CI runs the suite via `Homebrew/actions/setup-ruby`
+(the same portable Ruby) on every push and pull request.
 
 ## Commit conventions
 

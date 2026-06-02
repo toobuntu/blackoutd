@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+---
+BUNDLE_PATH: "vendor/bundle"
+BUNDLE_DISABLE_SHARED_GEMS: "true"
