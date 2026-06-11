@@ -634,9 +634,18 @@ static void deriveWindow(NSString **startOut, NSString **endOut) {
 }
 
 // Collects a diagnostic bundle into /tmp and prints the report to stdout.
-static int runDiagnose(int minutes, NSString *start, NSString *end) {
+static int runDiagnose(int minutes, NSString *start, NSString *end,
+                       BOOL quiet) {
+  NSDate *t0 = NSDate.date;
+  NSDateFormatter *clock = [[NSDateFormatter alloc] init];
+  clock.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  clock.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  printf("diagnose: started %s — collecting (can take ~1 min)...\n",
+         [clock stringFromDate:t0].UTF8String);
+
   NSString *report = buildReport();
-  fputs(report.UTF8String, stdout);
+  if (!quiet)
+    fputs(report.UTF8String, stdout);
 
   NSDateFormatter *fmt = [[NSDateFormatter alloc] init];
   fmt.dateFormat = @"yyyyMMdd-HHmmss";
@@ -734,7 +743,9 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   if (!complete)
     fprintf(stderr,
             "blackoutd: WARNING — bundle incomplete; some files failed\n");
-  printf("\nDiagnostic bundle written to %s/\n", dir.UTF8String);
+  printf("\nDiagnostic bundle written to %s/ (%.1fs, finished %s)\n",
+         dir.UTF8String, -[t0 timeIntervalSinceNow],
+         [clock stringFromDate:NSDate.date].UTF8String);
   printf("  config.txt       — this report (build, lid, displays)\n");
   printf("  version.txt      — CLI build identity\n");
   printf(
@@ -895,7 +906,8 @@ static void printUsage(void) {
       " 2=verbose)\n"
       "  diagnose        Collect a diagnostic bundle for bug reports\n"
       "                  (auto-bounds the window to the last wake; override\n"
-      "                  with --minutes N or --start \"T\" --end \"T\")\n"
+      "                  with --minutes N or --start \"T\" --end \"T\";\n"
+      "                  --quiet/-q prints only the summary)\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
@@ -960,9 +972,14 @@ int main(int argc, const char *argv[]) {
       return printStatus();
     if (strcmp(cmd, "diagnose") == 0) {
       int minutes = 0;
+      BOOL quiet = NO;
       NSString *start = nil, *end = nil;
       for (int i = 2; i < argc; i++) {
         const char *opt = argv[i];
+        if (strcmp(opt, "--quiet") == 0 || strcmp(opt, "-q") == 0) {
+          quiet = YES;
+          continue;
+        }
         BOOL isMinutes = strcmp(opt, "--minutes") == 0;
         BOOL isStart = strcmp(opt, "--start") == 0;
         BOOL isEnd = strcmp(opt, "--end") == 0;
@@ -1000,7 +1017,7 @@ int main(int argc, const char *argv[]) {
         fprintf(stderr, "blackoutd: --end requires --start\n");
         return 1;
       }
-      return runDiagnose(minutes, start, end);
+      return runDiagnose(minutes, start, end, quiet);
     }
     if (strcmp(cmd, "--version") == 0)
       return printVersion();
