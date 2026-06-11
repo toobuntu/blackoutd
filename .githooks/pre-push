@@ -6,25 +6,77 @@
 
 set -euo pipefail
 
-# Reject pushes that include unsigned or invalidly signed commits.
-# Skip deletions and refs that do not peel (i.e., recursively
-# dereference) to a commit.
-while read -r local_ref local_oid _ _; do
-  status="$(git log -1 '--format=%G?' "${local_oid}^{commit}" 2>/dev/null)" || continue
+# Reject any push that would introduce an unsigned or invalidly signed commit.
+#
+# git supplies one line per ref on stdin: "<local_ref> <local_oid> <remote_ref>
+# <remote_oid>". Validate EVERY commit the push ADDS, not just the tip -- an
+# unsigned commit buried under a signed tip would otherwise slip through, which
+# is the whole point of the gate. The range covers only the pushed commits,
+# never the whole history:
+#   - existing remote branch (remote_oid known locally): remote_oid..local_oid
+#   - new ref / unknown remote tip: local_oid --not --remotes[=<dest>]
+# so history already published on the remote is not re-validated. The
+# --not --remotes fallback leans on local remote-tracking refs; if those are
+# stale it may re-check a few already-published commits -- harmless (they pass)
+# and conservative (it never under-checks). Deletions and refs that do not peel
+# (i.e., recursively dereference) to a commit are skipped.
+#
+# %G? codes: G good, U good/unknown-signer, X expired key, Y expired cert (all
+# accepted); N no signature; B/R/E bad/revoked/missing-key (rejected).
+#
+# Policy: EVERY pushed commit must carry a valid signature, regardless of
+# author. The signature is the COMMITTER's attestation, not the author's, so the
+# pusher may legitimately re-sign anyone's commit (an --amend/rebase records the
+# pusher as committer and preserves the author). Commits by other authors are
+# NOT exempted: the author field is trivially forgeable (git commit --author=...
+# --no-gpg-sign), so an exemption would let any unsigned commit through.
+#
+# On rejection the hook LISTS the offending commits and prints a one-pass
+# re-sign command rooted just before the earliest unsigned commit -- it gates,
+# it does not rewrite history itself (an in-hook rebase would rewrite SHAs
+# mid-push and can fail mid-flight).
 
-  case "${status}" in
-    # G good, U good+unknown signer, X expired key, Y expired cert
-    G|U|X|Y)
-      ;;
-    # N no signature
-    N)
-      echo "Push rejected: ${local_ref} is not signed" >&2
-      exit 1
-      ;;
-    # B bad, R good+revoked key, E missing key
-    *)
-      echo "Push rejected: ${local_ref} signature is not valid" >&2
-      exit 1
-      ;;
-  esac
+while read -r local_ref local_oid _ remote_oid; do
+  # Skip ref deletions: a deletion's local OID is all-zero. Bash strips every
+  # "0"; an all-zero OID leaves the empty string. Length-agnostic (SHA-1/256).
+  [ -z "${local_oid//0/}" ] && continue
+
+  # Scope to the commits this push introduces (see header). Precise range when
+  # the remote tip is known locally; otherwise everything local_oid reaches that
+  # is not already published, scoped to the push destination ($1) when it names
+  # a configured remote so commits on a DIFFERENT remote are still validated.
+  if [ -n "${remote_oid//0/}" ] && git cat-file -e "${remote_oid}^{commit}" 2>/dev/null; then
+    range=("${remote_oid}..${local_oid}")
+  elif git remote get-url "${1:-}" >/dev/null 2>&1; then
+    range=("${local_oid}" --not "--remotes=$1")
+  else
+    range=("${local_oid}" --not --remotes)
+  fi
+
+  # Collect unsigned commits; reject an invalidly signed one (B/R/E) outright --
+  # that is a present-but-bad signature, not a missing one, so "just sign it" is
+  # the wrong advice. --reverse lists oldest-first, so unsigned[0] is the
+  # earliest unsigned commit and its parent is a base that covers them all.
+  unsigned=()
+  while IFS= read -r oid; do
+    case "$(git log -1 --format='%G?' "${oid}")" in
+      G | U | X | Y) ;;
+      N) unsigned+=("${oid}") ;;
+      *)
+        echo "Push rejected: ${local_ref} adds an invalidly signed commit:" >&2
+        git log -1 --format='  %h  %an  %s' "${oid}" >&2
+        exit 1
+        ;;
+    esac
+  done < <(git rev-list --reverse "${range[@]}")
+
+  if [ "${#unsigned[@]}" -gt 0 ]; then
+    echo "Push rejected: ${local_ref} adds ${#unsigned[@]} unsigned commit(s):" >&2
+    for oid in "${unsigned[@]}"; do
+      git log -1 --format='  %h  %an  %s' "${oid}" >&2
+    done
+    echo "Sign them in one pass (records you as committer; authors preserved):" >&2
+    echo "    git rebase --exec 'git commit --amend --no-edit --gpg-sign' ${unsigned[0]}^" >&2
+    exit 1
+  fi
 done
