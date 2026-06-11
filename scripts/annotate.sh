@@ -10,7 +10,7 @@
 # working set before the next is matched, so ORDER MATTERS):
 #
 #   1. C / Objective-C source (.m/.h/.c)               → --style=c     (// comments)
-#   2. Go source (.go)                                  → --style=go    (// comments)
+#   2. Go source (.go)                                  → --style=c    (// comments)
 #   3. Generated completion files (completions/**)      → sidecar       (--force-dot-license)
 #   4. Man pages (.[1-9], .[1-9][a-z]*, with optional   → sidecar       (--force-dot-license)
 #      .md suffix; e.g. progname.1, progname.3p,
@@ -147,7 +147,7 @@ remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp
 other_files=$(printf '%s\n' "${remaining}" || true)
 
 [[ -n ${c_files} ]]      && printf '%s\n' "${c_files}"      | annotate --style=c
-[[ -n ${go_files} ]]     && printf '%s\n' "${go_files}"     | annotate --style=go
+[[ -n ${go_files} ]]     && printf '%s\n' "${go_files}"     | annotate --style=c
 [[ -n ${compl_files} ]]  && printf '%s\n' "${compl_files}"  | annotate --force-dot-license
 [[ -n ${man_files} ]]    && printf '%s\n' "${man_files}"    | annotate --force-dot-license
 [[ -n ${markup_files} ]] && printf '%s\n' "${markup_files}" | annotate --style=html
