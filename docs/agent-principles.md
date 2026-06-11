@@ -294,6 +294,70 @@ idiomatic and the output is for human eyes (e.g., `xargs -J`).
 - en_US spelling everywhere ("labeling" not "labelling", "color"
   not "colour").
 
+## Agent commit + signing procedure under sandbox isolation
+
+### Why
+
+These repos require signed commits (`commit.gpgsign = true`,
+`gpg.format = ssh`, key under `~/.ssh`). A sandboxed agent's shell denies read
+access to `~/.ssh`, so any `git commit` that tries to sign **hangs** on the
+key/askpass step (often a macOS passphrase dialog that never returns) or fails
+outright. The agent therefore commits *unsigned*, and the human re-signs the
+batch before pushing.
+
+### Agent: commit unsigned
+
+```sh
+GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false commit --no-gpg-sign \
+    -m "subject" -m "body" < /dev/null
+```
+
+- `-c commit.gpgsign=false` and `--no-gpg-sign` both disable signing (belt and
+  suspenders — the config override stops the hang even if some path re-reads
+  `commit.gpgsign`).
+- `< /dev/null` closes stdin so nothing can block on an interactive prompt (the
+  signing askpass, a credential helper, an editor).
+- `GIT_TERMINAL_PROMPT=0` stops git itself from prompting on a TTY.
+- Add `--no-verify` **only** if the pre-commit hook genuinely can't run in the
+  sandbox (e.g. `reuse lint` without `--no-multiprocessing` aborts on the macOS
+  Seatbelt `SC_SEM_NSEMS_MAX` syscall; `go vet ./...` / `staticcheck` can't write
+  the module/build cache). A correctly written hook (`reuse --no-multiprocessing
+  lint-file`, language checks gated on staged files) runs clean in-sandbox and
+  should *not* be bypassed.
+
+### Human: re-sign the batch before pushing
+
+```sh
+git rebase --exec 'git commit --amend --no-edit --gpg-sign' origin/main
+```
+
+(`--gpg-sign` is the long form of `-S`.) What it does, and why the SHAs change:
+
+- It walks every commit on the current branch that is **not** already in
+  `origin/main` (the `origin/main..HEAD` range) and, for each, runs
+  `git commit --amend --no-edit --gpg-sign` — re-committing the same tree and
+  message, now SSH-signed. The rebase is without `--rebase-merges`, as the
+  range is expected to be linear and preserving merge topology would add replay
+  complexity without benefit to per-commit signing.
+- The cryptographic signature is stored **inside the commit object** (alongside
+  the tree, parents, author, and message), so signing changes the object's hash.
+  **Every amended commit gets a new SHA**, and every descendant is rewritten too.
+  The branch is content-equivalent but entirely new in identity.
+- Safe only while the commits are unpushed (rewriting *published* history is
+  not). The `pre-push` hook enforces the invariant from the other side — it
+  rejects a push whose tip is unsigned (`N`) or invalidly signed — so an
+  un-re-signed batch can't reach the remote by accident.
+
+### Consequence: a re-signed branch diverges from a stale `main`
+
+If you committed unsigned on `main` and then re-signed on a feature branch (or
+ran the rebase with `origin/main` as the base while on the branch), the "same"
+commits now exist at **two different SHAs**: the branch's signed ones and
+`main`'s old unsigned ones. Treat the **re-signed branch as the source of
+truth** and realign `main` to it after the branch lands
+(`git switch main && git reset --hard origin/main`) rather than trying to push
+both — `main`'s unsigned tip would be rejected anyway.
+
 ## Avoiding interactive shell hooks in tool calls
 
 `zsh` (the typical macOS interactive shell) has hooks like `chpwd`
