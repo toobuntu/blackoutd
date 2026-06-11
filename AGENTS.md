@@ -196,7 +196,10 @@ Investigating private/deprecated APIs and runtime state regularly uses:
   (`pmset -a`, `pmset -b`, `pmset -c`, `pmset -u`, `pmset sleepnow`,
   `pmset displaysleepnow`, `pmset schedule`, `pmset repeat`).
 - `system_profiler SPDisplaysDataType -detailLevel mini` — display
-  configuration as macOS sees it.
+  configuration as macOS sees it. Verify display state; don't assert from
+  system_profiler — system_profiler can show no displays while an external
+  is the sole active display and the built-in is blacked out; confirm via
+  blackoutd status / CG / ioreg.
 - `ioreg -lw0 -r -c IODisplayConnect` and other `-c` filters — IORegistry
   introspection for the display, USB-C, and DCP device proxy paths.
 - `defaults read blackoutd` — inspect the daemon's NSUserDefaults state.
