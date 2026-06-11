@@ -634,14 +634,16 @@ static void deriveWindow(NSString **startOut, NSString **endOut) {
 }
 
 // Collects a diagnostic bundle into /tmp and prints the report to stdout.
-static int runDiagnose(int minutes, NSString *start, NSString *end,
-                       BOOL quiet) {
+static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
+                       NSString *label) {
   NSDate *t0 = NSDate.date;
   NSDateFormatter *clock = [[NSDateFormatter alloc] init];
   clock.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
   clock.dateFormat = @"yyyy-MM-dd HH:mm:ss";
-  printf("diagnose: started %s — collecting (can take ~1 min)...\n",
-         [clock stringFromDate:t0].UTF8String);
+  printf("diagnose: started %s%s — collecting (can take ~1 min)...\n",
+         [clock stringFromDate:t0].UTF8String,
+         label.length ? [NSString stringWithFormat:@" [%@]", label].UTF8String
+                      : "");
 
   NSString *report = buildReport();
   if (!quiet)
@@ -663,6 +665,10 @@ static int runDiagnose(int minutes, NSString *start, NSString *end,
   }
 
   BOOL complete = YES;
+  if (label.length &&
+      !writeBundleText([label stringByAppendingString:@"\n"],
+                       [dir stringByAppendingPathComponent:@"label.txt"]))
+    complete = NO;
   if (!writeBundleText(report,
                        [dir stringByAppendingPathComponent:@"config.txt"]))
     complete = NO;
@@ -746,6 +752,8 @@ static int runDiagnose(int minutes, NSString *start, NSString *end,
   printf("\nDiagnostic bundle written to %s/ (%.1fs, finished %s)\n",
          dir.UTF8String, -[t0 timeIntervalSinceNow],
          [clock stringFromDate:NSDate.date].UTF8String);
+  if (label.length)
+    printf("  label.txt        — %s\n", label.UTF8String);
   printf("  config.txt       — this report (build, lid, displays)\n");
   printf("  version.txt      — CLI build identity\n");
   printf(
@@ -907,10 +915,18 @@ static void printUsage(void) {
       "  diagnose        Collect a diagnostic bundle for bug reports\n"
       "                  (auto-bounds the window to the last wake; override\n"
       "                  with --minutes N or --start \"T\" --end \"T\";\n"
-      "                  --quiet/-q prints only the summary)\n"
+      "                  --quiet/-q prints only the summary;\n"
+      "                  --label TXT tags the bundle)\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
+      "\n"
+      "Experimental (cursor-on-black investigation; maintainer-run):\n"
+      "  recover         Run one display-sleep recovery cycle\n"
+      "                  (--method displaysleep, --dry-run)\n"
+      "  repro           Sleep/wake repro with labeled captures + recovery\n"
+      "                  (--wake N, --settle S, --recover METHOD,\n"
+      "                  --silent, --dry-run)\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
@@ -954,6 +970,177 @@ static int printVersion(void) {
   return 0;
 }
 
+// MARK: - Repro / recovery (experimental, maintainer-run)
+//
+// These subcommands gather empirical cursor-on-black data and prototype the
+// one recovery confirmed to work from user space regardless of lock state: a
+// programmatic display-sleep cycle. `pmset displaysleepnow` needs no root —
+// only `pmset schedule wake` does. They shell out to power-management tools and
+// are meant to be run by the maintainer during a repro, never by the daemon.
+// `--dry-run` prints each step instead of executing it.
+
+// Runs an external command, or prints it under dry-run. Returns the exit code
+// (0 under dry-run), or -1 if the tool could not be launched.
+static int runStep(NSString *path, NSArray<NSString *> *args, BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] %s %s\n", path.UTF8String,
+           [args componentsJoinedByString:@" "].UTF8String);
+    return 0;
+  }
+  NSTask *task = [[NSTask alloc] init];
+  task.executableURL = [NSURL fileURLWithPath:path];
+  task.arguments = args;
+  NSError *err = nil;
+  if (![task launchAndReturnError:&err]) {
+    fprintf(stderr, "blackoutd: failed to run %s: %s\n", path.UTF8String,
+            err.localizedDescription.UTF8String);
+    return -1;
+  }
+  [task waitUntilExit];
+  return (int)task.terminationStatus;
+}
+
+// Speaks a short cue so the maintainer can follow blind steps while the screen
+// is black, and echoes it to stdout. Best-effort; never fatal.
+static void sayCue(NSString *text, BOOL silent, BOOL dryRun) {
+  printf("  [step] %s\n", text.UTF8String);
+  fflush(stdout);
+  if (!silent)
+    runStep(@"/usr/bin/say", @[ text ], dryRun);
+}
+
+// Performs one recovery attempt. The only method today is "displaysleep": a
+// programmatic display-sleep cycle (pmset displaysleepnow, then caffeinate -u
+// to re-declare user activity and wake the panel). Flicker is accepted; this
+// supersedes the older "displaysleepnow = flicker dead end" note now that the
+// maintainer confirms it reliably recovers regardless of lock state.
+static int performRecovery(NSString *method, BOOL dryRun) {
+  if (![method isEqualToString:@"displaysleep"]) {
+    fprintf(stderr, "blackoutd: unknown recovery method '%s'\n",
+            method.UTF8String);
+    return 1;
+  }
+  int rc = runStep(@"/usr/bin/pmset", @[ @"displaysleepnow" ], dryRun);
+  if (rc != 0)
+    return rc;
+  if (!dryRun)
+    [NSThread sleepForTimeInterval:2.0];
+  return runStep(@"/usr/bin/caffeinate", @[ @"-u", @"-t", @"2" ], dryRun);
+}
+
+// blackoutd recover [--method displaysleep] [--dry-run]
+static int recoverCommand(int argc, const char *argv[]) {
+  NSString *method = @"displaysleep";
+  BOOL dryRun = NO;
+  for (int i = 2; i < argc; i++) {
+    const char *opt = argv[i];
+    if (strcmp(opt, "--dry-run") == 0) {
+      dryRun = YES;
+    } else if (strcmp(opt, "--method") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "blackoutd: --method requires a value\n");
+        return 1;
+      }
+      method = @(argv[++i]);
+    } else {
+      fprintf(stderr, "blackoutd: unknown recover option '%s'\n", opt);
+      return 1;
+    }
+  }
+  return performRecovery(method, dryRun);
+}
+
+// Captures a labeled diagnose bundle (or prints the intent under dry-run).
+static void reproCapture(NSString *label, BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] diagnose --quiet --label %s\n", label.UTF8String);
+    return;
+  }
+  runDiagnose(0, nil, nil, YES, label);
+}
+
+// blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--silent]
+//                 [--dry-run]
+// Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
+// wake captures a labeled bundle, optionally runs a recovery, and captures
+// again. Built to run blind: it narrates each step via `say`.
+static int reproCommand(int argc, const char *argv[]) {
+  int wake = 15, settle = 20;
+  NSString *recover = nil;
+  BOOL silent = NO, dryRun = NO;
+  for (int i = 2; i < argc; i++) {
+    const char *opt = argv[i];
+    if (strcmp(opt, "--silent") == 0) {
+      silent = YES;
+    } else if (strcmp(opt, "--dry-run") == 0) {
+      dryRun = YES;
+    } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
+               strcmp(opt, "--recover") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "blackoutd: %s requires a value\n", opt);
+        return 1;
+      }
+      const char *val = argv[++i];
+      if (strcmp(opt, "--recover") == 0) {
+        recover = @(val);
+      } else {
+        char *parseEnd = NULL;
+        errno = 0;
+        long n = strtol(val, &parseEnd, 10);
+        if (*parseEnd != '\0' || errno != 0 || n < 0) {
+          fprintf(stderr, "blackoutd: %s requires a non-negative integer\n",
+                  opt);
+          return 1;
+        }
+        if (strcmp(opt, "--wake") == 0)
+          wake = (int)n;
+        else
+          settle = (int)n;
+      }
+    } else {
+      fprintf(stderr, "blackoutd: unknown repro option '%s'\n", opt);
+      return 1;
+    }
+  }
+
+  // Schedule the auto-wake first (only this needs sudo). wake=0 means the
+  // maintainer will wake the machine manually (e.g. by opening the lid).
+  if (wake > 0) {
+    NSDateFormatter *f = [[NSDateFormatter alloc] init];
+    f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    f.dateFormat = @"MM/dd/yy HH:mm:ss";
+    NSString *when =
+        [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
+    printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
+    if (runStep(@"/usr/bin/sudo", @[ @"pmset", @"schedule", @"wake", when ],
+                dryRun) != 0) {
+      fprintf(stderr, "repro: could not schedule wake; aborting\n");
+      return 1;
+    }
+  }
+
+  sayCue(@"sleeping now", silent, dryRun);
+  if (runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun) != 0)
+    return 1;
+  // System sleeps here; execution resumes on the scheduled wake.
+  if (!dryRun)
+    [NSThread sleepForTimeInterval:settle];
+
+  sayCue(@"capturing post wake", silent, dryRun);
+  reproCapture(@"post-wake", dryRun);
+
+  if (recover.length) {
+    sayCue(@"recovering", silent, dryRun);
+    performRecovery(recover, dryRun);
+    if (!dryRun)
+      [NSThread sleepForTimeInterval:settle];
+    sayCue(@"capturing post recover", silent, dryRun);
+    reproCapture(@"post-recover", dryRun);
+  }
+  printf("repro: done\n");
+  return 0;
+}
+
 int main(int argc, const char *argv[]) {
   setvbuf(stderr, NULL, _IONBF, 0);
 
@@ -973,7 +1160,7 @@ int main(int argc, const char *argv[]) {
     if (strcmp(cmd, "diagnose") == 0) {
       int minutes = 0;
       BOOL quiet = NO;
-      NSString *start = nil, *end = nil;
+      NSString *start = nil, *end = nil, *label = nil;
       for (int i = 2; i < argc; i++) {
         const char *opt = argv[i];
         if (strcmp(opt, "--quiet") == 0 || strcmp(opt, "-q") == 0) {
@@ -983,7 +1170,8 @@ int main(int argc, const char *argv[]) {
         BOOL isMinutes = strcmp(opt, "--minutes") == 0;
         BOOL isStart = strcmp(opt, "--start") == 0;
         BOOL isEnd = strcmp(opt, "--end") == 0;
-        if (!isMinutes && !isStart && !isEnd) {
+        BOOL isLabel = strcmp(opt, "--label") == 0;
+        if (!isMinutes && !isStart && !isEnd && !isLabel) {
           fprintf(stderr, "blackoutd: unknown diagnose option '%s'\n", opt);
           return 1;
         }
@@ -993,7 +1181,7 @@ int main(int argc, const char *argv[]) {
           return 1;
         }
         const char *val = argv[++i];
-        if ((isStart || isEnd) && *val == '\0') {
+        if ((isStart || isEnd || isLabel) && *val == '\0') {
           fprintf(stderr, "blackoutd: %s requires a non-empty value\n", opt);
           return 1;
         }
@@ -1009,16 +1197,22 @@ int main(int argc, const char *argv[]) {
           minutes = (int)m;
         } else if (isStart) {
           start = @(val);
-        } else {
+        } else if (isEnd) {
           end = @(val);
+        } else {
+          label = @(val);
         }
       }
       if (end && !start) {
         fprintf(stderr, "blackoutd: --end requires --start\n");
         return 1;
       }
-      return runDiagnose(minutes, start, end, quiet);
+      return runDiagnose(minutes, start, end, quiet, label);
     }
+    if (strcmp(cmd, "recover") == 0)
+      return recoverCommand(argc, argv);
+    if (strcmp(cmd, "repro") == 0)
+      return reproCommand(argc, argv);
     if (strcmp(cmd, "--version") == 0)
       return printVersion();
     if (strcmp(cmd, "daemon") == 0) {
