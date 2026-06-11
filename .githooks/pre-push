@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+set -euo pipefail
+
+# Reject pushes that include unsigned or invalidly signed commits.
+# Skip deletions and refs that do not peel (i.e., recursively
+# dereference) to a commit.
+while read -r local_ref local_oid _ _; do
+  status="$(git log -1 '--format=%G?' "${local_oid}^{commit}" 2>/dev/null)" || continue
+
+  case "${status}" in
+    # G good, U good+unknown signer, X expired key, Y expired cert
+    G|U|X|Y)
+      ;;
+    # N no signature
+    N)
+      echo "Push rejected: ${local_ref} is not signed" >&2
+      exit 1
+      ;;
+    # B bad, R good+revoked key, E missing key
+    *)
+      echo "Push rejected: ${local_ref} signature is not valid" >&2
+      exit 1
+      ;;
+  esac
+done
