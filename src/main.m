@@ -645,6 +645,12 @@ static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
          label.length ? [NSString stringWithFormat:@" [%@]", label].UTF8String
                       : "");
 
+  // Sample the live registry BEFORE buildReport() runs system_profiler, which
+  // can probe and perturb displays — keeps dcp.txt / connection-mode.txt a
+  // pristine snapshot of the state at capture time.
+  NSString *dcp = dcpReport();
+  NSString *connMode = connectionModeReport();
+
   NSString *report = buildReport();
   if (!quiet)
     fputs(report.UTF8String, stdout);
@@ -686,12 +692,11 @@ static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
                        [dir stringByAppendingPathComponent:@"version.txt"]))
     complete = NO;
 
-  if (!writeBundleText(dcpReport(),
-                       [dir stringByAppendingPathComponent:@"dcp.txt"]))
+  if (!writeBundleText(dcp, [dir stringByAppendingPathComponent:@"dcp.txt"]))
     complete = NO;
 
   if (!writeBundleText(
-          connectionModeReport(),
+          connMode,
           [dir stringByAppendingPathComponent:@"connection-mode.txt"]))
     complete = NO;
 
