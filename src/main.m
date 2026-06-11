@@ -9,6 +9,7 @@
 #import "AppDelegate.h"
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <IOKit/IOKitLib.h>
 #import <errno.h>
 #import <libproc.h>
 #import <sys/sysctl.h>
@@ -337,6 +338,177 @@ static void appendDisplays(NSMutableString *r) {
   }
 }
 
+// MARK: - DCP / framebuffer forensic readers
+
+// IOMFB pixel-encoding enum -> short label. 0=RGB and 3=YCbCr444 are confirmed
+// from captures; 1=YCbCr422 / 2=YCbCr420 are the conventional IOMFB values.
+// The raw PixelEncoding number is always emitted alongside the label, so an
+// off-by-one in the 1/2 mapping can never mislead a reader of the bundle.
+static NSString *pixelEncodingName(long enc) {
+  switch (enc) {
+  case 0:
+    return @"RGB";
+  case 1:
+    return @"YCbCr422";
+  case 2:
+    return @"YCbCr420";
+  case 3:
+    return @"YCbCr444";
+  default:
+    return @"other";
+  }
+}
+
+// Reads an IORegistry entry's properties as an autoreleased dictionary, or nil.
+static NSDictionary *ioEntryProperties(io_registry_entry_t entry) {
+  CFMutableDictionaryRef props = NULL;
+  if (IORegistryEntryCreateCFProperties(entry, &props, kCFAllocatorDefault,
+                                        0) != KERN_SUCCESS)
+    return nil;
+  return CFBridgingRelease(props);
+}
+
+// Appends the AppleDCPExpert controllers, attributed by their "role" property
+// ("DCP" = built-in, "DCPEXT" = external) rather than by iteration order.
+// DCPPowerState is forensic only: the external DCPEXT value is constant across
+// cursor-on-black, clean, and recovered wakes (technical-debt.md P29), so this
+// is captured to confirm/observe state, NOT as a detector to gate on.
+static void appendDCPControllers(NSMutableString *r) {
+  io_iterator_t it = MACH_PORT_NULL;
+  if (IOServiceGetMatchingServices(kIOMainPortDefault,
+                                   IOServiceMatching("AppleDCPExpert"),
+                                   &it) != KERN_SUCCESS)
+    return;
+  [r appendString:@"\n--- DCP controllers (AppleDCPExpert, by role) ---\n"];
+  io_service_t svc;
+  while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
+    NSDictionary *p = ioEntryProperties(svc);
+    NSString *role = p[@"role"] ?: @"?";
+    [r appendFormat:@"\n%@ (%@)\n", role,
+                    [role isEqualToString:@"DCPEXT"] ? @"external"
+                                                     : @"built-in"];
+    [r appendFormat:@"  DCPPowerState          : %@\n",
+                    p[@"DCPPowerState"] ?: @"?"];
+    [r appendFormat:@"  DCPPowerAssertionCount : %@\n",
+                    p[@"DCPPowerAssertionCount"] ?: @"?"];
+    IOObjectRelease(svc);
+  }
+  IOObjectRelease(it);
+}
+
+// Appends each AppleCLCD2 framebuffer's scanout/timing state, attributed by its
+// "external" flag. NormalModeActive is a candidate cursor-on-black signal worth
+// observing during the broken state; Transport names the link (e.g. DP ->
+// HDMI) for Alt Mode context. Color/encoding lives in connection-mode.txt.
+static void appendFramebufferState(NSMutableString *r) {
+  io_iterator_t it = MACH_PORT_NULL;
+  if (IOServiceGetMatchingServices(kIOMainPortDefault,
+                                   IOServiceMatching("AppleCLCD2"),
+                                   &it) != KERN_SUCCESS)
+    return;
+  [r appendString:@"\n--- Framebuffers (AppleCLCD2, by external flag) ---\n"];
+  io_service_t svc;
+  while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
+    NSDictionary *p = ioEntryProperties(svc);
+    BOOL external = [p[@"external"] boolValue];
+    [r appendFormat:@"\n%@ (DCPIndex %@)\n",
+                    external ? @"external" : @"built-in",
+                    p[@"DCPIndex"] ?: @"?"];
+    [r appendFormat:@"  NormalModeActive : %@\n",
+                    [p[@"NormalModeActive"] boolValue] ? @"yes" : @"no"];
+    if (p[@"DisplayWidth"] && p[@"DisplayHeight"])
+      [r appendFormat:@"  Resolution       : %@ x %@\n", p[@"DisplayWidth"],
+                      p[@"DisplayHeight"]];
+    if (p[@"DPTimingModeId"])
+      [r appendFormat:@"  DPTimingModeId   : %@\n", p[@"DPTimingModeId"]];
+    if (p[@"PixelClock"])
+      [r appendFormat:@"  PixelClock       : %@\n", p[@"PixelClock"]];
+    NSDictionary *transport = p[@"Transport"];
+    if ([transport isKindOfClass:NSDictionary.class])
+      [r appendFormat:@"  Transport        : %@ -> %@\n",
+                      transport[@"Upstream"] ?: @"?",
+                      transport[@"Downstream"] ?: @"?"];
+    IOObjectRelease(svc);
+  }
+  IOObjectRelease(it);
+}
+
+// Appends each AppleCLCD2's advertised color modes, decoded from ColorElements,
+// for connection-mode.txt. This is the color/pixel-encoding view (the
+// inject_edid / SP2309W concern, ADR 0009) and is deliberately kept in its own
+// file, separate from the cursor-on-black scanout forensics in dcp.txt. The
+// ACTIVE wire encoding (e.g. fmt:YCbCr444_10bit) is not an ioreg scalar; read
+// it from windowserver.txt.
+static void appendConnectionModes(NSMutableString *r) {
+  io_iterator_t it = MACH_PORT_NULL;
+  if (IOServiceGetMatchingServices(kIOMainPortDefault,
+                                   IOServiceMatching("AppleCLCD2"),
+                                   &it) != KERN_SUCCESS)
+    return;
+  io_service_t svc;
+  while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
+    NSDictionary *p = ioEntryProperties(svc);
+    BOOL external = [p[@"external"] boolValue];
+    [r appendFormat:@"\n%@ (DCPIndex %@)\n",
+                    external ? @"external" : @"built-in",
+                    p[@"DCPIndex"] ?: @"?"];
+    if (p[@"EDID UUID"])
+      [r appendFormat:@"  EDID UUID : %@\n", p[@"EDID UUID"]];
+    NSArray *colors = p[@"ColorElements"];
+    if (![colors isKindOfClass:NSArray.class] || colors.count == 0) {
+      [r appendString:@"  (no ColorElements)\n"];
+      IOObjectRelease(svc);
+      continue;
+    }
+    NSMutableOrderedSet<NSString *> *summary = [NSMutableOrderedSet orderedSet];
+    for (NSDictionary *c in colors) {
+      if (![c isKindOfClass:NSDictionary.class])
+        continue;
+      [summary addObject:[NSString stringWithFormat:@"%@/%@bpc",
+                                                    pixelEncodingName(
+                                                        [c[@"PixelEncoding"]
+                                                            longValue]),
+                                                    c[@"Depth"] ?: @"?"]];
+    }
+    [r appendFormat:@"  Advertised (%lu): %@\n", (unsigned long)colors.count,
+                    [summary.array componentsJoinedByString:@", "]];
+    for (NSDictionary *c in colors) {
+      if (![c isKindOfClass:NSDictionary.class])
+        continue;
+      [r appendFormat:@"    id=%@ %@ PixelEncoding=%@ Depth=%@ DynamicRange=%@ "
+                      @"Colorimetry=%@\n",
+                      c[@"ID"] ?: @"?",
+                      pixelEncodingName([c[@"PixelEncoding"] longValue]),
+                      c[@"PixelEncoding"] ?: @"?", c[@"Depth"] ?: @"?",
+                      c[@"DynamicRange"] ?: @"?", c[@"Colorimetry"] ?: @"?"];
+    }
+    IOObjectRelease(svc);
+  }
+  IOObjectRelease(it);
+}
+
+// Builds dcp.txt: DCP power + framebuffer scanout/timing state, role and
+// "external"-attributed so the two controllers and two framebuffers are never
+// confused by position (the misattribution that derailed the P29 DCPPowerState
+// analysis). Read-only.
+static NSString *dcpReport(void) {
+  NSMutableString *r = [NSMutableString string];
+  [r appendString:@"--- blackoutd DCP / framebuffer state ---\n"];
+  appendDCPControllers(r);
+  appendFramebufferState(r);
+  return r;
+}
+
+// Builds connection-mode.txt: the advertised color/encoding catalog per
+// display. Kept separate from dcp.txt per the cursor-on-black vs color-cast
+// boundary (ADR 0009). Read-only.
+static NSString *connectionModeReport(void) {
+  NSMutableString *r = [NSMutableString string];
+  [r appendString:@"--- blackoutd connection modes (advertised) ---\n"];
+  appendConnectionModes(r);
+  return r;
+}
+
 // Builds the human-readable report as a single string so the same text is
 // printed to stdout and written to the bundle's config.txt.
 static NSString *buildReport(void) {
@@ -499,6 +671,15 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
                        [dir stringByAppendingPathComponent:@"version.txt"]))
     complete = NO;
 
+  if (!writeBundleText(dcpReport(),
+                       [dir stringByAppendingPathComponent:@"dcp.txt"]))
+    complete = NO;
+
+  if (!writeBundleText(
+          connectionModeReport(),
+          [dir stringByAppendingPathComponent:@"connection-mode.txt"]))
+    complete = NO;
+
   NSString *log = daemonLogPath();
   if ([fm fileExistsAtPath:log] &&
       !captureToFile([dir stringByAppendingPathComponent:@"daemon-log.txt"],
@@ -556,6 +737,10 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   printf("\nDiagnostic bundle written to %s/\n", dir.UTF8String);
   printf("  config.txt       — this report (build, lid, displays)\n");
   printf("  version.txt      — CLI build identity\n");
+  printf(
+      "  dcp.txt          — DCP power + framebuffer scanout state (by role)\n");
+  printf("  connection-mode.txt — advertised color/encoding catalog (by "
+         "display)\n");
   printf("  daemon-log.txt   — blackoutd.log (last 500 lines)\n");
   printf("  system-log.txt   — blackoutd unified log (%s)\n",
          windowText.UTF8String);
