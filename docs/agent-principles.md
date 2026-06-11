@@ -298,12 +298,12 @@ idiomatic and the output is for human eyes (e.g., `xargs -J`).
 
 ### Why
 
-These repos require signed commits (`commit.gpgsign = true`,
-`gpg.format = ssh`, key under `~/.ssh`). A sandboxed agent's shell denies read
-access to `~/.ssh`, so any `git commit` that tries to sign **hangs** on the
-key/askpass step (often a macOS passphrase dialog that never returns) or fails
-outright. The agent therefore commits *unsigned*, and the human re-signs the
-batch before pushing.
+All repos in this project require signed commits (policy: `commit.gpgsign =
+true`, `gpg.format = ssh`, key under `~/.ssh`). A sandboxed agent's shell
+denies read access to `~/.ssh`, so any `git commit` that tries to sign
+**hangs** on the key/askpass step (often a macOS passphrase dialog that never
+returns) or fails outright. The agent therefore commits *unsigned*, and the
+human re-signs the batch before pushing.
 
 ### Agent: commit unsigned
 
