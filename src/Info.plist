@@ -6,21 +6,20 @@ SPDX-FileCopyrightText: Copyright 2026 Todd Schulman
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key>
-    <string>io.github.toobuntu.blackoutd</string>
-    <key>CFBundleName</key>
-    <string>blackoutd</string>
-    <key>CFBundleVersion</key>
-    <string>2</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.2.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.toobuntu.blackoutd</string>
+	<key>CFBundleName</key>
+	<string>blackoutd</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.3.0</string>
+	<key>CFBundleVersion</key>
+	<string>3</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>
