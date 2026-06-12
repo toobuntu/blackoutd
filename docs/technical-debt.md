@@ -1685,9 +1685,9 @@ within-pair diff read 0 while blacked out, a 2026-06-10 sample read 4 with
 `NormalModeActive=yes` while equally blacked out
 (`CGSConfigureDisplayEnabled(false)` is not reflected in these IOMFB
 fields), and a six-bundle A/B on 2026-06-10/11 found no consistent 0-vs-4
-black/clean split. No DCP power field carries a cursor-on-black signal.
-`NormalModeActive` and `DCPPowerAssertionCount` are the remaining
-unfalsified candidates; capture them at the black instant to test.
+black/clean split. `DCPPowerState` carries no cursor-on-black signal on
+either controller. `NormalModeActive` and `DCPPowerAssertionCount` remain
+untested as detectors; capture them at the black instant to test.
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR
