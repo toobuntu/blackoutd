@@ -22,10 +22,11 @@ that the daemon does not detect or recover from. Read P20 first. The
 related err=1014 family of safety-invariant violations was diagnosed
 from the 2026-04-29 logs and *partially* addressed in
 `src/DisplayController.m`; see the "Hardening (2026-04-29)" subsection in
-P1 — note the 2026-05-19 defect recorded there: the retry half of that
-fix never actually fires (wrong-constant guard). P20 is still
-open: the cursor-on-black state can occur without a sleep cycle, so it
-sits outside the err=1014 fix's reach.
+P1 — the 2026-05-19 wrong-constant defect recorded there (retry gated on
+`kCGErrorCannotComplete`=1004, not the real `1014`) is now fixed in
+318c69c: the retry arms on any non-`kCGErrorIllegalArgument` failure.
+P20 is still open: the cursor-on-black state can occur without a sleep
+cycle, so it sits outside the err=1014 fix's reach.
 
 **Next up after P20 is resolved or quarantined**: P4 (Mach IPC, finish
 v1.0 portion).
@@ -111,6 +112,12 @@ Two distinct triggers, same family:
 > `1014` too — simplest is to retry on any failure that is not
 > `kCGErrorIllegalArgument` (already handled as "synced"), bounded by
 > `kBDMaxFailedActionRetries`. Related concurrency issue: P25.
+>
+> **Resolved (318c69c):** implemented as proposed — the guard now retries
+> on any failure that is not `kCGErrorIllegalArgument`, bounded by
+> `kBDMaxFailedActionRetries`. Verified in `applyEnable:`; observed firing
+> (`err=1014 — arming retry 1/3`) in
+> `docs/debug/blackoutd-diag-20260525-150108`.
 
 - **14:42 incident**: the wake-settle timer fired during a wake → back-to-sleep
   sequence; `wakeSettleTimerFired` issued CG calls that blocked through
@@ -128,11 +135,13 @@ The fix has three parts, all in `src/DisplayController.m`:
 2. `applyEnable:`'s `dispatch_after` settle handler clears
    `_actionInProgress` regardless but skips the post-action invariant
    check when sleeping.
-3. On `kCGErrorCannotComplete` from `setDisplay:enabled:`, `applyEnable:`
-   arms the wake-settle timer to drive a retry through the existing
-   pipeline. Bounded by `_failedActionRetries` (file-static const
-   `kBDMaxFailedActionRetries=3`); reset on success and on
-   `invalidateDisplayState` (called from `systemDidWake:`).
+3. On any failure other than `kCGErrorIllegalArgument` from
+   `setDisplay:enabled:` (notably the internal `1014`; the original
+   `kCGErrorCannotComplete` guard was the wrong-constant defect, fixed in
+   318c69c), `applyEnable:` arms the wake-settle timer to drive a retry
+   through the existing pipeline. Bounded by `_failedActionRetries`
+   (file-static const `kBDMaxFailedActionRetries=3`); reset on success and
+   on `invalidateDisplayState` (called from `systemDidWake:`).
 
 **Remaining risk**: The recommit may not cover all compositor failure modes.
 Monitor for new repros. **Update**: a separate failure mode is tracked
@@ -147,10 +156,10 @@ does not address P20's recovery gap.
 - [ ] Verified with both healthy and broken-compositor display state
 - [x] `wakeSettleTimerFired` and `applyEnable:` settle handler both
       respect `_systemSleeping` (no CG calls during sleep)
-- [ ] err=1014 from `setDisplay:enabled:` triggers retry via wake-settle
-      with bounded retry count — **NOT working: guard compares against
-      `kCGErrorCannotComplete` (1004), not the real `1014`; retry never
-      arms. See the 2026-05-19 defect note above and P25.**
+- [x] err=1014 from `setDisplay:enabled:` triggers retry via wake-settle
+      with bounded retry count — **fixed in 318c69c: the guard now retries
+      on any non-`kCGErrorIllegalArgument` failure (observed firing in
+      `-150108`). The nested-CG-transaction hazard remains under P25.**
 - [ ] Verified: sleep-during-settle scenarios reproduce in dev and the
       new daemon log shows `[wake] — settle timer fired but system is
       sleeping; deferring` (and absence of err=1014). Send daemon log
@@ -742,9 +751,9 @@ adjacent failure mode: `CGCompleteDisplayConfiguration` was being
 called while the system was sleeping, blocking for minutes and
 eventually returning error `1014` (an undocumented code — NOT
 `kCGErrorCannotComplete`, which is `1004`; see the P1 defect note). The
-sleep-gating parts of the P1 hardening address that family, but the
-err=1014 *retry* path does not actually fire (wrong-constant guard; see
-P1 and P25). However, the
+sleep-gating parts of the P1 hardening address that family; the
+err=1014 *retry* path — initially a no-op (wrong-constant guard) — now
+fires as of 318c69c (see P1 and P25). However, the
 underlying P20 failure mode — cursor-on-black without a sleep cycle —
 was not the root cause of those incidents and is still open.
 
@@ -1405,6 +1414,13 @@ by itself resolve. Scope: (A) fixes the convergence bug only. Per the
 recommit finding above it is NOT expected to resolve cursor-on-black, whose
 recovery needs a display-power-cycle-class action tracked under P20.
 
+**Landed (14a76a3, "Run wake-settle flow on disconnect path"):**
+`systemDidWake:` no longer `return`s after the disconnected-during-sleep
+restore — it falls through to `[_displayController handleSystemWake]` on
+both paths (verified in source). The convergence fix is in; the empirical
+acceptance criteria below (a fresh `verbosityLevel=2` capture on this path)
+remain for the maintainer to confirm.
+
 **Acceptance criteria**:
 
 - [ ] `[wake] — recommit after settle: ok` appears on the
@@ -1653,5 +1669,27 @@ as out of scope.
   **(2026-05-26: done — `-141433` ran the scripted repro on AC and was
   cursor-on-black. The bug is NOT power-source-dependent; AC reproduces it.)**
 
-**Files**: investigation only so far. Relates to P2, P20, P28, ADR 0003, ADR
-0009 (SP2309W YCbCr), and a future inject_edid `--mode` reader.
+**Update (2026-06-10) — `diagnose` now records this natively.** The CLI
+writes two role-attributed bundle files: `dcp.txt` (AppleDCPExpert power by
+`role`: DCP/DCPEXT `DCPPowerState`/`DCPPowerAssertionCount`, plus AppleCLCD2
+scanout state — `NormalModeActive`, resolution, `DPTimingModeId`,
+`Transport`) and `connection-mode.txt` (per-display `EDID UUID` + the
+advertised `ColorElements` catalog: pixel encoding / bpc / dynamic range).
+Attribution is by the IOKit `role`/`external` properties, not iteration
+order — closing the position-based misattribution that produced the false
+0/4 detector readings above. Live role-attributed runs (M2 + SP2309W)
+reconfirm the dead detector: the external `DCPEXT` `DCPPowerState` reads 4
+whenever it is rendering, as before. The BUILT-IN's DCP value is dynamic
+and does not reliably track blackout state either — the 2026-05-26
+within-pair diff read 0 while blacked out, a 2026-06-10 sample read 4 with
+`NormalModeActive=yes` while equally blacked out
+(`CGSConfigureDisplayEnabled(false)` is not reflected in these IOMFB
+fields), and a six-bundle A/B on 2026-06-10/11 found no consistent 0-vs-4
+black/clean split. `DCPPowerState` carries no cursor-on-black signal on
+either controller. `NormalModeActive` and `DCPPowerAssertionCount` remain
+untested as detectors; capture them at the black instant to test.
+
+**Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
+readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR
+0009 (SP2309W YCbCr), and the inject_edid `--mode` reader (of which
+`connection-mode.txt` is the first piece).

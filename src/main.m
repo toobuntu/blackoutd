@@ -9,8 +9,10 @@
 #import "AppDelegate.h"
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <IOKit/IOKitLib.h>
 #import <errno.h>
 #import <libproc.h>
+#import <limits.h>
 #import <sys/sysctl.h>
 
 // Build identity, injected by the Makefile via -D. Fallbacks keep a bare
@@ -337,6 +339,180 @@ static void appendDisplays(NSMutableString *r) {
   }
 }
 
+// MARK: - DCP / framebuffer forensic readers
+
+// IOMFB pixel-encoding enum -> short label. 0=RGB and 3=YCbCr444 are confirmed
+// from captures; 1=YCbCr422 / 2=YCbCr420 are the conventional IOMFB values.
+// The raw PixelEncoding number is always emitted alongside the label, so an
+// off-by-one in the 1/2 mapping can never mislead a reader of the bundle.
+static NSString *pixelEncodingName(long enc) {
+  switch (enc) {
+  case 0:
+    return @"RGB";
+  case 1:
+    return @"YCbCr422";
+  case 2:
+    return @"YCbCr420";
+  case 3:
+    return @"YCbCr444";
+  default:
+    return @"other";
+  }
+}
+
+// Reads an IORegistry entry's properties as an autoreleased dictionary, or nil.
+static NSDictionary *ioEntryProperties(io_registry_entry_t entry) {
+  CFMutableDictionaryRef props = NULL;
+  if (IORegistryEntryCreateCFProperties(entry, &props, kCFAllocatorDefault,
+                                        0) != KERN_SUCCESS)
+    return nil;
+  return CFBridgingRelease(props);
+}
+
+// Appends the AppleDCPExpert controllers, attributed by their "role" property
+// ("DCP" = built-in, "DCPEXT" = external) rather than by iteration order.
+// DCPPowerState is forensic only: the external DCPEXT value is constant across
+// cursor-on-black, clean, and recovered wakes (technical-debt.md P29), so this
+// is captured to confirm/observe state, NOT as a detector to gate on.
+static void appendDCPControllers(NSMutableString *r) {
+  io_iterator_t it = MACH_PORT_NULL;
+  if (IOServiceGetMatchingServices(kIOMainPortDefault,
+                                   IOServiceMatching("AppleDCPExpert"),
+                                   &it) != KERN_SUCCESS)
+    return;
+  [r appendString:@"\n--- DCP controllers (AppleDCPExpert, by role) ---\n"];
+  io_service_t svc;
+  while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
+    NSDictionary *p = ioEntryProperties(svc);
+    NSString *role = p[@"role"] ?: @"?";
+    // Explicit mapping: a missing or unrecognized role must read "unknown",
+    // not silently masquerade as the built-in, in a forensic record.
+    NSString *kind = [role isEqualToString:@"DCPEXT"] ? @"external"
+                     : [role isEqualToString:@"DCP"]  ? @"built-in"
+                                                      : @"unknown";
+    [r appendFormat:@"\n%@ (%@)\n", role, kind];
+    [r appendFormat:@"  DCPPowerState          : %@\n",
+                    p[@"DCPPowerState"] ?: @"?"];
+    [r appendFormat:@"  DCPPowerAssertionCount : %@\n",
+                    p[@"DCPPowerAssertionCount"] ?: @"?"];
+    IOObjectRelease(svc);
+  }
+  IOObjectRelease(it);
+}
+
+// Appends each AppleCLCD2 framebuffer's scanout/timing state, attributed by its
+// "external" flag. NormalModeActive is a candidate cursor-on-black signal worth
+// observing during the broken state; Transport names the link (e.g. DP ->
+// HDMI) for Alt Mode context. Color/encoding lives in connection-mode.txt.
+static void appendFramebufferState(NSMutableString *r) {
+  io_iterator_t it = MACH_PORT_NULL;
+  if (IOServiceGetMatchingServices(kIOMainPortDefault,
+                                   IOServiceMatching("AppleCLCD2"),
+                                   &it) != KERN_SUCCESS)
+    return;
+  [r appendString:@"\n--- Framebuffers (AppleCLCD2, by external flag) ---\n"];
+  io_service_t svc;
+  while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
+    NSDictionary *p = ioEntryProperties(svc);
+    BOOL external = [p[@"external"] boolValue];
+    [r appendFormat:@"\n%@ (DCPIndex %@)\n",
+                    external ? @"external" : @"built-in",
+                    p[@"DCPIndex"] ?: @"?"];
+    [r appendFormat:@"  NormalModeActive : %@\n",
+                    [p[@"NormalModeActive"] boolValue] ? @"yes" : @"no"];
+    if (p[@"DisplayWidth"] && p[@"DisplayHeight"])
+      [r appendFormat:@"  Resolution       : %@ x %@\n", p[@"DisplayWidth"],
+                      p[@"DisplayHeight"]];
+    if (p[@"DPTimingModeId"])
+      [r appendFormat:@"  DPTimingModeId   : %@\n", p[@"DPTimingModeId"]];
+    if (p[@"PixelClock"])
+      [r appendFormat:@"  PixelClock       : %@\n", p[@"PixelClock"]];
+    NSDictionary *transport = p[@"Transport"];
+    if ([transport isKindOfClass:NSDictionary.class])
+      [r appendFormat:@"  Transport        : %@ -> %@\n",
+                      transport[@"Upstream"] ?: @"?",
+                      transport[@"Downstream"] ?: @"?"];
+    IOObjectRelease(svc);
+  }
+  IOObjectRelease(it);
+}
+
+// Appends each AppleCLCD2's advertised color modes, decoded from ColorElements,
+// for connection-mode.txt. This is the color/pixel-encoding view (the
+// inject_edid / SP2309W concern, ADR 0009) and is deliberately kept in its own
+// file, separate from the cursor-on-black scanout forensics in dcp.txt. The
+// ACTIVE wire encoding (e.g. fmt:YCbCr444_10bit) is not an ioreg scalar; read
+// it from windowserver.txt.
+static void appendConnectionModes(NSMutableString *r) {
+  io_iterator_t it = MACH_PORT_NULL;
+  if (IOServiceGetMatchingServices(kIOMainPortDefault,
+                                   IOServiceMatching("AppleCLCD2"),
+                                   &it) != KERN_SUCCESS)
+    return;
+  io_service_t svc;
+  while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
+    NSDictionary *p = ioEntryProperties(svc);
+    BOOL external = [p[@"external"] boolValue];
+    [r appendFormat:@"\n%@ (DCPIndex %@)\n",
+                    external ? @"external" : @"built-in",
+                    p[@"DCPIndex"] ?: @"?"];
+    if (p[@"EDID UUID"])
+      [r appendFormat:@"  EDID UUID : %@\n", p[@"EDID UUID"]];
+    NSArray *colors = p[@"ColorElements"];
+    if (![colors isKindOfClass:NSArray.class] || colors.count == 0) {
+      [r appendString:@"  (no ColorElements)\n"];
+      IOObjectRelease(svc);
+      continue;
+    }
+    NSMutableOrderedSet<NSString *> *summary = [NSMutableOrderedSet orderedSet];
+    for (NSDictionary *c in colors) {
+      if (![c isKindOfClass:NSDictionary.class])
+        continue;
+      [summary addObject:[NSString stringWithFormat:@"%@/%@bpc",
+                                                    pixelEncodingName(
+                                                        [c[@"PixelEncoding"]
+                                                            longValue]),
+                                                    c[@"Depth"] ?: @"?"]];
+    }
+    [r appendFormat:@"  Advertised (%lu): %@\n", (unsigned long)colors.count,
+                    [summary.array componentsJoinedByString:@", "]];
+    for (NSDictionary *c in colors) {
+      if (![c isKindOfClass:NSDictionary.class])
+        continue;
+      [r appendFormat:@"    id=%@ %@ PixelEncoding=%@ Depth=%@ DynamicRange=%@ "
+                      @"Colorimetry=%@\n",
+                      c[@"ID"] ?: @"?",
+                      pixelEncodingName([c[@"PixelEncoding"] longValue]),
+                      c[@"PixelEncoding"] ?: @"?", c[@"Depth"] ?: @"?",
+                      c[@"DynamicRange"] ?: @"?", c[@"Colorimetry"] ?: @"?"];
+    }
+    IOObjectRelease(svc);
+  }
+  IOObjectRelease(it);
+}
+
+// Builds dcp.txt: DCP power + framebuffer scanout/timing state, role and
+// "external"-attributed so the two controllers and two framebuffers are never
+// confused by position (the misattribution that derailed the P29 DCPPowerState
+// analysis). Read-only.
+static NSString *dcpReport(void) {
+  NSMutableString *r = [NSMutableString string];
+  [r appendString:@"--- blackoutd DCP / framebuffer state ---\n"];
+  appendDCPControllers(r);
+  appendFramebufferState(r);
+  return r;
+}
+
+// Builds connection-mode.txt: the advertised color/encoding catalog per
+// display. Kept separate from dcp.txt per the cursor-on-black vs color-cast
+// boundary (ADR 0009). Read-only.
+static NSString *connectionModeReport(void) {
+  NSMutableString *r = [NSMutableString string];
+  [r appendString:@"--- blackoutd connection modes (advertised) ---\n"];
+  appendConnectionModes(r);
+  return r;
+}
+
 // Builds the human-readable report as a single string so the same text is
 // printed to stdout and written to the bundle's config.txt.
 static NSString *buildReport(void) {
@@ -462,9 +638,26 @@ static void deriveWindow(NSString **startOut, NSString **endOut) {
 }
 
 // Collects a diagnostic bundle into /tmp and prints the report to stdout.
-static int runDiagnose(int minutes, NSString *start, NSString *end) {
+static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
+                       NSString *label, NSString **bundleDirOut) {
+  NSDate *t0 = NSDate.date;
+  NSDateFormatter *clock = [[NSDateFormatter alloc] init];
+  clock.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  clock.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  printf("diagnose: started %s%s — collecting (can take ~1 min)...\n",
+         [clock stringFromDate:t0].UTF8String,
+         label.length ? [NSString stringWithFormat:@" [%@]", label].UTF8String
+                      : "");
+
+  // Sample the live registry BEFORE buildReport() runs system_profiler, which
+  // can probe and perturb displays — keeps dcp.txt / connection-mode.txt a
+  // pristine snapshot of the state at capture time.
+  NSString *dcp = dcpReport();
+  NSString *connMode = connectionModeReport();
+
   NSString *report = buildReport();
-  fputs(report.UTF8String, stdout);
+  if (!quiet)
+    fputs(report.UTF8String, stdout);
 
   NSDateFormatter *fmt = [[NSDateFormatter alloc] init];
   fmt.dateFormat = @"yyyyMMdd-HHmmss";
@@ -480,8 +673,14 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
             dir.UTF8String, mkdirErr.localizedDescription.UTF8String);
     return 1;
   }
+  if (bundleDirOut)
+    *bundleDirOut = dir;
 
   BOOL complete = YES;
+  if (label.length &&
+      !writeBundleText([label stringByAppendingString:@"\n"],
+                       [dir stringByAppendingPathComponent:@"label.txt"]))
+    complete = NO;
   if (!writeBundleText(report,
                        [dir stringByAppendingPathComponent:@"config.txt"]))
     complete = NO;
@@ -497,6 +696,14 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
     [version appendFormat:@"local: %@\n", local];
   if (!writeBundleText(version,
                        [dir stringByAppendingPathComponent:@"version.txt"]))
+    complete = NO;
+
+  if (!writeBundleText(dcp, [dir stringByAppendingPathComponent:@"dcp.txt"]))
+    complete = NO;
+
+  if (!writeBundleText(
+          connMode,
+          [dir stringByAppendingPathComponent:@"connection-mode.txt"]))
     complete = NO;
 
   NSString *log = daemonLogPath();
@@ -553,9 +760,17 @@ static int runDiagnose(int minutes, NSString *start, NSString *end) {
   if (!complete)
     fprintf(stderr,
             "blackoutd: WARNING — bundle incomplete; some files failed\n");
-  printf("\nDiagnostic bundle written to %s/\n", dir.UTF8String);
+  printf("\nDiagnostic bundle written to %s/ (%.1fs, finished %s)\n",
+         dir.UTF8String, -[t0 timeIntervalSinceNow],
+         [clock stringFromDate:NSDate.date].UTF8String);
+  if (label.length)
+    printf("  label.txt        — %s\n", label.UTF8String);
   printf("  config.txt       — this report (build, lid, displays)\n");
   printf("  version.txt      — CLI build identity\n");
+  printf(
+      "  dcp.txt          — DCP power + framebuffer scanout state (by role)\n");
+  printf("  connection-mode.txt — advertised color/encoding catalog (by "
+         "display)\n");
   printf("  daemon-log.txt   — blackoutd.log (last 500 lines)\n");
   printf("  system-log.txt   — blackoutd unified log (%s)\n",
          windowText.UTF8String);
@@ -710,10 +925,19 @@ static void printUsage(void) {
       " 2=verbose)\n"
       "  diagnose        Collect a diagnostic bundle for bug reports\n"
       "                  (auto-bounds the window to the last wake; override\n"
-      "                  with --minutes N or --start \"T\" --end \"T\")\n"
+      "                  with --minutes N or --start \"T\" --end \"T\";\n"
+      "                  --quiet/-q prints only the summary;\n"
+      "                  --label TXT tags the bundle)\n"
       "  --version       Print version\n"
       "  daemon start    Start the background daemon via launchctl\n"
       "  daemon stop     Stop the daemon and restore built-in display\n"
+      "\n"
+      "Experimental (cursor-on-black investigation; maintainer-run):\n"
+      "  recover         Run one display-sleep recovery cycle\n"
+      "                  (--method displaysleep, --dry-run)\n"
+      "  repro           Sleep/wake repro with labeled captures + recovery\n"
+      "                  (--wake N, --settle S, --recover METHOD,\n"
+      "                  --silent, --dry-run)\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
@@ -757,6 +981,235 @@ static int printVersion(void) {
   return 0;
 }
 
+// MARK: - Repro / recovery (experimental, maintainer-run)
+//
+// These subcommands gather empirical cursor-on-black data and prototype the
+// one recovery confirmed to work from user space regardless of lock state: a
+// programmatic display-sleep cycle. `pmset displaysleepnow` needs no root —
+// only `pmset schedule wake` does. They shell out to power-management tools and
+// are meant to be run by the maintainer during a repro, never by the daemon.
+// `--dry-run` prints each step instead of executing it.
+
+// Runs an external command, or prints it under dry-run. Returns the exit code
+// (0 under dry-run), or -1 if the tool could not be launched.
+static int runStep(NSString *path, NSArray<NSString *> *args, BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] %s %s\n", path.UTF8String,
+           [args componentsJoinedByString:@" "].UTF8String);
+    return 0;
+  }
+  NSTask *task = [[NSTask alloc] init];
+  task.executableURL = [NSURL fileURLWithPath:path];
+  task.arguments = args;
+  NSError *err = nil;
+  if (![task launchAndReturnError:&err]) {
+    fprintf(stderr, "blackoutd: failed to run %s: %s\n", path.UTF8String,
+            err.localizedDescription.UTF8String);
+    return -1;
+  }
+  [task waitUntilExit];
+  return (int)task.terminationStatus;
+}
+
+// Speaks a short cue so the maintainer can follow blind steps while the screen
+// is black, and echoes it to stdout. Best-effort; never fatal.
+static void sayCue(NSString *text, BOOL silent, BOOL dryRun) {
+  printf("  [step] %s\n", text.UTF8String);
+  fflush(stdout);
+  // Post a Notification Center banner stamped HH:mm:ss. Invisible while the
+  // screen is black, but Notification Center retains it, so after recovery
+  // the banner log shows when each stage ran and pairs with the diag
+  // bundles' timestamps. --silent suppresses speech only; the notification
+  // record is most of the point of a blind run. Cue strings are internal
+  // constants, so embedding them in the AppleScript source is safe.
+  NSDateFormatter *clock = [[NSDateFormatter alloc] init];
+  clock.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  clock.dateFormat = @"HH:mm:ss";
+  NSString *script =
+      [NSString stringWithFormat:@"display notification \"%@ @ %@\" with title "
+                                 @"\"blackoutd repro\"",
+                                 text, [clock stringFromDate:NSDate.date]];
+  runStep(@"/usr/bin/osascript", @[ @"-e", script ], dryRun);
+  if (!silent)
+    runStep(@"/usr/bin/say", @[ text ], dryRun);
+}
+
+// Performs one recovery attempt. The only method today is "displaysleep": a
+// programmatic display-sleep cycle (pmset displaysleepnow, then caffeinate -u
+// to re-declare user activity and wake the panel). Flicker is accepted; this
+// supersedes the older "displaysleepnow = flicker dead end" note now that the
+// maintainer confirms it reliably recovers regardless of lock state.
+static int performRecovery(NSString *method, BOOL dryRun) {
+  if (![method isEqualToString:@"displaysleep"]) {
+    fprintf(stderr, "blackoutd: unknown recovery method '%s'\n",
+            method.UTF8String);
+    return 1;
+  }
+  int rc = runStep(@"/usr/bin/pmset", @[ @"displaysleepnow" ], dryRun);
+  if (rc != 0)
+    return rc;
+  if (!dryRun)
+    [NSThread sleepForTimeInterval:2.0];
+  return runStep(@"/usr/bin/caffeinate", @[ @"-u", @"-t", @"2" ], dryRun);
+}
+
+// blackoutd recover [--method displaysleep] [--dry-run]
+static int recoverCommand(int argc, const char *argv[]) {
+  NSString *method = @"displaysleep";
+  BOOL dryRun = NO;
+  for (int i = 2; i < argc; i++) {
+    const char *opt = argv[i];
+    if (strcmp(opt, "--dry-run") == 0) {
+      dryRun = YES;
+    } else if (strcmp(opt, "--method") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "blackoutd: --method requires a value\n");
+        return 1;
+      }
+      method = @(argv[++i]);
+    } else {
+      fprintf(stderr, "blackoutd: unknown recover option '%s'\n", opt);
+      return 1;
+    }
+  }
+  return performRecovery(method, dryRun);
+}
+
+// Captures a labeled diagnose bundle (or prints the intent under dry-run).
+static int reproCapture(NSString *label, BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] diagnose --quiet --label %s\n", label.UTF8String);
+    return 0;
+  }
+  NSString *bundleDir = nil;
+  int rc = runDiagnose(0, nil, nil, YES, label, &bundleDir);
+  if (!bundleDir)
+    return rc != 0 ? rc : 1;
+  // Pair the stage with its bundle by NAME, not by clock correlation: the
+  // sayCue banner precedes the capture by the (synchronous) speech duration,
+  // so timestamps alone drift by a couple of seconds. Label and dir basename
+  // are internal values, safe to embed in the AppleScript source.
+  NSString *script = [NSString
+      stringWithFormat:@"display notification \"%@ -> %@\" with title "
+                       @"\"blackoutd repro\"",
+                       label, bundleDir.lastPathComponent];
+  runStep(@"/usr/bin/osascript", @[ @"-e", script ], NO);
+  return rc;
+}
+
+// blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--silent]
+//                 [--dry-run]
+// Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
+// wake captures a labeled bundle, optionally runs a recovery, and captures
+// again. Built to run blind: it narrates each step via `say`.
+static int reproCommand(int argc, const char *argv[]) {
+  int wake = 15, settle = 20;
+  NSString *recover = nil;
+  BOOL silent = NO, dryRun = NO;
+  for (int i = 2; i < argc; i++) {
+    const char *opt = argv[i];
+    if (strcmp(opt, "--silent") == 0) {
+      silent = YES;
+    } else if (strcmp(opt, "--dry-run") == 0) {
+      dryRun = YES;
+    } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
+               strcmp(opt, "--recover") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "blackoutd: %s requires a value\n", opt);
+        return 1;
+      }
+      const char *val = argv[++i];
+      if (strcmp(opt, "--recover") == 0) {
+        recover = @(val);
+      } else {
+        char *parseEnd = NULL;
+        errno = 0;
+        long n = strtol(val, &parseEnd, 10);
+        if (*parseEnd != '\0' || errno != 0 || n < 0 || n > INT_MAX) {
+          fprintf(stderr, "blackoutd: %s requires a non-negative integer\n",
+                  opt);
+          return 1;
+        }
+        if (strcmp(opt, "--wake") == 0)
+          wake = (int)n;
+        else
+          settle = (int)n;
+      }
+    } else {
+      fprintf(stderr, "blackoutd: unknown repro option '%s'\n", opt);
+      return 1;
+    }
+  }
+
+  // Schedule the auto-wake first (only this needs sudo). wake=0 means the
+  // maintainer will wake the machine manually (e.g. by opening the lid).
+  if (wake > 0) {
+    NSDateFormatter *f = [[NSDateFormatter alloc] init];
+    f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    f.dateFormat = @"MM/dd/yy HH:mm:ss";
+    NSString *when =
+        [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
+    // Probe with --non-interactive first: when credentials are primed
+    // (sudo --validate, per the matrix doc) this never prompts. If they are
+    // not — including policies that disable credential caching entirely
+    // (timestamp_timeout=0), where priming cannot help — fall back to one
+    // interactive prompt. The fallback is safe by construction: this is
+    // repro's first step, before any sleep, with the screen lit; the blind
+    // phase contains no sudo calls.
+    printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
+    int schedRC =
+        runStep(@"/usr/bin/sudo",
+                @[ @"--non-interactive", @"pmset", @"schedule", @"wake", when ],
+                dryRun);
+    if (schedRC != 0 && !dryRun) {
+      fprintf(stderr, "repro: sudo credentials not cached; prompting now "
+                      "(pre-sleep)\n");
+      schedRC = runStep(@"/usr/bin/sudo",
+                        @[ @"pmset", @"schedule", @"wake", when ], NO);
+    }
+    if (schedRC != 0) {
+      fprintf(stderr, "repro: could not schedule wake (rc=%d); aborting\n",
+              schedRC);
+      return 1;
+    }
+  }
+
+  sayCue(@"sleeping now", silent, dryRun);
+  if (runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun) != 0)
+    return 1;
+  // System sleeps here; execution resumes on the scheduled wake.
+  if (!dryRun)
+    [NSThread sleepForTimeInterval:settle];
+
+  sayCue(@"capturing post wake", silent, dryRun);
+  int rc = reproCapture(@"post-wake", dryRun);
+
+  if (recover.length) {
+    sayCue(@"recovering", silent, dryRun);
+    // Surface a failed recovery loudly and in the exit code: a post-recover
+    // capture taken after a recovery that never ran would otherwise read as
+    // "recovery did not clear the black" and poison the matrix data. The
+    // capture still proceeds — the bundle is useful either way. The first
+    // nonzero step (capture or recovery) wins the exit status.
+    int recoveryRC = performRecovery(recover, dryRun);
+    if (recoveryRC != 0) {
+      fprintf(stderr,
+              "repro: recovery method '%s' failed (rc=%d); continuing\n",
+              recover.UTF8String, recoveryRC);
+      if (rc == 0)
+        rc = recoveryRC;
+    }
+    if (!dryRun)
+      [NSThread sleepForTimeInterval:settle];
+    sayCue(@"capturing post recover", silent, dryRun);
+    int postRC = reproCapture(@"post-recover", dryRun);
+    if (rc == 0)
+      rc = postRC;
+  }
+  printf("repro: done\n");
+  return rc;
+}
+
 int main(int argc, const char *argv[]) {
   setvbuf(stderr, NULL, _IONBF, 0);
 
@@ -775,13 +1228,19 @@ int main(int argc, const char *argv[]) {
       return printStatus();
     if (strcmp(cmd, "diagnose") == 0) {
       int minutes = 0;
-      NSString *start = nil, *end = nil;
+      BOOL quiet = NO;
+      NSString *start = nil, *end = nil, *label = nil;
       for (int i = 2; i < argc; i++) {
         const char *opt = argv[i];
+        if (strcmp(opt, "--quiet") == 0 || strcmp(opt, "-q") == 0) {
+          quiet = YES;
+          continue;
+        }
         BOOL isMinutes = strcmp(opt, "--minutes") == 0;
         BOOL isStart = strcmp(opt, "--start") == 0;
         BOOL isEnd = strcmp(opt, "--end") == 0;
-        if (!isMinutes && !isStart && !isEnd) {
+        BOOL isLabel = strcmp(opt, "--label") == 0;
+        if (!isMinutes && !isStart && !isEnd && !isLabel) {
           fprintf(stderr, "blackoutd: unknown diagnose option '%s'\n", opt);
           return 1;
         }
@@ -791,7 +1250,7 @@ int main(int argc, const char *argv[]) {
           return 1;
         }
         const char *val = argv[++i];
-        if ((isStart || isEnd) && *val == '\0') {
+        if ((isStart || isEnd || isLabel) && *val == '\0') {
           fprintf(stderr, "blackoutd: %s requires a non-empty value\n", opt);
           return 1;
         }
@@ -807,16 +1266,22 @@ int main(int argc, const char *argv[]) {
           minutes = (int)m;
         } else if (isStart) {
           start = @(val);
-        } else {
+        } else if (isEnd) {
           end = @(val);
+        } else {
+          label = @(val);
         }
       }
       if (end && !start) {
         fprintf(stderr, "blackoutd: --end requires --start\n");
         return 1;
       }
-      return runDiagnose(minutes, start, end);
+      return runDiagnose(minutes, start, end, quiet, label, NULL);
     }
+    if (strcmp(cmd, "recover") == 0)
+      return recoverCommand(argc, argv);
+    if (strcmp(cmd, "repro") == 0)
+      return reproCommand(argc, argv);
     if (strcmp(cmd, "--version") == 0)
       return printVersion();
     if (strcmp(cmd, "daemon") == 0) {
