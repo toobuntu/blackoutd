@@ -1149,10 +1149,27 @@ static int reproCommand(int argc, const char *argv[]) {
     f.dateFormat = @"MM/dd/yy HH:mm:ss";
     NSString *when =
         [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
+    // Probe with --non-interactive first: when credentials are primed
+    // (sudo --validate, per the matrix doc) this never prompts. If they are
+    // not — including policies that disable credential caching entirely
+    // (timestamp_timeout=0), where priming cannot help — fall back to one
+    // interactive prompt. The fallback is safe by construction: this is
+    // repro's first step, before any sleep, with the screen lit; the blind
+    // phase contains no sudo calls.
     printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
-    if (runStep(@"/usr/bin/sudo", @[ @"pmset", @"schedule", @"wake", when ],
-                dryRun) != 0) {
-      fprintf(stderr, "repro: could not schedule wake; aborting\n");
+    int schedRC =
+        runStep(@"/usr/bin/sudo",
+                @[ @"--non-interactive", @"pmset", @"schedule", @"wake", when ],
+                dryRun);
+    if (schedRC != 0 && !dryRun) {
+      fprintf(stderr, "repro: sudo credentials not cached; prompting now "
+                      "(pre-sleep)\n");
+      schedRC = runStep(@"/usr/bin/sudo",
+                        @[ @"pmset", @"schedule", @"wake", when ], NO);
+    }
+    if (schedRC != 0) {
+      fprintf(stderr, "repro: could not schedule wake (rc=%d); aborting\n",
+              schedRC);
       return 1;
     }
   }

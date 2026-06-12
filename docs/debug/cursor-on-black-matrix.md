@@ -28,7 +28,8 @@ about a CLI/daemon mismatch.
 From a terminal with the panels visible (before sleep):
 
 ```sh
-sudo --validate   # prime sudo first; only the schedule-wake step needs it
+sudo --validate   # primes sudo so the schedule-wake step never prompts
+                  # (repro falls back to one pre-sleep prompt if it must)
 
 # Baseline (detection): wake, capture, no recovery.
 ./build/blackoutd repro --wake 15
