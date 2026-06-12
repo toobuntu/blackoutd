@@ -2,6 +2,11 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+# Repo root shared by the integration specs. Defined once here — each
+# spec previously defined its own copy, tripping Ruby's
+# already-initialized-constant warning under config.warnings.
+REPO_ROOT = File.expand_path("..", __dir__)
+
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true

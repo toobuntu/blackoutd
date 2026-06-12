@@ -16,8 +16,7 @@ require "tmpdir"
 # HOME and GIT_CONFIG_GLOBAL point into the tmpdir). No network, no real
 # remote.
 
-PREPUSH_REPO_ROOT = File.expand_path("../../..", __FILE__)
-PREPUSH_HOOK = File.join(PREPUSH_REPO_ROOT, ".githooks", "pre-push")
+PREPUSH_HOOK = File.join(REPO_ROOT, ".githooks", "pre-push")
 ZERO_OID = "0" * 40
 
 module PrePushSpecHelpers

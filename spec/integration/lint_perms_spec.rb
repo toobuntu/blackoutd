@@ -17,7 +17,6 @@ require "tmpdir"
 # changes, symlinks), NUL-transport correctness on whitespace-bearing
 # paths, and the pre-commit hook's trust guard for the script.
 
-REPO_ROOT = File.expand_path("../../..", __FILE__)
 LINT_PERMS_SRC = File.join(REPO_ROOT, "scripts", "lint-perms.sh")
 HOOK_SRC = File.join(REPO_ROOT, ".githooks", "pre-commit")
 
