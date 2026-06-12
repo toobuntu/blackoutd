@@ -19,8 +19,9 @@ set -euo pipefail
 #     remote_oid comes from the remote's ref advertisement for THIS push, so
 #     the range is exact even after a third-party force-push.
 #   - Ref update, remote tip object NOT present locally (the remote moved to
-#     history never fetched here): fail closed -- any computable range would
-#     be a guess that can under-check, so ask for a `git fetch` instead.
+#     history never fetched here): any computable range would be a guess that
+#     can under-check, so report the gap and ask for a `git fetch`. Warn mode
+#     continues; enforcement mode blocks and suggests retrying after fetch.
 #   - New ref: local_oid --not --remotes[=<dest>], i.e. everything reachable
 #     from the tip that no known remote branch already has. This leans on
 #     local remote-tracking refs; pre-policy commits already published
@@ -100,9 +101,14 @@ while read -r local_ref local_oid _ remote_oid; do
     if git cat-file -e "${remote_oid}^{commit}" 2>/dev/null; then
       range=("${remote_oid}..${local_oid}")
     else
+      fetch_suffix=
+      if [ "${enforce}" = 1 ]; then
+        fetch_suffix=" and push again"
+      fi
+
       echo "${verdict}: cannot verify ${local_ref} -- remote tip ${remote_oid}" >&2
       echo "  is not present locally (the remote may have moved); run" >&2
-      echo "  'git fetch ${1:-<remote>}' and push again." >&2
+      echo "  'git fetch ${1:-<remote>}'${fetch_suffix}." >&2
       fail_or_warn
       continue
     fi
