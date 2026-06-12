@@ -74,10 +74,14 @@ fi
 # explain the pass-through and return. In warn mode execution then simply
 # proceeds -- deliberately, so a ref carrying both invalidly signed AND
 # unsigned commits reports both in one pass rather than one per push attempt.
+# The explainer prints once per push, not once per violation.
+explained=0
 fail_or_warn() {
   if [ "${enforce}" = 1 ]; then
     exit 1
   fi
+  [ "${explained}" = 1 ] && return
+  explained=1
   echo "  (push allowed: signing is not configured here; this gate binds" >&2
   echo "  maintainers -- see CONTRIBUTING.md, \"Signed pushes\".)" >&2
 }
