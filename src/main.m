@@ -1162,16 +1162,25 @@ static int reproCommand(int argc, const char *argv[]) {
   sayCue(@"capturing post wake", silent, dryRun);
   reproCapture(@"post-wake", dryRun);
 
+  int recoveryRC = 0;
   if (recover.length) {
     sayCue(@"recovering", silent, dryRun);
-    performRecovery(recover, dryRun);
+    // Surface a failed recovery loudly and in the exit code: a post-recover
+    // capture taken after a recovery that never ran would otherwise read as
+    // "recovery did not clear the black" and poison the matrix data. The
+    // capture still proceeds — the bundle is useful either way.
+    recoveryRC = performRecovery(recover, dryRun);
+    if (recoveryRC != 0)
+      fprintf(stderr,
+              "repro: recovery method '%s' failed (rc=%d); continuing\n",
+              recover.UTF8String, recoveryRC);
     if (!dryRun)
       [NSThread sleepForTimeInterval:settle];
     sayCue(@"capturing post recover", silent, dryRun);
     reproCapture(@"post-recover", dryRun);
   }
   printf("repro: done\n");
-  return 0;
+  return recoveryRC;
 }
 
 int main(int argc, const char *argv[]) {
