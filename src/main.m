@@ -12,6 +12,7 @@
 #import <IOKit/IOKitLib.h>
 #import <errno.h>
 #import <libproc.h>
+#import <limits.h>
 #import <sys/sysctl.h>
 
 // Build identity, injected by the Makefile via -D. Fallbacks keep a bare
@@ -384,9 +385,12 @@ static void appendDCPControllers(NSMutableString *r) {
   while ((svc = IOIteratorNext(it)) != MACH_PORT_NULL) {
     NSDictionary *p = ioEntryProperties(svc);
     NSString *role = p[@"role"] ?: @"?";
-    [r appendFormat:@"\n%@ (%@)\n", role,
-                    [role isEqualToString:@"DCPEXT"] ? @"external"
-                                                     : @"built-in"];
+    // Explicit mapping: a missing or unrecognized role must read "unknown",
+    // not silently masquerade as the built-in, in a forensic record.
+    NSString *kind = [role isEqualToString:@"DCPEXT"] ? @"external"
+                     : [role isEqualToString:@"DCP"]  ? @"built-in"
+                                                      : @"unknown";
+    [r appendFormat:@"\n%@ (%@)\n", role, kind];
     [r appendFormat:@"  DCPPowerState          : %@\n",
                     p[@"DCPPowerState"] ?: @"?"];
     [r appendFormat:@"  DCPPowerAssertionCount : %@\n",
@@ -1072,15 +1076,15 @@ static int recoverCommand(int argc, const char *argv[]) {
 }
 
 // Captures a labeled diagnose bundle (or prints the intent under dry-run).
-static void reproCapture(NSString *label, BOOL dryRun) {
+static int reproCapture(NSString *label, BOOL dryRun) {
   if (dryRun) {
     printf("  [dry-run] diagnose --quiet --label %s\n", label.UTF8String);
-    return;
+    return 0;
   }
   NSString *bundleDir = nil;
-  runDiagnose(0, nil, nil, YES, label, &bundleDir);
+  int rc = runDiagnose(0, nil, nil, YES, label, &bundleDir);
   if (!bundleDir)
-    return;
+    return rc != 0 ? rc : 1;
   // Pair the stage with its bundle by NAME, not by clock correlation: the
   // sayCue banner precedes the capture by the (synchronous) speech duration,
   // so timestamps alone drift by a couple of seconds. Label and dir basename
@@ -1090,6 +1094,7 @@ static void reproCapture(NSString *label, BOOL dryRun) {
                        @"\"blackoutd repro\"",
                        label, bundleDir.lastPathComponent];
   runStep(@"/usr/bin/osascript", @[ @"-e", script ], NO);
+  return rc;
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--silent]
@@ -1120,7 +1125,7 @@ static int reproCommand(int argc, const char *argv[]) {
         char *parseEnd = NULL;
         errno = 0;
         long n = strtol(val, &parseEnd, 10);
-        if (*parseEnd != '\0' || errno != 0 || n < 0) {
+        if (*parseEnd != '\0' || errno != 0 || n < 0 || n > INT_MAX) {
           fprintf(stderr, "blackoutd: %s requires a non-negative integer\n",
                   opt);
           return 1;
@@ -1160,27 +1165,32 @@ static int reproCommand(int argc, const char *argv[]) {
     [NSThread sleepForTimeInterval:settle];
 
   sayCue(@"capturing post wake", silent, dryRun);
-  reproCapture(@"post-wake", dryRun);
+  int rc = reproCapture(@"post-wake", dryRun);
 
-  int recoveryRC = 0;
   if (recover.length) {
     sayCue(@"recovering", silent, dryRun);
     // Surface a failed recovery loudly and in the exit code: a post-recover
     // capture taken after a recovery that never ran would otherwise read as
     // "recovery did not clear the black" and poison the matrix data. The
-    // capture still proceeds — the bundle is useful either way.
-    recoveryRC = performRecovery(recover, dryRun);
-    if (recoveryRC != 0)
+    // capture still proceeds — the bundle is useful either way. The first
+    // nonzero step (capture or recovery) wins the exit status.
+    int recoveryRC = performRecovery(recover, dryRun);
+    if (recoveryRC != 0) {
       fprintf(stderr,
               "repro: recovery method '%s' failed (rc=%d); continuing\n",
               recover.UTF8String, recoveryRC);
+      if (rc == 0)
+        rc = recoveryRC;
+    }
     if (!dryRun)
       [NSThread sleepForTimeInterval:settle];
     sayCue(@"capturing post recover", silent, dryRun);
-    reproCapture(@"post-recover", dryRun);
+    int postRC = reproCapture(@"post-recover", dryRun);
+    if (rc == 0)
+      rc = postRC;
   }
   printf("repro: done\n");
-  return recoveryRC;
+  return rc;
 }
 
 int main(int argc, const char *argv[]) {
