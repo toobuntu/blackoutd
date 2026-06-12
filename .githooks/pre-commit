@@ -188,8 +188,14 @@ if [ "$(/usr/bin/uname -s)" = "Darwin" ] && has_files '\.m$'; then
     if command -v clang-tidy >/dev/null 2>&1; then
         TIDY="clang-tidy"
     else
+        # HOMEBREW_NO_INSTALL_FROM_API: the probe needs only the local
+        # Cellar, but plain `brew list` refreshes Homebrew's internal
+        # packages manifest, which 404s mid-lint on a pre-release macOS
+        # (unrecognized OS tag, e.g. "dunno_tahoe"). HOMEBREW_NO_AUTO_UPDATE
+        # does not cover that fetch (verified 2026-06-12), and this knob is
+        # incompatible with `brew exec`, so it is scoped to this one probe.
         LLVM_MAX_VERSION="$(
-          brew list --formula --versions |
+          HOMEBREW_NO_INSTALL_FROM_API=1 brew list --formula --versions |
             grep --extended-regexp '^llvm(@[0-9]+)?[[:space:]]' |
             sort --key=2 --version-sort |
             awk 'END{print $1}'
