@@ -135,11 +135,13 @@ The fix has three parts, all in `src/DisplayController.m`:
 2. `applyEnable:`'s `dispatch_after` settle handler clears
    `_actionInProgress` regardless but skips the post-action invariant
    check when sleeping.
-3. On `kCGErrorCannotComplete` from `setDisplay:enabled:`, `applyEnable:`
-   arms the wake-settle timer to drive a retry through the existing
-   pipeline. Bounded by `_failedActionRetries` (file-static const
-   `kBDMaxFailedActionRetries=3`); reset on success and on
-   `invalidateDisplayState` (called from `systemDidWake:`).
+3. On any failure other than `kCGErrorIllegalArgument` from
+   `setDisplay:enabled:` (notably the internal `1014`; the original
+   `kCGErrorCannotComplete` guard was the wrong-constant defect, fixed in
+   318c69c), `applyEnable:` arms the wake-settle timer to drive a retry
+   through the existing pipeline. Bounded by `_failedActionRetries`
+   (file-static const `kBDMaxFailedActionRetries=3`); reset on success and
+   on `invalidateDisplayState` (called from `systemDidWake:`).
 
 **Remaining risk**: The recommit may not cover all compositor failure modes.
 Monitor for new repros. **Update**: a separate failure mode is tracked
@@ -1675,11 +1677,16 @@ scanout state — `NormalModeActive`, resolution, `DPTimingModeId`,
 advertised `ColorElements` catalog: pixel encoding / bpc / dynamic range).
 Attribution is by the IOKit `role`/`external` properties, not iteration
 order — closing the position-based misattribution that produced the false
-0/4 detector readings above. A live run (M2 + SP2309W, external rendering)
-reconfirms the dead detector: external DCPEXT `DCPPowerState=4`, and the
-built-in reads `DCPPowerState=4` with `NormalModeActive=yes` *while blacked
-out* (`CGSConfigureDisplayEnabled(false)` is not reflected in these IOMFB
-fields). `NormalModeActive` and `DCPPowerAssertionCount` are the remaining
+0/4 detector readings above. Live role-attributed runs (M2 + SP2309W)
+reconfirm the dead detector: the external `DCPEXT` `DCPPowerState` reads 4
+whenever it is rendering, as before. The BUILT-IN's DCP value is dynamic
+and does not reliably track blackout state either — the 2026-05-26
+within-pair diff read 0 while blacked out, a 2026-06-10 sample read 4 with
+`NormalModeActive=yes` while equally blacked out
+(`CGSConfigureDisplayEnabled(false)` is not reflected in these IOMFB
+fields), and a six-bundle A/B on 2026-06-10/11 found no consistent 0-vs-4
+black/clean split. No DCP power field carries a cursor-on-black signal.
+`NormalModeActive` and `DCPPowerAssertionCount` are the remaining
 unfalsified candidates; capture them at the black instant to test.
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`

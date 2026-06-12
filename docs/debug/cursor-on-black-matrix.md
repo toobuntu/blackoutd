@@ -28,6 +28,8 @@ about a CLI/daemon mismatch.
 From a terminal with the panels visible (before sleep):
 
 ```sh
+sudo --validate   # prime sudo first; only the schedule-wake step needs it
+
 # Baseline (detection): wake, capture, no recovery.
 ./build/blackoutd repro --wake 15
 
@@ -53,7 +55,7 @@ Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
 
 > **Intermittent.** Not every run goes black. Repeat the baseline; record
 > **every** run — clean runs are the controls the diff needs.
-
+>
 > **To test while LOCKED**, prevent auto-unlock for that run (remove the Apple
 > Watch / step out of range / disable TouchID), so the session stays locked
 > through the capture and recovery.
@@ -73,7 +75,7 @@ Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
 
 ## Per-run record (copy one block per trial)
 
-```
+```text
 Run #: ____    date/time: __________________    build: ____________________
        (build = `./build/blackoutd --version` first line)
 
