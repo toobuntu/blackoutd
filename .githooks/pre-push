@@ -6,25 +6,154 @@
 
 set -euo pipefail
 
-# Reject pushes that include unsigned or invalidly signed commits.
-# Skip deletions and refs that do not peel (i.e., recursively
-# dereference) to a commit.
-while read -r local_ref local_oid _ _; do
-  status="$(git log -1 '--format=%G?' "${local_oid}^{commit}" 2>/dev/null)" || continue
+# Block (maintainers) or warn about (contributors) pushes that would introduce
+# unsigned or invalidly signed commits.
+#
+# git supplies the remote name ($1) and URL ($2), plus one line per ref on
+# stdin: "<local_ref> <local_oid> <remote_ref> <remote_oid>". Validate EVERY
+# commit the push ADDS, not just the tip -- an unsigned commit buried under a
+# signed tip would otherwise slip through, which is the whole point of the
+# gate. The range covers only the pushed commits, never the whole history:
+#
+#   - Ref update, remote tip object present locally: remote_oid..local_oid.
+#     remote_oid comes from the remote's ref advertisement for THIS push, so
+#     the range is exact even after a third-party force-push.
+#   - Ref update, remote tip object NOT present locally (the remote moved to
+#     history never fetched here): any computable range would be a guess that
+#     can under-check, so report the gap and ask for a `git fetch`. Warn mode
+#     continues; enforcement mode blocks and suggests retrying after fetch.
+#   - New ref: local_oid --not --remotes[=<dest>], i.e. everything reachable
+#     from the tip that no known remote branch already has. This leans on
+#     local remote-tracking refs; pre-policy commits already published
+#     unsigned and still covered by a tracking ref are not re-flagged.
+#
+# Deletions and refs that do not peel (i.e., recursively dereference) to a
+# commit are skipped.
+#
+# %G? codes: G good, U good/unknown-signer, X expired key, Y expired cert (all
+# accepted); N no signature; B/R/E bad/revoked/missing-key (rejected).
+#
+# Enforcement is maintainer-scoped -- signing is the maintainers' own policy,
+# not a contribution gate (CONTRIBUTING.md "Signed pushes"):
+#   - hooks.requireSignedPush true/false is an explicit override and wins.
+#   - Otherwise enforce only when signing is configured here
+#     (commit.gpgsign=true or user.signingkey set); warn-only when it is not,
+#     so a contributor who enabled core.hooksPath for the pre-commit checks is
+#     informed but never blocked.
+# One-off bypass that keeps every other check:
+#   git -c hooks.requireSignedPush=false push ...
+#
+# A signature is the COMMITTER's attestation, not the author's, so the pusher
+# may legitimately re-sign anyone's commit (an --amend/rebase records the
+# pusher as committer and preserves the author). Commits by other authors are
+# therefore not exempted from enforcement -- the author field is trivially
+# forgeable (git commit --author=... --no-gpg-sign).
+#
+# On violation the hook LISTS the offending commits and prints a one-pass
+# re-sign command pinned to them. It gates; it does not rewrite history itself
+# (an in-hook rebase would rewrite SHAs mid-push and can fail mid-flight).
 
-  case "${status}" in
-    # G good, U good+unknown signer, X expired key, Y expired cert
-    G|U|X|Y)
-      ;;
-    # N no signature
-    N)
-      echo "Push rejected: ${local_ref} is not signed" >&2
-      exit 1
-      ;;
-    # B bad, R good+revoked key, E missing key
-    *)
-      echo "Push rejected: ${local_ref} signature is not valid" >&2
-      exit 1
-      ;;
-  esac
+knob="$(git config --type=bool --get hooks.requireSignedPush 2>/dev/null || true)"
+if [ "${knob}" = "true" ]; then
+  enforce=1
+elif [ "${knob}" = "false" ]; then
+  enforce=0
+elif [ "$(git config --type=bool --get commit.gpgsign 2>/dev/null || true)" = "true" ] ||
+  [ -n "$(git config --get user.signingkey 2>/dev/null || true)" ]; then
+  enforce=1
+else
+  enforce=0
+fi
+
+if [ "${enforce}" = 1 ]; then
+  verdict="Push rejected"
+else
+  verdict="pre-push warning"
+fi
+
+# Called after a violation has been printed: exit under enforcement, otherwise
+# explain the pass-through and return. In warn mode execution then simply
+# proceeds -- deliberately, so a ref carrying both invalidly signed AND
+# unsigned commits reports both in one pass rather than one per push attempt.
+# The explainer prints once per push, not once per violation.
+explained=0
+fail_or_warn() {
+  if [ "${enforce}" = 1 ]; then
+    exit 1
+  fi
+  [ "${explained}" = 1 ] && return
+  explained=1
+  echo "  (push allowed: signing is not configured here; this gate binds" >&2
+  echo "  maintainers -- see CONTRIBUTING.md, \"Signed pushes\".)" >&2
+}
+
+while read -r local_ref local_oid _ remote_oid; do
+  # Skip ref deletions: a deletion's local OID is all-zero. Bash strips every
+  # "0"; an all-zero OID leaves the empty string. Length-agnostic (SHA-1/256).
+  [ -z "${local_oid//0/}" ] && continue
+
+  # Skip refs that do not peel to a commit (notes, tags of blobs/trees);
+  # ^{commit} also dereferences annotated tags to their commit.
+  git rev-parse --quiet --verify "${local_oid}^{commit}" >/dev/null 2>&1 || continue
+
+  # Scope to the commits this push introduces (see header).
+  if [ -n "${remote_oid//0/}" ]; then
+    if git cat-file -e "${remote_oid}^{commit}" 2>/dev/null; then
+      range=("${remote_oid}..${local_oid}")
+    else
+      fetch_suffix=
+      if [ "${enforce}" = 1 ]; then
+        fetch_suffix=" and push again"
+      fi
+
+      echo "${verdict}: cannot verify ${local_ref} -- remote tip ${remote_oid}" >&2
+      echo "  is not present locally (the remote may have moved); run" >&2
+      echo "  'git fetch ${1:-<remote>}'${fetch_suffix}." >&2
+      fail_or_warn
+      continue
+    fi
+  elif git remote get-url "${1:-}" >/dev/null 2>&1; then
+    range=("${local_oid}" --not "--remotes=$1")
+  else
+    range=("${local_oid}" --not --remotes)
+  fi
+
+  # Classify every commit in the range. --reverse lists oldest-first, so
+  # unsigned[0] is the earliest unsigned commit and the re-sign hint below can
+  # be pinned just before it. Process substitution, not a pipe, so exit 1
+  # leaves the hook rather than a subshell.
+  unsigned=()
+  badsig=()
+  while IFS= read -r oid; do
+    case "$(git log -1 --format='%G?' "${oid}")" in
+      G | U | X | Y) ;;
+      N) unsigned+=("${oid}") ;;
+      *) badsig+=("${oid}") ;;
+    esac
+  done < <(git rev-list --reverse "${range[@]}")
+
+  # An invalid signature (B/R/E) is present-but-bad, not missing, so it gets
+  # no "just sign it" hint -- the key/signature itself needs attention.
+  if [ "${#badsig[@]}" -gt 0 ]; then
+    echo "${verdict}: ${local_ref} adds ${#badsig[@]} invalidly signed commit(s):" >&2
+    for oid in "${badsig[@]}"; do
+      git log -1 --format='  %h  %an  %s' "${oid}" >&2
+    done
+    fail_or_warn
+  fi
+
+  if [ "${#unsigned[@]}" -gt 0 ]; then
+    echo "${verdict}: ${local_ref} adds ${#unsigned[@]} unsigned commit(s):" >&2
+    for oid in "${unsigned[@]}"; do
+      git log -1 --format='  %h  %an  %s' "${oid}" >&2
+    done
+    echo "  Sign them in one pass (records you as committer; authors preserved):" >&2
+    if git rev-parse --quiet --verify "${unsigned[0]}^" >/dev/null 2>&1; then
+      echo "    git rebase --exec 'git commit --amend --no-edit --gpg-sign' ${unsigned[0]}^" >&2
+    else
+      # The earliest unsigned commit is a root commit; ^ would not resolve.
+      echo "    git rebase --root --exec 'git commit --amend --no-edit --gpg-sign'" >&2
+    fi
+    fail_or_warn
+  fi
 done

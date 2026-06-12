@@ -56,6 +56,30 @@ To install the pre-commit hook:
 git config core.hooksPath .githooks
 ```
 
+## Signed pushes (maintainer policy, not a contribution gate)
+
+Enabling `core.hooksPath` above also activates `.githooks/pre-push`, which
+validates that every commit a push introduces carries a valid signature.
+Signed history is a policy the maintainers impose on themselves; it is not
+a barrier to contributing:
+
+- With no extra configuration, the hook **enforces** only where commit
+  signing is configured locally (`commit.gpgsign=true` or `user.signingkey`
+  set) — i.e. on maintainer machines. If signing is not configured, the
+  same scan runs but prints a warning and the push proceeds, so a
+  contributor who enabled the hooks for the pre-commit checks is informed
+  but never blocked.
+- `git config hooks.requireSignedPush true|false` overrides the detection
+  in either direction. A one-off bypass that keeps every other check:
+  `git -c hooks.requireSignedPush=false push ...` (prefer this over
+  `--no-verify`, which skips the hook entirely).
+- A signature is the committer's attestation, not the author's, so a
+  maintainer may re-sign contributor commits before merging
+  (`git rebase --exec 'git commit --amend --no-edit --gpg-sign' ...`);
+  authorship is preserved. Note that any server-side signed-commit rule on
+  `main` applies regardless of local hooks — keep the GitHub ruleset
+  consistent with this policy.
+
 ## License headers (REUSE)
 
 Every file in the repository must carry SPDX license metadata, enforced by

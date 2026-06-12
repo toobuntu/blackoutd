@@ -31,6 +31,10 @@ module LintPermsSpecHelpers
         run!("git", "init", "--quiet", "--initial-branch=feature/test")
         run!("git", "config", "user.email", "test@example.invalid")
         run!("git", "config", "user.name",  "Test")
+        # Fixture commits must not inherit the developer's global signing
+        # config: where the signing key is unreadable (the agent sandbox),
+        # every `git commit` would fail before the assertion under test.
+        run!("git", "config", "commit.gpgsign", "false")
         FileUtils.mkdir_p("scripts")
         FileUtils.cp(LINT_PERMS_SRC, "scripts/lint-perms.sh")
         File.chmod(0o755, "scripts/lint-perms.sh")
