@@ -278,6 +278,15 @@ Use long-form options for readability and grep-ability:
 script is in a tight loop or `xargs` chain where short options are
 idiomatic and the output is for human eyes (e.g., `xargs -J`).
 
+## printf over echo; heredocs for multi-line
+
+Prefer `printf` to `echo` in scripts and tool calls: `echo`'s handling
+of flags and escapes varies across shells and modes, while `printf` is
+POSIX-stable. `echo` remains fine for trivial static words. For
+multi-line strings, use a heredoc — or write the content to a file with
+a dedicated tool and pass the file (`--file`, `-F`, stdin) — rather
+than chaining `-m` arguments or embedding `\n` escapes.
+
 ## Commit messages and PRs
 
 - When a turn modifies tracked files, propose a commit decomposition
@@ -309,7 +318,7 @@ human re-signs the batch before pushing.
 
 ```sh
 GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false commit --no-gpg-sign \
-    -m "subject" -m "body" < /dev/null
+    --file /tmp/claude/msg.txt < /dev/null
 ```
 
 - `-c commit.gpgsign=false` and `--no-gpg-sign` both disable signing (belt and
@@ -318,6 +327,11 @@ GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false commit --no-gpg-sign \
 - `< /dev/null` closes stdin so nothing can block on an interactive prompt (the
   signing askpass, a credential helper, an editor).
 - `GIT_TERMINAL_PROMPT=0` stops git itself from prompting on a TTY.
+- `--file` (with the message written to a sandbox-writable file first, e.g.
+  `/tmp/claude/msg.txt`) instead of multi-line `-m` arguments: long multi-line
+  `-m` commands are a known hang in the Claude Code harness — the call is
+  auto-backgrounded and the commit never completes. A single-line `-m` and
+  `--amend --no-edit` are unaffected.
 - Add `--no-verify` **only** if the pre-commit hook genuinely can't run in the
   sandbox (e.g. `reuse lint` without `--no-multiprocessing` aborts on the macOS
   Seatbelt `SC_SEM_NSEMS_MAX` syscall; `go vet ./...` / `staticcheck` can't write
