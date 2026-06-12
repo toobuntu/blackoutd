@@ -71,7 +71,9 @@ else
 fi
 
 # Called after a violation has been printed: exit under enforcement, otherwise
-# explain the pass-through and let the caller continue with the next ref.
+# explain the pass-through and return. In warn mode execution then simply
+# proceeds -- deliberately, so a ref carrying both invalidly signed AND
+# unsigned commits reports both in one pass rather than one per push attempt.
 fail_or_warn() {
   if [ "${enforce}" = 1 ]; then
     exit 1
