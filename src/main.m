@@ -635,7 +635,7 @@ static void deriveWindow(NSString **startOut, NSString **endOut) {
 
 // Collects a diagnostic bundle into /tmp and prints the report to stdout.
 static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
-                       NSString *label) {
+                       NSString *label, NSString **bundleDirOut) {
   NSDate *t0 = NSDate.date;
   NSDateFormatter *clock = [[NSDateFormatter alloc] init];
   clock.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
@@ -669,6 +669,8 @@ static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
             dir.UTF8String, mkdirErr.localizedDescription.UTF8String);
     return 1;
   }
+  if (bundleDirOut)
+    *bundleDirOut = dir;
 
   BOOL complete = YES;
   if (label.length &&
@@ -1010,6 +1012,20 @@ static int runStep(NSString *path, NSArray<NSString *> *args, BOOL dryRun) {
 static void sayCue(NSString *text, BOOL silent, BOOL dryRun) {
   printf("  [step] %s\n", text.UTF8String);
   fflush(stdout);
+  // Post a Notification Center banner stamped HH:mm:ss. Invisible while the
+  // screen is black, but Notification Center retains it, so after recovery
+  // the banner log shows when each stage ran and pairs with the diag
+  // bundles' timestamps. --silent suppresses speech only; the notification
+  // record is most of the point of a blind run. Cue strings are internal
+  // constants, so embedding them in the AppleScript source is safe.
+  NSDateFormatter *clock = [[NSDateFormatter alloc] init];
+  clock.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  clock.dateFormat = @"HH:mm:ss";
+  NSString *script =
+      [NSString stringWithFormat:@"display notification \"%@ @ %@\" with title "
+                                 @"\"blackoutd repro\"",
+                                 text, [clock stringFromDate:NSDate.date]];
+  runStep(@"/usr/bin/osascript", @[ @"-e", script ], dryRun);
   if (!silent)
     runStep(@"/usr/bin/say", @[ text ], dryRun);
 }
@@ -1061,7 +1077,19 @@ static void reproCapture(NSString *label, BOOL dryRun) {
     printf("  [dry-run] diagnose --quiet --label %s\n", label.UTF8String);
     return;
   }
-  runDiagnose(0, nil, nil, YES, label);
+  NSString *bundleDir = nil;
+  runDiagnose(0, nil, nil, YES, label, &bundleDir);
+  if (!bundleDir)
+    return;
+  // Pair the stage with its bundle by NAME, not by clock correlation: the
+  // sayCue banner precedes the capture by the (synchronous) speech duration,
+  // so timestamps alone drift by a couple of seconds. Label and dir basename
+  // are internal values, safe to embed in the AppleScript source.
+  NSString *script = [NSString
+      stringWithFormat:@"display notification \"%@ -> %@\" with title "
+                       @"\"blackoutd repro\"",
+                       label, bundleDir.lastPathComponent];
+  runStep(@"/usr/bin/osascript", @[ @"-e", script ], NO);
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--silent]
@@ -1212,7 +1240,7 @@ int main(int argc, const char *argv[]) {
         fprintf(stderr, "blackoutd: --end requires --start\n");
         return 1;
       }
-      return runDiagnose(minutes, start, end, quiet, label);
+      return runDiagnose(minutes, start, end, quiet, label, NULL);
     }
     if (strcmp(cmd, "recover") == 0)
       return recoverCommand(argc, argv);

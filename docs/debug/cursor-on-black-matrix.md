@@ -18,6 +18,10 @@ here.
 
 Prerequisite: the **external display must be attached** (this is an
 external-display bug). Build the binary first: `make` → `./build/blackoutd`.
+The captures drive the CLI only, so the resident daemon need not be
+restarted; still, one `make dev` before a session (restarts the agent)
+aligns the daemon's build stamp with the CLI so `config.txt` does not warn
+about a CLI/daemon mismatch.
 
 ## How to run one trial
 
@@ -33,6 +37,9 @@ From a terminal with the panels visible (before sleep):
 
 `repro` schedules the wake (the only step that needs `sudo`), sleeps, and on
 wake **speaks each step** (`say`) so you can follow it with the screen black.
+Each step also posts a Notification Center banner stamped `HH:mm:ss` —
+invisible during the black, but retained, so after recovery the notification
+log shows when each stage ran and pairs with the bundles' timestamps.
 Watch the **panels**, not the terminal. When you hear:
 
 - **"capturing post wake"** — look at both panels, fill the *post-wake* rows.
