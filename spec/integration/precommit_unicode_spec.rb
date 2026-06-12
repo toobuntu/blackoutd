@@ -25,7 +25,6 @@ require "tmpdir"
 # tests self-contained and avoids requiring the actual GitHub Actions
 # runtime.
 
-REPO_ROOT = File.expand_path("../../..", __FILE__)
 HOOK_PATH = File.join(REPO_ROOT, ".githooks", "pre-commit")
 LINT_PERMS_PATH = File.join(REPO_ROOT, "scripts", "lint-perms.sh")
 CI_YML_PATH = File.join(REPO_ROOT, ".github", "workflows", "ci.yml")

@@ -18,9 +18,16 @@
 #      Matched BEFORE markup so ronn/md2man source
 #      (.1.md) is treated as a man page rather than
 #      as Markdown.
-#   5. Markup / structured-text family (.md, .markdown,  → --style=html  (<!-- ... --> comments)
+#   5. Property lists (.plist, optional .template)       → sidecar       (--force-dot-license)
+#      PlistBuddy / plutil / Xcode rewrite plists and do
+#      not preserve XML comments, so an inline header is
+#      stripped by the next programmatic edit (e.g. a
+#      scripts/bump.sh version bump) and the file fails
+#      REUSE again. Matched BEFORE markup, which would
+#      otherwise claim .plist for inline comments.
+#   6. Markup / structured-text family (.md, .markdown,  → --style=html  (<!-- ... --> comments)
 #      .html, .htm, .xhtml, .xml, .xsl, .xslt, .svg,
-#      .plist, with optional .template suffix)
+#      with optional .template suffix)
 #      reuse-tool's auto-detection on these has been
 #      inconsistent across versions; specifying the
 #      style explicitly removes the ambiguity. For
@@ -30,9 +37,9 @@
 #      than before — important for files whose
 #      frontmatter is parsed by another tool such as
 #      Claude Code skills (.claude/skills/<name>/SKILL.md).
-#   6. Files with no extension (Makefile, Dockerfile,   → --style=python (# comments)
+#   7. Files with no extension (Makefile, Dockerfile,   → --style=python (# comments)
 #      Gemfile, hook scripts)                              with --fallback-dot-license safety
-#   7. Everything else                                   → --fallback-dot-license
+#   8. Everything else                                   → --fallback-dot-license
 #      Relies on reuse-tool's auto-detection for .yml,
 #      .toml, .json, .rb, .sh, .py, .css, .lua, .tex,
 #      etc. Falls back to a sidecar .license file if
@@ -85,7 +92,11 @@ annotate() {
     "$@"
 }
 
-files=$(reuse lint --json |
+# --no-multiprocessing: Python's ProcessPoolExecutor probes the
+# SC_SEM_NSEMS_MAX sysconf, which macOS Seatbelt sandboxes deny; without
+# the flag the lint aborts when run from an agent sandbox (see
+# docs/agent-principles.md). Single-process is plenty at repo scale.
+files=$(reuse --no-multiprocessing lint --json |
   jq -r '.non_compliant | (.missing_copyright_info + .missing_licensing_info) | unique[]') || true
 
 [[ -z ${files} ]] && exit 0
@@ -122,16 +133,24 @@ man_re='\.[1-9][a-zA-Z]*(\.md)?$'
 man_files=$(printf '%s\n' "${remaining}" | grep --extended-regexp "${man_re}" || true)
 remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp "${man_re}" || true)
 
-# 5. Markup / structured-text family that uses HTML-style comments.
+# 5. Property lists: sidecar, never inline. PlistBuddy / plutil / Xcode
+#    rewrite plists without preserving XML comments, so an inline header
+#    is stripped by the next programmatic edit (e.g. a scripts/bump.sh
+#    version bump). Must run BEFORE the markup category, which would
+#    otherwise claim .plist for inline HTML-style comments.
+plist_re='\.plist(\.template)?$'
+plist_files=$(printf '%s\n' "${remaining}" | grep --extended-regexp "${plist_re}" || true)
+remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp "${plist_re}" || true)
+
+# 6. Markup / structured-text family that uses HTML-style comments.
 #    Covers Markdown (where # is a header marker, NOT a comment),
-#    HTML and XHTML, XML and XSL/XSLT transforms, SVG, and plist files.
-#    Each may optionally have a .template suffix (e.g. blackoutd.plist.template
-#    or doc.html.template).
-markup_re='\.(md|markdown|html|htm|xhtml|xml|xsl|xslt|svg|plist)(\.template)?$'
+#    HTML and XHTML, XML and XSL/XSLT transforms, and SVG.
+#    Each may optionally have a .template suffix (e.g. doc.html.template).
+markup_re='\.(md|markdown|html|htm|xhtml|xml|xsl|xslt|svg)(\.template)?$'
 markup_files=$(printf '%s\n' "${remaining}" | grep --extended-regexp "${markup_re}" || true)
 remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp "${markup_re}" || true)
 
-# 6. Files with no extension (Makefile, Dockerfile, Gemfile, hook
+# 7. Files with no extension (Makefile, Dockerfile, Gemfile, hook
 #    scripts, etc.) typically use hash comments. --style=python is
 #    reuse-tool's hash-comment style alias.
 #    Note: dotfiles like .gitignore have a leading dot and therefore
@@ -141,7 +160,7 @@ no_ext_re='(^|/)[^./]+$'
 no_ext_files=$(printf '%s\n' "${remaining}" | grep --extended-regexp "${no_ext_re}" || true)
 remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp "${no_ext_re}" || true)
 
-# 7. Everything else: rely on reuse-tool's auto-detection. Falls back
+# 8. Everything else: rely on reuse-tool's auto-detection. Falls back
 #    to a sidecar .license file if the comment style is unknown for
 #    the extension.
 other_files=$(printf '%s\n' "${remaining}" || true)
@@ -150,6 +169,7 @@ other_files=$(printf '%s\n' "${remaining}" || true)
 [[ -n ${go_files} ]]     && printf '%s\n' "${go_files}"     | annotate --style=c
 [[ -n ${compl_files} ]]  && printf '%s\n' "${compl_files}"  | annotate --force-dot-license
 [[ -n ${man_files} ]]    && printf '%s\n' "${man_files}"    | annotate --force-dot-license
+[[ -n ${plist_files} ]]  && printf '%s\n' "${plist_files}"  | annotate --force-dot-license
 [[ -n ${markup_files} ]] && printf '%s\n' "${markup_files}" | annotate --style=html
 [[ -n ${no_ext_files} ]] && printf '%s\n' "${no_ext_files}" | annotate --style=python --fallback-dot-license
 [[ -n ${other_files} ]]  && printf '%s\n' "${other_files}"  | annotate --fallback-dot-license
