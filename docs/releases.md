@@ -28,8 +28,13 @@ Preconditions — clean `main`, full local gate green:
 
 ```sh
 git switch main && git pull --ff-only
-make check                  # lint + RSpec, the same gates CI runs
+make check                  # CI's lint + RSpec gates (all but lint-plist)
 ```
+
+`make check` runs every CI lint plus the RSpec suite. The one CI gate it
+omits is `lint-plist`, which generates and validates the LaunchAgent plist —
+that step writes to `~/Library/LaunchAgents`, so it stays out of the
+read-only local gate (run `make postinstall && plutil -lint …` to cover it).
 
 Park any merged feature branches (kept for local history, not deleted):
 

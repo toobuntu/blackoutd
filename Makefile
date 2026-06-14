@@ -194,6 +194,7 @@ lint:
 	$(call require,reuse,reuse not installed (brew install reuse))
 	$(call require,adrs,adrs not installed (brew install adrs))
 	scripts/lint-perms.sh --tracked
+	scripts/lint-unicode.sh
 	$(CLANG_FORMAT) --dry-run $(CLANG_FORMAT_ARGS)
 	$(CLANG_TIDY_RUN)
 	reuse lint
