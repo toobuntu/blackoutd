@@ -1,8 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "model": "opus",
   "effortLevel": "xhigh",
   "showThinkingSummaries": true,
+
+  "env": {
+    "HOMEBREW_NO_ANALYTICS": "1"
+  },
+
   "permissions": {
     "allow": [
       "Bash(make)",
@@ -108,6 +112,7 @@
       "Bash(zizmor:*)",
       "Bash(shellcheck:*)",
       "Bash(shfmt --diff:*)",
+      "Bash(checkmake:*)",
       "Bash(clang-format --style=file --dry-run:*)",
       "Bash(xcrun clang-format --style=file --dry-run:*)",
       "Bash(clang-tidy:*)"
@@ -327,7 +332,7 @@
       "blackoutd daemon *",
       "blackoutd auto *",
       "git commit *",
-      "git tag -a *",
+      "git -c commit.gpgsign=false commit *",
       "git pull *",
       "git fetch *",
       "git checkout *",
@@ -349,6 +354,7 @@
       "reuse download *",
       "clang-format --style=file -i *",
       "xcrun clang-format --style=file -i *",
+      "zizmor *",
       "bundle install"
     ],
     "filesystem": {
@@ -371,6 +377,7 @@
         "rubygems.org",
         "index.rubygems.org",
         "api.rubygems.org",
+        "formulae.brew.sh",
         "registry.npmjs.org",
         "developer.apple.com",
         "developer.apple.com.akadns.net",
@@ -393,7 +400,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ \"$(git -C \"${CLAUDE_PROJECT_DIR:-.}\" branch --show-current)\" = \"main\" ]; then echo 'Direct edits to main are not allowed. Create a feature branch (git switch -c feature/<topic>) before editing.' >&2; exit 2; fi",
+            "command": "if command -v jq >/dev/null 2>&1; then fp=$(jq -r '.tool_input.file_path // empty' 2>/dev/null || true); fi; if [ -z \"$fp\" ]; then fp=\"${CLAUDE_PROJECT_DIR:-$PWD}/\"; fi; case \"$fp\" in /*) ;; *) fp=\"${CLAUDE_PROJECT_DIR:-$PWD}/$fp\" ;; esac; case \"$fp\" in \"${CLAUDE_PROJECT_DIR:-$PWD}\"/*) if [ \"$(git -C \"${CLAUDE_PROJECT_DIR:-.}\" branch --show-current)\" = \"main\" ]; then echo 'Direct edits to main are not allowed. Create a feature branch (git switch -c feature/<topic>) before editing.' >&2; exit 2; fi ;; esac",
             "timeout": 5
           }
         ]
