@@ -216,12 +216,13 @@ preflight:
 		exit 1; \
 	fi
 
-# Verify a clean working tree, build the binary, and create an annotated
-# git tag. Does NOT push the tag, sign artifacts, or produce a packaged
-# release; those are manual follow-up steps printed at the end.
-# Tag convention: v<VERSION> (e.g., v0.2.0)
+# Verify a clean working tree, build the binary, and create a signed
+# annotated git tag. --sign enforces signing here rather than relying on a
+# global tag.gpgSign; with gpg.format=ssh it signs with the SSH key. Does
+# NOT push the tag or produce a packaged release; those are manual
+# follow-up steps printed at the end. Tag convention: v<VERSION>.
 release: preflight $(TARGET)
-	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	git tag --sign --message="Release v$(VERSION)" "v$(VERSION)"
 	@echo "Created tag v$(VERSION)"
 	@echo "Binary: $(TARGET)"
 	@echo "Version: $(VERSION)"
