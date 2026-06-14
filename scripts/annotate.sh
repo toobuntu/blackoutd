@@ -2,9 +2,8 @@
 # Annotates non-REUSE-compliant files with SPDX copyright and license headers.
 # Requires: reuse (pip install reuse OR brew install reuse), jq.
 #
-# Canonical version intended for cross-toobuntu use; keep this in sync
-# with the copy in toobuntu/homebrew-cask-tools (the nominal source of
-# truth). When updating, change both copies in the same PR cycle.
+# This file is synced from the repo-foundation repository, do not modify it
+# directly. Make changes in toobuntu/repo-foundation and re-sync.
 #
 # Categorization (in declared order; each category is removed from the
 # working set before the next is matched, so ORDER MATTERS):
