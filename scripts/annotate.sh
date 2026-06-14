@@ -39,7 +39,17 @@
 #      Claude Code skills (.claude/skills/<name>/SKILL.md).
 #   7. Files with no extension (Makefile, Dockerfile,   → --style=python (# comments)
 #      Gemfile, hook scripts)                              with --fallback-dot-license safety
-#   8. Everything else                                   → --fallback-dot-license
+#   8. Hash-checksum files (.md5/.sha1/.sha224/.sha256/  → sidecar       (--force-dot-license)
+#      .sha384/.sha512). The SHA256SUMS-style format
+#      verified by `shasum -c` is positional; introducing
+#      a comment line either breaks parsing or works
+#      accidentally (depending on the verifier). Force a
+#      .license sidecar to keep the hash file content
+#      mechanically untouched. reuse-tool may grow inline
+#      handling for these extensions in the future, but
+#      forcing the sidecar removes the dependency on its
+#      behavior staying compatible.
+#   9. Everything else                                   → --fallback-dot-license
 #      Relies on reuse-tool's auto-detection for .yml,
 #      .toml, .json, .rb, .sh, .py, .css, .lua, .tex,
 #      etc. Falls back to a sidecar .license file if
@@ -155,12 +165,21 @@ remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp
 #    reuse-tool's hash-comment style alias.
 #    Note: dotfiles like .gitignore have a leading dot and therefore
 #    contain a `.`, so they do NOT match this pattern; they fall
-#    through to category 7.
+#    through to category 9.
 no_ext_re='(^|/)[^./]+$'
 no_ext_files=$(printf '%s\n' "${remaining}" | grep --extended-regexp "${no_ext_re}" || true)
 remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp "${no_ext_re}" || true)
 
-# 8. Everything else: rely on reuse-tool's auto-detection. Falls back
+# 8. Hash-checksum files (SHA256SUMS-style): the format verified by
+#    `shasum -c` is positional, so a comment line breaks (or accidentally
+#    survives) parsing. Force a sidecar to keep the file content
+#    mechanically untouched, independent of whether reuse-tool ever grows
+#    inline handling for these extensions.
+hash_re='\.(md5|sha1|sha224|sha256|sha384|sha512)$'
+hash_files=$(printf '%s\n' "${remaining}" | grep --extended-regexp "${hash_re}" || true)
+remaining=$(printf '%s\n' "${remaining}" | grep --invert-match --extended-regexp "${hash_re}" || true)
+
+# 9. Everything else: rely on reuse-tool's auto-detection. Falls back
 #    to a sidecar .license file if the comment style is unknown for
 #    the extension.
 other_files=$(printf '%s\n' "${remaining}" || true)
@@ -172,4 +191,5 @@ other_files=$(printf '%s\n' "${remaining}" || true)
 [[ -n ${plist_files} ]]  && printf '%s\n' "${plist_files}"  | annotate --force-dot-license
 [[ -n ${markup_files} ]] && printf '%s\n' "${markup_files}" | annotate --style=html
 [[ -n ${no_ext_files} ]] && printf '%s\n' "${no_ext_files}" | annotate --style=python --fallback-dot-license
+[[ -n ${hash_files} ]]   && printf '%s\n' "${hash_files}"   | annotate --force-dot-license
 [[ -n ${other_files} ]]  && printf '%s\n' "${other_files}"  | annotate --fallback-dot-license
