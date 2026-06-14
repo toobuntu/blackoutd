@@ -372,6 +372,38 @@ truth** and realign `main` to it after the branch lands
 (`git switch main && git reset --hard origin/main`) rather than trying to push
 both — `main`'s unsigned tip would be rejected anyway.
 
+### Pre-commit hook network tools under the sandbox (zizmor)
+
+When a commit stages a `.github/workflows/*.yml` file, the `pre-commit` hook
+runs `zizmor --quiet .`. zizmor (1.25.x) builds an HTTP client at startup —
+even for purely local audits — and on macOS that client reads the system
+proxy configuration via `SCDynamicStoreCreate`. Under the Seatbelt sandbox the
+`configd` mach service is unreachable, so that call returns NULL and zizmor
+**panics** (`system-configuration … Attempted to create a NULL object`). This
+is a crash, not a lint finding.
+
+It is **not** fixable by adding hosts to `sandbox.network.allowedDomains`: the
+panic happens during client construction, before any URL is contacted (a bogus
+`ALL_PROXY` still crashes). Only running zizmor **outside** Seatbelt fixes it —
+the maintainer's unsandboxed terminal runs it online normally.
+
+- **Preferred (online in-sandbox):** the sandbox already lists `git commit *`
+  in `sandbox.excludedCommands` so the hook's toolchain (brew, reuse, zizmor)
+  runs unsandboxed. The agent's unsigned-commit recipe above does **not** match
+  that entry — it begins `GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false
+  commit …` — so it runs sandboxed and the hook's zizmor crashes. Add
+  `git -c commit.gpgsign=false commit *` (the agent's exact prefix) and
+  `zizmor *` (for direct `zizmor` lint runs) to `excludedCommands`, then verify
+  after a settings reload by committing a workflow-touching change. Trade-off:
+  this runs the agent's commits — and their hooks — fully unsandboxed, which is
+  the existing intent for `git commit *`.
+- **Fallback (no unsandboxing available):** prepend `ZIZMOR_OFFLINE=true`
+  (the value must be `true`/`false`, not `1`) to the commit. The hook's zizmor
+  reads the env var and runs offline; only the online audits are suppressed
+  (they need network and a `--gh-token` anyway), so the **full** hook still
+  runs — no `--no-verify`, no sandbox widening. Do not set this globally in
+  `env`; that would force offline even where online would work.
+
 ## Avoiding interactive shell hooks in tool calls
 
 `zsh` (the typical macOS interactive shell) has hooks like `chpwd`
