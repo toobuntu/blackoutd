@@ -62,8 +62,8 @@ CLANG_TIDY_RUN = $(CLANG_TIDY) --quiet $(SRCS) -- -fobjc-arc $(DEFINES) $(FRAMEW
 # wrappers alike, which `command -v` cannot resolve.
 require = @$(1) --version >/dev/null 2>&1 || { printf 'error: %s\n' '$(2)' >&2; exit 1; }
 
-.PHONY: all clean install postinstall dev reinstall uninstall load unload \
-        print-bundle-id preflight release format tidy lint test check FORCE
+.PHONY: all clean install postinstall dev reinstall uninstall load unload
+.PHONY: print-bundle-id preflight release format tidy lint test check FORCE
 
 all: $(TARGET)
 
