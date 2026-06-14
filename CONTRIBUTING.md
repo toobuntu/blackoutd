@@ -6,84 +6,62 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 # Contributing to blackoutd
 
-## Encoding requirements
+## Language and style
 
-All source, documentation, and configuration files **must** be:
+- Objective-C, ARC, AppKit. No Swift. See `docs/architecture.md`.
+- `.clang-format`: LLVM base style, 2-space indent, 80-column limit.
+- Run `clang-format --style=file -i` on any changed `.m` or `.h` before
+  committing.
+- Minimal comments; self-documenting names preferred.
 
-- Valid **UTF-8**, decoded without error.
-- **Without BOM** — U+FEFF must not appear anywhere in any file, including
-  as a leading byte-order mark.
+## Building and running
 
-These requirements are enforced automatically:
+Run all `make` targets as your normal logged-in user, **not** under `sudo`.
+The `install` and `reinstall` targets invoke `sudo` internally only for the
+privileged writes to `/usr/local/bin` and `/usr/local/share`. Running the
+whole `make` command under `sudo` would make `$HOME` resolve to `/var/root`
+and `id -u` return `0`, breaking plist generation and `launchctl bootstrap`
+domain targeting.
 
-| Where | What is checked |
-|-------|-----------------|
-| Pre-commit hook (`.githooks/pre-commit`) | Each staged text blob is scanned for invisible Unicode (bidi overrides U+202A–202E, bidi isolates U+2066–2069, zero-width U+200B/200C/200D, LTR/RTL marks U+200E/200F, ALM U+061C, BOM U+FEFF) using `grep` against a UTF-8 bracket expression. Approach is RedHat's [RHSB-2021-007](https://access.redhat.com/security/vulnerabilities/RHSB-2021-007). The hook is `#!/bin/sh` and uses POSIX `printf '\NNN'` octal byte escapes to construct the pattern, so it does not depend on bash 4.2+, ksh93, or any specific shell version. Binary blobs are skipped via `grep --binary-files=without-match`. |
-| CI job `lint-unicode` | Every non-binary file is decoded as **strict UTF-8** on the Ubuntu runner using Python. Every character in Unicode category **Cf (Format)** or **Cc (Control)** is rejected, except a small allowlist of TAB/LF/CR. This is automatically future-proof — new invisible characters added in future Unicode revisions are caught without code changes. UTF-16 and UTF-32 text are explicitly rejected (project policy is UTF-8 only). |
-
-The pre-commit hook intentionally avoids Python because future macOS versions
-may not ship Python by default
-([Apple Catalina release notes](https://developer.apple.com/documentation/macos-release-notes/macos-catalina-10_15-release-notes#Scripting-Language-Runtimes)).
-The CI Python check provides defense in depth and broader coverage.
-
-This check covers Trojan Source attacks (CVE-2021-42574). It does NOT cover
-homoglyph attacks (CVE-2021-42694), which would require Unicode confusables
-tables and are tracked separately.
-
-### Opt-out for legitimate bidi use
-
-Some files legitimately require bidi controls (e.g. an i18n library, an
-iCalendar writer that emits LRM around LTR times in an RTL string). To
-allow specific codepoints in a single file, add a `bidi-allow:` annotation
-anywhere in the file:
-
-```go
-// bidi-allow: U+200E
-package icalwriter
+```sh
+make            # build to build/blackoutd
+make clean      # remove build artifacts
+make install    # first-time install: build, install binary, bootstrap agent
+make reinstall  # upgrade: bootout running agent, install, bootstrap
+make dev        # build, restart agent from build dir; never invokes sudo
+make uninstall  # remove all installed files and the agent
+make release    # verify clean tree, build, and create a signed git tag
 ```
 
-The annotation lists comma-separated `U+XXXX` codepoints from the blocked
-set that the file is allowed to contain. Both the pre-commit hook and the
-CI scanner honor it. The annotation is reviewable in PR diff and grep-able
-across the repo (`grep -r bidi-allow:`).
-
-Rationale, alternatives considered, and the Cf/Cc category-based approach:
-[ADR 0001](docs/decisions/0001-trojan-source-detection-strategy.md).
-
-To install the pre-commit hook:
+Install the git hooks once (this activates both the pre-commit checks and the
+maintainer pre-push signing gate described below):
 
 ```sh
 git config core.hooksPath .githooks
 ```
 
-## Signed pushes (maintainer policy, not a contribution gate)
+### Tests
 
-Enabling `core.hooksPath` above also activates `.githooks/pre-push`, which
-validates that every commit a push introduces carries a valid signature.
-Signed history is a policy the maintainers impose on themselves; it is not
-a barrier to contributing:
+Behavioral tests for the pre-commit hook and CI Unicode scanner live in
+`spec/integration/`. They exercise the actual hook script and the actual
+embedded Python from `ci.yml` against planted inputs.
 
-- With no extra configuration, the hook **enforces** only where commit
-  signing is configured locally (`commit.gpgsign=true` or `user.signingkey`
-  set) — i.e. on maintainer machines. If signing is not configured, the
-  same scan runs but prints a warning and the push proceeds, so a
-  contributor who enabled the hooks for the pre-commit checks is informed
-  but never blocked.
-- `git config hooks.requireSignedPush true|false` overrides the detection
-  in either direction. A one-off bypass that keeps every other check:
-  `git -c hooks.requireSignedPush=false push ...` (prefer this over
-  `--no-verify`, which skips the hook entirely).
-- A signature is the committer's attestation, not the author's, so a
-  maintainer may re-sign contributor commits before merging
-  (`git rebase --exec 'git commit --amend --no-edit --gpg-sign' ...`);
-  authorship is preserved. Note that any server-side signed-commit rule on
-  `main` applies regardless of local hooks — keep the GitHub ruleset
-  consistent with this policy.
+```sh
+# RSpec runs under Homebrew's portable Ruby (system Ruby 2.6 is only a
+# fallback). Install the gems under that Ruby once:
+env -P"$(brew --repository)/Library/Homebrew/vendor/portable-ruby/current/bin:$PATH" bundle install
+
+# Then run the suite via the make target (it wraps the same Ruby):
+make test
+```
+
+The `spec` job in CI runs the suite via `Homebrew/actions/setup-ruby`
+(the same portable Ruby) on every push and pull request.
 
 ## License headers (REUSE)
 
-Every file in the repository must carry SPDX license metadata, enforced by
-the CI `lint-reuse` job ([reuse.software](https://reuse.software/)). The
+Every file must carry SPDX license metadata *before* it is committed, enforced
+by the CI `lint-reuse` job ([reuse.software](https://reuse.software/)). The
 expected format is:
 
 ```
@@ -93,7 +71,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
 ```
 
 The annotation can live inline (preferred) or in a sidecar `<file>.license`
-file (used when a file's format has no comment syntax, such as `.json`).
+file — used when a file's format has no comment syntax (such as `.json`) or
+when tooling rewrites the file and would strip an inline comment (such as a
+`.plist` edited by PlistBuddy).
 
 ### How to add headers to new files
 
@@ -168,60 +148,61 @@ Markdown file with frontmatter.
 and inserts the SPDX block in the right place. ADRs that already have
 inline SPDX in frontmatter are recognized as compliant and left alone.
 
-## Language and style
+## Commits and pull requests
 
-- Objective-C, ARC, AppKit. No Swift. See `docs/architecture.md`.
-- `.clang-format`: LLVM base style, 2-space indent, 80-column limit.
-- Run `clang-format --style=file -i` on any changed `.m` or `.h` before committing.
-- Minimal comments; self-documenting names preferred.
-
-## Tests
-
-Behavioral tests for the pre-commit hook and CI Unicode scanner live in
-`spec/integration/`. They exercise the actual hook script and the actual
-embedded Python from `ci.yml` against planted inputs.
-
-```sh
-# RSpec runs under Homebrew's portable Ruby (system Ruby 2.6 is only a
-# fallback). Install the gems under that Ruby once:
-env -P"$(brew --repository)/Library/Homebrew/vendor/portable-ruby/current/bin:$PATH" bundle install
-
-# Then run the suite via the make target (it wraps the same Ruby):
-make test
-```
-
-The `spec` job in CI runs the suite via `Homebrew/actions/setup-ruby`
-(the same portable Ruby) on every push and pull request.
-
-## Commit conventions
-
-- Subject line ≤ 50 characters.
-- Body wraps at 72 characters.
+- Subject line ≤ 50 characters; body wraps at 72.
 - Reference issues with `Closes #N` in the commit body.
-- No verbose AI commentary in commit messages or PR descriptions.
+- No verbose AI commentary in commit messages or PR descriptions; note AI
+  assistance and what manual verification was performed.
+- PRs are merged with **merge commits** (not squash, not rebase), preserving
+  PR identity in `git log --graph` and keeping original commit authorship and
+  dates. See [ADR 0004](docs/decisions/0004-merge-strategy.md).
 
-## Merging pull requests
+### Signed pushes (maintainer policy, not a contribution gate)
 
-PRs are merged with **merge commits** (not squash, not rebase). This
-preserves PR identity in `git log --graph` and keeps original commit
-authorship and dates intact. See
-[ADR 0004](docs/decisions/0004-merge-strategy.md) for the full rationale.
+The `.githooks/pre-push` hook validates that every commit a push introduces
+carries a valid signature. Signed history is a policy the maintainers impose
+on themselves; it is not a barrier to contributing:
 
-## Build
+- With no extra configuration, the hook **enforces** only where commit
+  signing is configured locally (`commit.gpgsign=true` or `user.signingkey`
+  set) — i.e. on maintainer machines. If signing is not configured, the
+  same scan runs but prints a warning and the push proceeds, so a
+  contributor who enabled the hooks for the pre-commit checks is informed
+  but never blocked.
+- `git config hooks.requireSignedPush true|false` overrides the detection
+  in either direction. A one-off bypass that keeps every other check:
+  `git -c hooks.requireSignedPush=false push ...` (prefer this over
+  `--no-verify`, which skips the hook entirely).
+- A signature is the committer's attestation, not the author's, so a
+  maintainer may re-sign contributor commits before merging
+  (`git rebase --exec 'git commit --amend --no-edit --gpg-sign' ...`);
+  authorship is preserved. Any server-side signed-commit rule on `main`
+  applies regardless of local hooks — keep the GitHub ruleset consistent
+  with this policy.
 
-Run all `make` targets as your normal logged-in user, **not** under `sudo`.
-The `install` and `reinstall` targets invoke `sudo` internally only for the
-privileged writes to `/usr/local/bin` and `/usr/local/share`. Running the
-whole `make` command under `sudo` would make `$HOME` resolve to `/var/root`
-and `id -u` return `0`, breaking plist generation and `launchctl bootstrap`
-domain targeting.
+## Encoding and invisible Unicode
 
-```sh
-make            # build to build/blackoutd
-make clean      # remove build artifacts
-make install    # first-time install: build, install binary, bootstrap agent
-make reinstall  # upgrade: bootout running agent, install, bootstrap
-make dev        # build, restart agent from build dir; never invokes sudo
-make uninstall  # remove all installed files and the agent
-make release    # verify clean tree, build, and create annotated git tag
+All source, documentation, and configuration files must be valid **UTF-8**
+and contain **no BOM** (U+FEFF anywhere, including a leading byte-order mark);
+UTF-16/UTF-32 are rejected. This is enforced automatically: the pre-commit
+hook scans each staged blob for invisible bidi/zero-width control characters
+(RedHat's [RHSB-2021-007](https://access.redhat.com/security/vulnerabilities/RHSB-2021-007)
+approach, in POSIX `/bin/sh`), and the CI `lint-unicode` job rejects any
+Unicode Cf/Cc-category character on the Ubuntu runner. Rationale, full
+codepoint coverage, and alternatives considered live in
+[ADR 0001](docs/decisions/0001-trojan-source-detection-strategy.md).
+
+A file that legitimately needs a blocked codepoint (e.g. an i18n library, an
+iCalendar writer emitting LRM in an RTL string) can opt out with a
+`bidi-allow:` annotation anywhere in it:
+
+```go
+// bidi-allow: U+200E
+package icalwriter
 ```
+
+The annotation lists comma-separated `U+XXXX` codepoints from the blocked set;
+both the pre-commit hook and the CI scanner honor it, and it is reviewable in
+the PR diff and grep-able (`grep -r bidi-allow:`). Use it sparingly — each
+exemption widens the attack surface.
