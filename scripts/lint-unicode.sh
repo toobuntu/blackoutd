@@ -103,6 +103,9 @@ for p in paths:
                     utf8_failures.append(
                         f'{path} (looks like {enc}; project requires UTF-8)')
                     break
+                # NUL but not decodable as UTF-16/32: treat as binary and skip,
+                # mirroring RHSB-2021-007's text/* MIME gate. Falling through to
+                # the UTF-8 check would mis-flag tracked binaries as violations.
                 continue
             raw = head + fh.read()
     except OSError:
@@ -181,7 +184,7 @@ build_pattern() {
 
 # First bidi-allow annotation in the working-tree file, or empty.
 read_bidi_allow() {
-    sed -n 's/.*bidi-allow:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$1" | head -n 1
+    LC_ALL=C sed -n 's/.*bidi-allow:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$1" | head -n 1
 }
 
 _default_pattern=$(build_pattern "")
@@ -195,7 +198,7 @@ while IFS= read -r _f; do
     else
         _pattern="$_default_pattern"
     fi
-    if LC_ALL=en_US.UTF-8 grep --binary-files=without-match \
+    if LC_ALL=en_US.UTF-8 /usr/bin/grep --binary-files=without-match \
         --extended-regexp --quiet "$_pattern" "$_f"; then
         _found="${_found:+$_found
 }$_f"
