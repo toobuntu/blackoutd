@@ -193,12 +193,14 @@ lint:
 	$(call require,$(CLANG_TIDY),clang-tidy unavailable (brew install llvm))
 	$(call require,reuse,reuse not installed (brew install reuse))
 	$(call require,adrs,adrs not installed (brew install adrs))
+	$(call require,checkmake,checkmake not installed (brew install checkmake))
 	scripts/lint-perms.sh --tracked
 	scripts/lint-unicode.sh
 	$(CLANG_FORMAT) --dry-run $(CLANG_FORMAT_ARGS)
 	$(CLANG_TIDY_RUN)
 	reuse lint
 	adrs doctor
+	checkmake Makefile
 
 # Full local gate: read-only checks plus the behavioral test suite
 # (CI parity). The one command to run before pushing.
@@ -224,8 +226,5 @@ preflight:
 # follow-up steps printed at the end. Tag convention: v<VERSION>.
 release: preflight $(TARGET)
 	git tag --sign --message="Release v$(VERSION)" "v$(VERSION)"
-	@echo "Created tag v$(VERSION)"
-	@echo "Binary: $(TARGET)"
-	@echo "Version: $(VERSION)"
-	@echo ""
-	@echo "To push the tag: git push origin v$(VERSION)"
+	@printf 'Created tag v%s\nBinary: %s\nVersion: %s\n\nTo push the tag: git push origin v%s\n' \
+	    "$(VERSION)" "$(TARGET)" "$(VERSION)" "$(VERSION)"
