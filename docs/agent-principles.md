@@ -387,7 +387,7 @@ panic happens during client construction, before any URL is contacted (a bogus
 `ALL_PROXY` still crashes). Only running zizmor **outside** Seatbelt fixes it —
 the maintainer's unsandboxed terminal runs it online normally.
 
-- **Preferred (online in-sandbox):** the sandbox already lists `git commit *`
+- **Preferred (unsandboxed, online):** the sandbox already lists `git commit *`
   in `sandbox.excludedCommands` so the hook's toolchain (brew, reuse, zizmor)
   runs unsandboxed. The agent's unsigned-commit recipe above does **not** match
   that entry — it begins `GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false

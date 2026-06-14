@@ -42,9 +42,9 @@ git config core.hooksPath .githooks
 
 ### Tests
 
-Behavioral tests for the pre-commit hook and CI Unicode scanner live in
-`spec/integration/`. They exercise the actual hook script and the actual
-embedded Python from `ci.yml` against planted inputs.
+Behavioral tests for the pre-commit hook and repo-wide Unicode scanner live in
+`spec/integration/`. They exercise the actual hook script and
+`scripts/lint-unicode.sh` against planted inputs.
 
 ```sh
 # RSpec runs under Homebrew's portable Ruby (system Ruby 2.6 is only a
