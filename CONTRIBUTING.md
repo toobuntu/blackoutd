@@ -95,9 +95,9 @@ ANNOTATE_LICENSE="MIT" \
 scripts/annotate.sh
 ```
 
-The script is the canonical version intended for cross-toobuntu use; the
-mirror in `toobuntu/homebrew-cask-tools/scripts/annotate.sh` is the nominal
-source of truth and should be kept in sync.
+This copy is a mirror. The canonical source of truth is
+`toobuntu/repo-foundation/scripts/annotate.sh`; keep this copy in sync with
+that repository (downstream of it), not the other way around.
 
 ### YAML frontmatter and SPDX placement
 
