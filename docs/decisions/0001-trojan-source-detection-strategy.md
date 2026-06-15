@@ -106,10 +106,10 @@ CI uses Python's stdlib `unicodedata.category()` to flag every character
 in category **Cf (Format)** or **Cc (Control)**, with a small allowlist
 for TAB/LF/CR. This is exactly what Red Hat's own
 `find_unicode_control2.py` does in its default mode (no `--nonprint`
-flag): `unicodedata.category(c) == 'Cf'`. We extend that with **Cc (Control)** to also
-catch the C0 control range (U+0000-U+001F, which includes the ESC byte
-U+001B) and the C1 range (U+0080-U+009F), again excluding the TAB/LF/CR
-allowlist. A similar
+flag): `unicodedata.category(c) == 'Cf'`. We extend that with **Cc
+(Control)** to also catch the C0 control range (U+0000-U+001F, which
+includes the ESC byte U+001B), DEL (U+007F), and the C1 range
+(U+0080-U+009F), again excluding the TAB/LF/CR allowlist. A similar
 Cf/Cc-with-TAB/LF/CR-allowlist appears in
 [`lirantal/anti-trojan-source`][anti-trojan]'s `unicode-categories.js`.
 
@@ -139,12 +139,12 @@ The answer is no, and the reason is the difference between *escape
 notation* and a *literal control byte*:
 
 * Code that emits color almost always writes ESC as a visible, typed-out
-  stand-in — a backslash followed by `033` (C/printf's `\033[31m`), or
-  `\e[31m`, or a `tput setaf` call. On disk those are ordinary printable
-  ASCII characters. The program converts that notation into the single
-  invisible ESC byte only at runtime, when it prints; the file itself
-  holds no control byte, so the scanner (which reads the bytes on disk)
-  sees nothing to flag.
+  stand-in — `\033[31m` (C/printf octal), `\x1B[31m` (hex), or, in Bash
+  ANSI-C quoting, `$'\e[31m'` — or a `tput setaf` call. On disk those are
+  ordinary printable ASCII characters. The program converts that
+  notation into the single invisible ESC byte only at runtime, when it
+  prints; the file itself holds no control byte, so the scanner (which
+  reads the bytes on disk) sees nothing to flag.
 * The scanner flags only a *literal* ESC byte (or any other Cc/Cf
   character) physically present in the file as a raw, unprintable byte.
   That is rare and usually unintended — for instance, pasting captured
