@@ -13,21 +13,22 @@ require "tmpdir"
 # Behavioral tests for the supply-chain hardening checks added in v0.2:
 #
 #   - .githooks/pre-commit invisible-Unicode check (RedHat grep approach)
-#   - .github/workflows/ci.yml lint-unicode Python scanner
+#   - scripts/lint-unicode.sh, the shared repo-wide scanner that the CI
+#     lint-unicode job and `make lint` both invoke
 #
 # Both layers also support a per-file `bidi-allow:` opt-out annotation
 # placed anywhere in the file.
 #
 # The hook is exercised by setting up a throwaway git repository, staging
 # planted files, and invoking the hook directly from the source tree. The
-# CI scanner is exercised by extracting the embedded Python heredoc from
-# ci.yml and running it against a planted directory tree. This keeps the
-# tests self-contained and avoids requiring the actual GitHub Actions
-# runtime.
+# shared scanner is exercised by running scripts/lint-unicode.sh against a
+# planted directory tree — both its python3 path and its POSIX-sh fallback
+# (forced with LINT_UNICODE_NO_PYTHON=1). This keeps the tests
+# self-contained and avoids requiring the actual GitHub Actions runtime.
 
 HOOK_PATH = File.join(REPO_ROOT, ".githooks", "pre-commit")
 LINT_PERMS_PATH = File.join(REPO_ROOT, "scripts", "lint-perms.sh")
-CI_YML_PATH = File.join(REPO_ROOT, ".github", "workflows", "ci.yml")
+LINT_UNICODE_PATH = File.join(REPO_ROOT, "scripts", "lint-unicode.sh")
 
 # Bidi/zero-width/BOM codepoints that must trigger the check.
 BIDI_OVERRIDE_RLO = "\u202E"  # right-to-left override
@@ -236,40 +237,18 @@ RSpec.describe "pre-commit hook: invisible Unicode detection" do
 end
 
 RSpec.describe "CI lint-unicode scanner" do
-  # Extract the Python heredoc body from ci.yml so the test runs the same
-  # logic CI would run, without coupling to the workflow harness.
-  #
-  # The regex assumes the YAML pipe block in ci.yml indents each line by
-  # 10 spaces (the current ci.yml structure). If the indentation changes,
-  # the post-extraction sanity check below fails fast with a clear message
-  # rather than silently running an empty or malformed body.
-  def extract_python_body
-    yml = File.read(CI_YML_PATH)
-    m = yml.match(/python3 - <<'EOF'\n(.*?)\n          EOF/m)
-    raise "could not locate Python heredoc in ci.yml" unless m
-    body = m[1].lines.map { |l| l.sub(/\A {10}/, "") }.join
-    # Sanity-check the extracted body. If ci.yml's structure changes
-    # (different indentation, different heredoc marker), fail loudly here
-    # instead of running an empty or wrong script and getting confusing
-    # downstream test failures.
-    %w[unicodedata.category ALLOWED parse_allow is_suspicious].each do |token|
-      raise "extracted Python body missing expected token #{token.inspect}; " \
-            "ci.yml may have changed shape — update extract_python_body" \
-        unless body.include?(token)
-    end
-    body
-  end
-
-  def run_python_in(dir)
-    Dir.chdir(dir) do
-      Open3.capture3("python3", "-c", extract_python_body)
-    end
+  # Exercise the shared scanner directly — the same scripts/lint-unicode.sh
+  # that the CI lint-unicode job and `make lint` invoke. Passing "." makes
+  # the script walk the planted directory tree (no git repo required), so
+  # these tests stay self-contained.
+  def run_scanner_in(dir, env = {})
+    Open3.capture3(env, LINT_UNICODE_PATH, ".", chdir: dir)
   end
 
   it "rejects a file with a bidi override character" do
     Dir.mktmpdir("blackoutd-ci-test-") do |dir|
       File.write(File.join(dir, "evil.c"), "int x;#{BIDI_OVERRIDE_RLO}\n")
-      _out, err, status = run_python_in(dir)
+      _out, err, status = run_scanner_in(dir)
       expect(status.success?).to eq(false), "stderr=#{err.inspect}"
       expect(err).to match(/Invisible Unicode|CVE-2021-42574/)
       expect(err).to include("evil.c")
@@ -279,7 +258,7 @@ RSpec.describe "CI lint-unicode scanner" do
   it "rejects a file containing a UTF-8 BOM" do
     Dir.mktmpdir("blackoutd-ci-test-") do |dir|
       File.write(File.join(dir, "bom.txt"), "#{UTF8_BOM}content\n")
-      _out, err, status = run_python_in(dir)
+      _out, err, status = run_scanner_in(dir)
       expect(status.success?).to eq(false)
       expect(err).to include("bom.txt")
     end
@@ -289,7 +268,7 @@ RSpec.describe "CI lint-unicode scanner" do
     Dir.mktmpdir("blackoutd-ci-test-") do |dir|
       utf16 = "hello world\n".encode(Encoding::UTF_16LE)
       File.binwrite(File.join(dir, "u16.txt"), "\xFF\xFE".b + utf16.b)
-      _out, err, status = run_python_in(dir)
+      _out, err, status = run_scanner_in(dir)
       expect(status.success?).to eq(false), "stderr=#{err.inspect}"
       expect(err).to include("u16.txt")
       expect(err).to match(/UTF-8/)
@@ -301,7 +280,7 @@ RSpec.describe "CI lint-unicode scanner" do
       # Latin-1 byte 0xE9 is é but is invalid UTF-8 if not in a multi-byte
       # sequence.
       File.binwrite(File.join(dir, "latin1.txt"), "caf\xE9\n".b)
-      _out, err, status = run_python_in(dir)
+      _out, err, status = run_scanner_in(dir)
       expect(status.success?).to eq(false)
       expect(err).to include("latin1.txt")
     end
@@ -311,8 +290,30 @@ RSpec.describe "CI lint-unicode scanner" do
     Dir.mktmpdir("blackoutd-ci-test-") do |dir|
       File.write(File.join(dir, "ok.md"), "# Hello\n\nClean content.\n")
       File.write(File.join(dir, "ok.c"),  "int main(void) { return 0; }\n")
-      _out, err, status = run_python_in(dir)
+      _out, err, status = run_scanner_in(dir)
       expect(status.success?).to eq(true), "stderr=#{err.inspect}"
+    end
+  end
+
+  describe "POSIX-sh fallback (LINT_UNICODE_NO_PYTHON=1)" do
+    # The shell path covers the fixed bidi/zero-width/BOM set only — the
+    # accepted floor when python3 is unavailable (ADR 0001).
+    it "rejects a file with a bidi override character" do
+      Dir.mktmpdir("blackoutd-ci-test-") do |dir|
+        File.write(File.join(dir, "evil.c"), "int x;#{BIDI_OVERRIDE_RLO}\n")
+        _out, err, status = run_scanner_in(dir, "LINT_UNICODE_NO_PYTHON" => "1")
+        expect(status.success?).to eq(false), "stderr=#{err.inspect}"
+        expect(err).to include("evil.c")
+      end
+    end
+
+    it "honors the bidi-allow opt-out" do
+      Dir.mktmpdir("blackoutd-ci-test-") do |dir|
+        File.write(File.join(dir, "rtl.go"),
+                   "// bidi-allow: U+200E\nvar rtl = \"#{LRM}time\"\n")
+        _out, err, status = run_scanner_in(dir, "LINT_UNICODE_NO_PYTHON" => "1")
+        expect(status.success?).to eq(true), "stderr=#{err.inspect}"
+      end
     end
   end
 
@@ -323,7 +324,7 @@ RSpec.describe "CI lint-unicode scanner" do
                   "package main\n" \
                   "var rtl = \"#{LRM}time\"\n"
         File.write(File.join(dir, "rtl.go"), content)
-        _out, err, status = run_python_in(dir)
+        _out, err, status = run_scanner_in(dir)
         expect(status.success?).to eq(true), "stderr=#{err.inspect}"
       end
     end
@@ -333,7 +334,7 @@ RSpec.describe "CI lint-unicode scanner" do
         content = "// bidi-allow: U+200E\n" \
                   "// hidden: #{BIDI_OVERRIDE_RLO} payload\n"
         File.write(File.join(dir, "evil.go"), content)
-        _out, err, status = run_python_in(dir)
+        _out, err, status = run_scanner_in(dir)
         expect(status.success?).to eq(false), "stderr=#{err.inspect}"
         expect(err).to include("evil.go")
       end
@@ -351,7 +352,7 @@ RSpec.describe "CI lint-unicode scanner" do
                   "# bidi-allow: U+200E\n" \
                   "x = \"#{LRM}content\"\n"
         File.write(File.join(dir, "deep.rb"), content)
-        _out, err, status = run_python_in(dir)
+        _out, err, status = run_scanner_in(dir)
         expect(status.success?).to eq(true), "stderr=#{err.inspect}"
       end
     end

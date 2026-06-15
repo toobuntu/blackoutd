@@ -330,8 +330,12 @@ GIT_TERMINAL_PROMPT=0 git -c commit.gpgsign=false commit --no-gpg-sign \
 - `--file` (with the message written to a sandbox-writable file first, e.g.
   `/tmp/claude/msg.txt`) instead of multi-line `-m` arguments: long multi-line
   `-m` commands are a known hang in the Claude Code harness — the call is
-  auto-backgrounded and the commit never completes. A single-line `-m` and
-  `--amend --no-edit` are unaffected.
+  auto-backgrounded and the commit never completes.
+- Run `git commit` as its **own** standalone tool call. Chaining it in a
+  compound command (`cmd && git commit …` or a `;`-sequence) auto-backgrounds
+  and aborts it the same way — even `--amend --no-edit` — leaving HEAD unchanged
+  and the file unstaged. Do any `git add` / validation in a separate call first.
+  A single-line `-m` and `--amend --no-edit` are safe only when run standalone.
 - Add `--no-verify` **only** if the pre-commit hook genuinely can't run in the
   sandbox (e.g. `reuse lint` without `--no-multiprocessing` aborts on the macOS
   Seatbelt `SC_SEM_NSEMS_MAX` syscall; `go vet ./...` / `staticcheck` can't write
@@ -371,6 +375,31 @@ commits now exist at **two different SHAs**: the branch's signed ones and
 truth** and realign `main` to it after the branch lands
 (`git switch main && git reset --hard origin/main`) rather than trying to push
 both — `main`'s unsigned tip would be rejected anyway.
+
+### Pre-commit hook network tools under the sandbox (zizmor)
+
+When a commit stages a `.github/workflows/*.yml` file, the `pre-commit` hook
+runs `zizmor --quiet .`. zizmor (1.25.x) builds an HTTP client at startup —
+even for local audits — and on macOS reads the system proxy config via
+`SCDynamicStoreCreate`. Under Seatbelt the `configd` mach service is
+unreachable, so that returns NULL and zizmor **panics**
+(`system-configuration … Attempted to create a NULL object`) — a crash, not a
+lint finding. It is **not** fixable via `sandbox.network.allowedDomains`: the
+panic precedes any URL contact (a bogus `ALL_PROXY` still crashes). Only
+running zizmor **outside** Seatbelt fixes it.
+
+- **Unsandboxed (online) — configured, not yet validated:**
+  `git -c commit.gpgsign=false commit *` and `zizmor *` are now in
+  `sandbox.excludedCommands`. But the agent's recipe is prefixed
+  `GIT_TERMINAL_PROMPT=0 git …`, which may not match the pattern — so the commit
+  (and its hook's zizmor) may still run sandboxed. **Unverified**: confirm by
+  committing a workflow change and checking the hook's zizmor doesn't crash; if
+  it does, add the prefixed form to `excludedCommands` or drop the env prefix.
+- **Fallback (the live path until the above is validated):** prepend
+  `ZIZMOR_OFFLINE=true` (value `true`/`false`, not `1`) to the commit — the
+  hook's zizmor runs offline (only online audits are suppressed; they need
+  network and a `--gh-token` anyway), so the **full** hook still runs, no
+  `--no-verify` or sandbox widening. Don't set it globally in `env`.
 
 ## Avoiding interactive shell hooks in tool calls
 

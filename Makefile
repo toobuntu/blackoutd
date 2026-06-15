@@ -62,8 +62,8 @@ CLANG_TIDY_RUN = $(CLANG_TIDY) --quiet $(SRCS) -- -fobjc-arc $(DEFINES) $(FRAMEW
 # wrappers alike, which `command -v` cannot resolve.
 require = @$(1) --version >/dev/null 2>&1 || { printf 'error: %s\n' '$(2)' >&2; exit 1; }
 
-.PHONY: all clean install postinstall dev reinstall uninstall load unload \
-        print-bundle-id preflight release format tidy lint test check FORCE
+.PHONY: all clean install postinstall dev reinstall uninstall load unload
+.PHONY: print-bundle-id preflight release format tidy lint test check FORCE
 
 all: $(TARGET)
 
@@ -193,11 +193,14 @@ lint:
 	$(call require,$(CLANG_TIDY),clang-tidy unavailable (brew install llvm))
 	$(call require,reuse,reuse not installed (brew install reuse))
 	$(call require,adrs,adrs not installed (brew install adrs))
+	$(call require,checkmake,checkmake not installed (brew install checkmake))
 	scripts/lint-perms.sh --tracked
+	scripts/lint-unicode.sh
 	$(CLANG_FORMAT) --dry-run $(CLANG_FORMAT_ARGS)
 	$(CLANG_TIDY_RUN)
 	reuse lint
 	adrs doctor
+	checkmake Makefile
 
 # Full local gate: read-only checks plus the behavioral test suite
 # (CI parity). The one command to run before pushing.
@@ -216,14 +219,12 @@ preflight:
 		exit 1; \
 	fi
 
-# Verify a clean working tree, build the binary, and create an annotated
-# git tag. Does NOT push the tag, sign artifacts, or produce a packaged
-# release; those are manual follow-up steps printed at the end.
-# Tag convention: v<VERSION> (e.g., v0.2.0)
+# Verify a clean working tree, build the binary, and create a signed
+# annotated git tag. --sign enforces signing here rather than relying on a
+# global tag.gpgSign; with gpg.format=ssh it signs with the SSH key. Does
+# NOT push the tag or produce a packaged release; those are manual
+# follow-up steps printed at the end. Tag convention: v<VERSION>.
 release: preflight $(TARGET)
-	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	@echo "Created tag v$(VERSION)"
-	@echo "Binary: $(TARGET)"
-	@echo "Version: $(VERSION)"
-	@echo ""
-	@echo "To push the tag: git push origin v$(VERSION)"
+	git tag --sign --message="Release v$(VERSION)" "v$(VERSION)"
+	@printf 'Created tag v%s\nBinary: %s\nVersion: %s\n\nTo push the tag: git push origin v%s\n' \
+	    "$(VERSION)" "$(TARGET)" "$(VERSION)" "$(VERSION)"
