@@ -77,7 +77,7 @@ independently.
 
 **Adopt worktrees only when you have a concrete reason to do parallel
 work.** For day-to-day single-task Claude Code sessions, a plain
-`cd ~/devel/claude/desktop/blackoutd && claude` is simpler and adds no
+`cd <repo-root> && claude` is simpler and adds no
 new failure modes (e.g., forgotten worktrees, abandoned branches).
 
 For blackoutd specifically, the v0.3 work (Mach IPC) is a single
@@ -112,7 +112,7 @@ succeeds, and clearer output so it is obvious what was created.
 
 ```sh
 # Start a worktree session:
-cd ~/devel/claude/desktop/blackoutd
+cd <repo-root>
 aiwt
 # → Worktree: ../_sandboxes/blackoutd-ai-20260428-153012
 # → Branch:   ai/20260428-153012
@@ -125,7 +125,7 @@ claude
 
 # When the experiment is good, integrate. Worktrees share .git, so the
 # branch is already visible from the main checkout — no fetch needed.
-cd ~/devel/claude/desktop/blackoutd
+cd <repo-root>
 # Open a PR from ai/20260428-153012 the normal way, OR cherry-pick:
 git cherry-pick <sha>..<sha>
 
@@ -180,12 +180,12 @@ sandbox.
 ```sh
 mkdir -p ~/devel/claude/sandbox
 cd ~/devel/claude/sandbox
-git clone ~/devel/claude/desktop/blackoutd blackoutd-fresh
+git clone <repo-root> blackoutd-fresh
 cd blackoutd-fresh
-git remote add local ~/devel/claude/desktop/blackoutd
+git remote add local <repo-root>
 git remote -v
 # origin   git@github.com:toobuntu/blackoutd.git (fetch/push)
-# local    /Users/you/devel/claude/desktop/blackoutd (fetch/push)
+# local    <repo-root> (fetch/push)
 
 # Sandbox-only push (cannot reach GitHub):
 git push local <branch>
@@ -210,16 +210,16 @@ URL.
 ```sh
 mkdir -p ~/devel/claude/sandbox
 cd ~/devel/claude/sandbox
-git clone ~/devel/claude/desktop/blackoutd blackoutd-fresh
+git clone <repo-root> blackoutd-fresh
 cd blackoutd-fresh
-git remote set-url origin ~/devel/claude/desktop/blackoutd
+git remote set-url origin <repo-root>
 git remote -v
-# origin   /Users/you/devel/claude/desktop/blackoutd (fetch/push)
+# origin   <repo-root> (fetch/push)
 
 # Any push goes only to your local repo; GitHub is unreachable from this clone.
 git push origin <branch>
 # Then, from your primary checkout, push to GitHub if/when ready:
-cd ~/devel/claude/desktop/blackoutd
+cd <repo-root>
 git push origin <branch>
 ```
 
@@ -270,7 +270,7 @@ mental model.
 ### Why they are wrong-fit for Claude Code work
 
 1. **Granularity.** A snapshot is volume-wide. Rolling back to undo
-   what Claude Code did to `~/devel/claude/desktop/blackoutd` would
+   what Claude Code did to `<repo-root>` would
    also roll back every other file you touched in that interval —
    email, downloads, browser history, work in other repos, system
    updates. There is no "restore just this directory" operation
