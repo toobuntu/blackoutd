@@ -77,7 +77,7 @@ independently.
 
 **Adopt worktrees only when you have a concrete reason to do parallel
 work.** For day-to-day single-task Claude Code sessions, a plain
-`cd <repo-root> && claude` is simpler and adds no
+`cd` to your checkout then `claude` is simpler and adds no
 new failure modes (e.g., forgotten worktrees, abandoned branches).
 
 For blackoutd specifically, the v0.3 work (Mach IPC) is a single
@@ -111,8 +111,10 @@ succeeds, and clearer output so it is obvious what was created.
 ### Workflow
 
 ```sh
+REPO_ROOT=/path/to/blackoutd   # your primary checkout
+
 # Start a worktree session:
-cd <repo-root>
+cd "$REPO_ROOT"
 aiwt
 # → Worktree: ../_sandboxes/blackoutd-ai-20260428-153012
 # → Branch:   ai/20260428-153012
@@ -125,9 +127,9 @@ claude
 
 # When the experiment is good, integrate. Worktrees share .git, so the
 # branch is already visible from the main checkout — no fetch needed.
-cd <repo-root>
+cd "$REPO_ROOT"
 # Open a PR from ai/20260428-153012 the normal way, OR cherry-pick:
-git cherry-pick <sha>..<sha>
+git cherry-pick OLDEST^..NEWEST   # the experiment's commit range
 
 # Tear down:
 git worktree remove ../_sandboxes/blackoutd-ai-20260428-153012
@@ -178,19 +180,20 @@ inspect PR state, fetch upstream changes, etc., from inside the
 sandbox.
 
 ```sh
+REPO_ROOT=/path/to/blackoutd   # your primary checkout
 mkdir -p ~/devel/claude/sandbox
 cd ~/devel/claude/sandbox
-git clone <repo-root> blackoutd-fresh
+git clone "$REPO_ROOT" blackoutd-fresh
 cd blackoutd-fresh
-git remote add local <repo-root>
+git remote add local "$REPO_ROOT"
 git remote -v
 # origin   git@github.com:toobuntu/blackoutd.git (fetch/push)
-# local    <repo-root> (fetch/push)
+# local    $REPO_ROOT (fetch/push)
 
 # Sandbox-only push (cannot reach GitHub):
-git push local <branch>
+git push local my-feature
 # Real push (reaches GitHub if permissions allow):
-git push origin <branch>
+git push origin my-feature
 ```
 
 The `git push:*` permission deny in `.claude/settings.json` still
@@ -208,19 +211,20 @@ broken in this clone because the configured `origin` is not a GitHub
 URL.
 
 ```sh
+REPO_ROOT=/path/to/blackoutd   # your primary checkout
 mkdir -p ~/devel/claude/sandbox
 cd ~/devel/claude/sandbox
-git clone <repo-root> blackoutd-fresh
+git clone "$REPO_ROOT" blackoutd-fresh
 cd blackoutd-fresh
-git remote set-url origin <repo-root>
+git remote set-url origin "$REPO_ROOT"
 git remote -v
-# origin   <repo-root> (fetch/push)
+# origin   $REPO_ROOT (fetch/push)
 
 # Any push goes only to your local repo; GitHub is unreachable from this clone.
-git push origin <branch>
+git push origin my-feature
 # Then, from your primary checkout, push to GitHub if/when ready:
-cd <repo-root>
-git push origin <branch>
+cd "$REPO_ROOT"
+git push origin my-feature
 ```
 
 The cost of Option B is that `gh pr view`, `gh pr create`, etc. fail
