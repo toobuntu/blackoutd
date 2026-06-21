@@ -63,7 +63,7 @@ in `.githooks/pre-push`:
   already-published commits (including pre-policy ones) are not re-flagged.
   Within that range every commit must carry an accepted signature. Author and
   committer are **not** used to exempt commits: both are forgeable
-  (`git commit --author=… ` / `GIT_COMMITTER_*`), so an identity-based exemption
+  (`git commit --author=…` / `GIT_COMMITTER_*`), so an identity-based exemption
   would be a hole. Maintainer-scoping is achieved entirely by the enforce-vs-warn
   split above, plus the fact that a maintainer re-signs whatever they push (an
   `--amend`/rebase records them as committer; the author is preserved).
