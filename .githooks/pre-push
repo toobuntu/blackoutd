@@ -133,12 +133,25 @@ while read -r local_ref local_oid _ remote_oid; do
   done < <(git rev-list --reverse "${range[@]}")
 
   # An invalid signature (B/R/E) is present-but-bad, not missing, so it gets
-  # no "just sign it" hint -- the key/signature itself needs attention.
+  # no "just sign it" hint -- the key/signature itself needs attention. The one
+  # common benign case is a GitHub web-flow commit (committer GitHub
+  # <noreply@github.com>): its signature reads as E only because GitHub's public
+  # key is absent locally, so point at the one-time import. This is a hint, not
+  # an exemption -- the gate still rejects (committer is forgeable); importing
+  # makes the signature verify (U/Y) and the next push passes on its merits.
   if [ "${#badsig[@]}" -gt 0 ]; then
     echo "${verdict}: ${local_ref} adds ${#badsig[@]} invalidly signed commit(s):" >&2
+    webflow_seen=0
     for oid in "${badsig[@]}"; do
       git log -1 --format='  %h  %an  %s' "${oid}" >&2
+      [ "$(git log -1 --format='%ce' "${oid}")" = "noreply@github.com" ] && webflow_seen=1
     done
+    if [ "${webflow_seen}" = 1 ]; then
+      echo "  A commit above is a GitHub web-flow commit; its signature is" >&2
+      echo "  unverifiable only because GitHub's key is absent. Import it once" >&2
+      echo "  (no trust extended), then push again:" >&2
+      echo "    curl -fsSL https://github.com/web-flow.gpg | gpg --import" >&2
+    fi
     fail_or_warn
   fi
 

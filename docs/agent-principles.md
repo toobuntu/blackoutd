@@ -580,6 +580,49 @@ These are blanket-denied. Don't propose workarounds:
   `~/Library/Keychains`, `~/.claude.json`, `~/.claude/`, `~/.netrc`,
   `~/.pgpass`, `./.env*`
 
+## Confirm policy intent before coding
+
+When a change touches a policy or a design decision — a hook's gating
+rule, a CI check, ADR-governed behavior — state the *intended policy*
+in plain terms and confirm it before writing code. Review-bot comments
+(CodeRabbit, Copilot, and the like) and an agent's own "this looks more
+correct / stricter" instinct are **inputs to weigh, not directives to
+apply**: bots optimize for plausible-looking gating, not for what the
+maintainer is actually trying to enforce, so applying them uncritically
+produces a technically-defensible but wrong policy that costs more to
+unwind than it would have to prevent. Read the canonical source first
+(often the most complete sibling repo plus its CONTRIBUTING and ADRs),
+restate the policy, and get agreement before implementing. This is a
+specific case of "one change at a time" and "errors are evidence": a
+surprising review suggestion is something to understand, not a task to
+execute.
+
+## Preserve the user's work-in-progress before agent edits
+
+When agent edits would mix with the user's uncommitted working-tree
+changes, commit or otherwise preserve the user's WIP **first** —
+decomposed into logical, per-concern commits — then commit the agent's
+edits separately. Re-survey `git status` and attribute each changed
+file to WIP vs. agent edit (diff to confirm) before committing. Prefer
+decomposing in place over worktree-and-revert gymnastics, which are
+brittle and easy to get wrong. For a file that mixes both concerns,
+split the hunks non-interactively — `git apply --cached` on a sliced
+patch (`git add -p` is unavailable in the sandbox). Add the
+`Co-Authored-By` trailer only to commits that are genuinely the agent's
+authored change, never to the user's WIP commits.
+
+## Cross-repo references in committed docs
+
+When a committed, contributor-visible doc references a **different**
+repo (a sibling, or any repo other than the one the doc lives in), use
+the GitHub `<org>/<repo>` slug — e.g. `toobuntu/babble` — not a bare
+repo name (ambiguous) and not an absolute path like
+`~/devel/claude/desktop/babble` (which leaks the maintainer's machine
+layout and breaks when directories move). A doc's reference to its
+**own** repo root uses the `<repo-root>` placeholder instead. Make
+every reference to the same repo uniform, including pre-existing prose
+mentions.
+
 ## Session economy
 
 Every prompt sent to Claude Code consumes tokens. The biggest token
