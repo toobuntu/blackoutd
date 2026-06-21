@@ -186,6 +186,50 @@ RSpec.describe ".githooks/pre-push signed-push gate" do
         expect(err).to include("git fetch origin")
       end
     end
+
+    it "points at the web-flow key import for an unverifiable web-flow commit" do
+      skip "gpg unavailable" unless system("gpg", "--version",
+                                           out: File::NULL, err: File::NULL)
+      with_repo do |dir, env|
+        base = commit(env, dir, "base", signed: true)
+        # A web-flow-style OpenPGP-signed commit: signed by an ephemeral key,
+        # then verified by the hook against a homedir lacking that key, so %G?
+        # is E -- the real "web-flow merge, key not imported" case. gpg-agent /
+        # keyboxd sockets live in GNUPGHOME and Unix socket paths cap near 104
+        # bytes, so both homedirs must be short; the mktmpdir HOME is far too
+        # long. Keep them under /tmp and kill the daemons afterward.
+        Dir.mktmpdir("bdg", "/tmp") do |gpg_root|
+          signer = File.join(gpg_root, "s")
+          verifier = File.join(gpg_root, "v")
+          FileUtils.mkdir_p(signer, mode: 0o700)
+          FileUtils.mkdir_p(verifier, mode: 0o700)
+          sign_env = env.merge("GNUPGHOME" => signer)
+          verify_env = env.merge("GNUPGHOME" => verifier)
+          begin
+            run!(sign_env, "gpg", "--batch", "--pinentry-mode", "loopback",
+                 "--passphrase", "", "--quick-generate-key",
+                 "GitHub <noreply@github.com>", "default", "default", "0")
+            run!(sign_env.merge("GIT_COMMITTER_NAME" => "GitHub",
+                                "GIT_COMMITTER_EMAIL" => "noreply@github.com"),
+                 "git", "-C", dir, "-c", "gpg.format=openpgp",
+                 "-c", "user.signingkey=noreply@github.com",
+                 "commit", "--quiet", "--allow-empty", "--gpg-sign",
+                 "--message", "Merge pull request #1 from x/y")
+            webflow = g(env, dir, "rev-parse", "HEAD").strip
+            _, err, status = run_hook(verify_env, dir, push_line(webflow, base))
+            expect(status.exitstatus).to eq(1)
+            expect(err).to include("invalidly signed")
+            expect(err).to include("web-flow")
+            expect(err).to include("github.com/web-flow.gpg")
+          ensure
+            system(sign_env, "gpgconf", "--kill", "all",
+                   out: File::NULL, err: File::NULL)
+            system(verify_env, "gpgconf", "--kill", "all",
+                   out: File::NULL, err: File::NULL)
+          end
+        end
+      end
+    end
   end
 
   describe "contributor mode (signing not configured)" do
