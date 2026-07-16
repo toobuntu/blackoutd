@@ -55,16 +55,17 @@ Watch the **panels**, not the terminal. When you hear:
 
 Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
 (`post-wake` / `post-recover`). Flags: `--group G` (coverage row A–E,
-recorded in the sheet and its filename), `--settle S` (seconds before
-each capture, default 20), `--no-copy` (keep bundles in /tmp only),
-`--silent` (no speech), `--dry-run` (preview without sleeping).
+any case — normalized to lowercase, recorded in the sheet and as a
+`grp-<g>` filename tag), `--settle S` (seconds before each capture,
+default 20), `--no-copy` (keep bundles in /tmp only), `--silent` (no
+speech), `--dry-run` (preview without sleeping).
 
 `repro` also emits a prefilled, numbered **run sheet** at
-`docs/debug/repro-matrix/runNNN-<group>-<stamp>.md` (NNN = 1 + the
+`docs/debug/repro-matrix/runNNN-grp-<g>-<stamp>.md` (NNN = 1 + the
 highest existing sheet number, global across groups; stamp = repro
 start; falls back to `/tmp`, unnumbered, when not run from the repo
-root; without `--group` the filename omits the group segment and the
-sheet leaves the group as a manual field). Machine-filled: run number,
+root; without `--group` the filename omits the grp tag and the sheet
+leaves the group as a manual field). Machine-filled: run number,
 group, start time, build identity, both bundle paths, the daemon's
 `[wake] — display pipeline settled` marker (timestamp-checked against the
 repro start, so a stale marker from an earlier wake is never reported),
@@ -122,7 +123,7 @@ Run #: <machine: NNN>    started: <machine: yyyy-MM-dd HH:mm:ss>
 Build: <machine: git describe>    built: <machine: build stamp> (UTC)
 
 Conditions (pre-sleep -> at capture):
-  group .................. <machine: A..E from --group, else manual>
+  group .................. <machine: A..E from --group (any case), else manual>
   lid .................... <machine: open|closed -> open|closed>
       moved during sleep? ... [ ] no   [ ] yes: ______
   session ................ <machine: locked|unlocked -> locked|unlocked>
@@ -190,14 +191,14 @@ fact); runs 3, 5, 7, 8 had checked the immediate state.
 
 | run | sheet                                            | immediate E/B | settled E/B | black? |
 |-----|--------------------------------------------------|---------------|-------------|--------|
-| 1   | [run001](repro-matrix/run001-A-20260716-013347.md) | E2/B2         | E0/B0       | no     |
-| 2   | [run002](repro-matrix/run002-A-20260716-014527.md) | E2/B2         | E0/B0       | no     |
-| 3   | [run003](repro-matrix/run003-A-20260716-015013.md) | E2/B1         | E1/B0       | yes    |
-| 4   | [run004](repro-matrix/run004-A-20260716-020245.md) | E2/B2         | E0/B0       | no     |
-| 5   | [run005](repro-matrix/run005-A-20260716-020540.md) | E2/B1         | E1/B0       | yes    |
-| 6   | [run006](repro-matrix/run006-A-20260716-020824.md) | E2/B2         | E0/B0       | no     |
-| 7   | [run007](repro-matrix/run007-A-20260716-021316.md) | E2/B1         | E1/B0       | yes    |
-| 8   | [run008](repro-matrix/run008-A-20260716-021755.md) | E2/B1         | E1/B0       | yes    |
+| 1   | [run001](repro-matrix/run001-grp-a-20260716-013347.md) | E2/B2         | E0/B0       | no     |
+| 2   | [run002](repro-matrix/run002-grp-a-20260716-014527.md) | E2/B2         | E0/B0       | no     |
+| 3   | [run003](repro-matrix/run003-grp-a-20260716-015013.md) | E2/B1         | E1/B0       | yes    |
+| 4   | [run004](repro-matrix/run004-grp-a-20260716-020245.md) | E2/B2         | E0/B0       | no     |
+| 5   | [run005](repro-matrix/run005-grp-a-20260716-020540.md) | E2/B1         | E1/B0       | yes    |
+| 6   | [run006](repro-matrix/run006-grp-a-20260716-020824.md) | E2/B2         | E0/B0       | no     |
+| 7   | [run007](repro-matrix/run007-grp-a-20260716-021316.md) | E2/B1         | E1/B0       | yes    |
+| 8   | [run008](repro-matrix/run008-grp-a-20260716-021755.md) | E2/B1         | E1/B0       | yes    |
 
 Group A stands at 4 black (runs 3, 5, 7, 8) and 4 clean (runs 1, 2, 4, 6)
 settled captures — the ≥3 black / ≥3 clean bar is met; detection diffing

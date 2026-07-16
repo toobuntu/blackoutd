@@ -972,7 +972,8 @@ static void printUsage(void) {
       "                  emits a numbered, prefilled run sheet and copies\n"
       "                  bundles to docs/debug/ when run from the repo root\n"
       "                  (--wake N, --settle S, --recover METHOD,\n"
-      "                  --group A..E [matrix coverage row], --no-copy,\n"
+      "                  --group a..e [matrix coverage row, any case],\n"
+      "                  --no-copy,\n"
       "                  --silent, --dry-run)\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
@@ -1189,7 +1190,7 @@ static NSString *settleMarkerSince(NSDate *started) {
 // Emits a prefilled matrix run sheet (docs/debug/cursor-on-black-matrix.md
 // block format) so the maintainer records only the eyewitness panel
 // observations, whether the lid moved during sleep, and notes. Written to
-// docs/debug/repro-matrix/runNNN-<group>-<stamp>.md — run numbers are
+// docs/debug/repro-matrix/runNNN-grp-<g>-<stamp>.md — run numbers are
 // global across groups (NNN derived from the existing sheets), the group
 // (matrix coverage row A-E, from --group) rides in the filename so a
 // directory listing reads as the matrix. Falls back to /tmp (unnumbered)
@@ -1249,8 +1250,8 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
                   BD_BUILD_TIME];
   [s appendString:@"Conditions (pre-sleep -> at capture):\n"];
   [s appendFormat:@"  group .................. %@\n",
-                  group.length ? group
-                               : @"____ (not given; pass --group A..E)"];
+                  group.length ? group.uppercaseString
+                               : @"____ (not given; pass --group a..e)"];
   [s appendFormat:@"  lid .................... %@ -> %@\n", lidPre, lidCap];
   [s appendString:@"      moved during sleep? ... [ ] no   [ ] yes: ______\n"];
   [s appendFormat:@"  session ................ %@ -> %@\n", lockPre, lockCap];
@@ -1298,7 +1299,7 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
                              ? [NSString stringWithFormat:@"run%03d", runNumber]
                              : @"run";
   NSString *groupPart =
-      group.length ? [@"-" stringByAppendingString:group] : @"";
+      group.length ? [@"-grp-" stringByAppendingString:group] : @"";
   NSString *fileName =
       [NSString stringWithFormat:@"%@%@-%@.md", numberPart, groupPart,
                                  [stamp stringFromDate:started]];
@@ -1348,7 +1349,9 @@ static int reproCommand(int argc, const char *argv[]) {
       if (strcmp(opt, "--group") == 0) {
         // Embedded in the sheet filename, so keep it filename-safe: short
         // and alphanumeric (the matrix uses single letters A-E today, but
-        // future groups are not boxed in).
+        // future groups are not boxed in). Case-insensitive: normalized to
+        // lowercase for the canonical grp-<g> filename tag; the sheet's
+        // group field renders it uppercase to match the matrix rows.
         size_t len = strlen(val);
         BOOL ok = len >= 1 && len <= 8;
         for (size_t k = 0; ok && k < len; k++)
@@ -1358,7 +1361,7 @@ static int reproCommand(int argc, const char *argv[]) {
                   "blackoutd: --group must be 1-8 alphanumeric chars\n");
           return 1;
         }
-        group = @(val);
+        group = @(val).lowercaseString;
       } else if (strcmp(opt, "--recover") == 0) {
         recover = @(val);
       } else {
