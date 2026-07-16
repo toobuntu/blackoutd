@@ -314,6 +314,15 @@ static NSString *clamshellState(void) {
   return @"unknown";
 }
 
+// Short form ("open" / "closed" / "unknown") for the run sheet's
+// pre-sleep -> at-capture condition pairs.
+static NSString *clamshellStateShort(void) {
+  NSString *s = clamshellState();
+  return [s hasPrefix:@"closed"] ? @"closed"
+         : [s hasPrefix:@"open"] ? @"open"
+                                 : @"unknown";
+}
+
 // Session lock state via the CG session dictionary. The
 // CGSSessionScreenIsLocked key is present only while the loginwindow lock
 // screen is up; absent means unlocked. The key is undocumented but
@@ -324,6 +333,16 @@ static NSString *sessionLockState(void) {
     return @"unknown";
   return [session[@"CGSSessionScreenIsLocked"] boolValue] ? @"locked"
                                                           : @"unlocked";
+}
+
+// Power source at call time, parsed from `pmset -g batt`.
+static NSString *powerSource(void) {
+  NSString *batt = captureCommand(@"/usr/bin/pmset", @[ @"-g", @"batt" ]);
+  if ([batt containsString:@"AC Power"])
+    return @"AC";
+  if ([batt containsString:@"Battery Power"])
+    return @"battery";
+  return @"unknown";
 }
 
 static void appendDisplays(NSMutableString *r) {
@@ -948,9 +967,11 @@ static void printUsage(void) {
       "Experimental (cursor-on-black investigation; maintainer-run):\n"
       "  recover         Run one display-sleep recovery cycle\n"
       "                  (--method displaysleep, --dry-run)\n"
-      "  repro           Sleep/wake repro with labeled captures + recovery\n"
+      "  repro           Sleep/wake repro with labeled captures + recovery;\n"
+      "                  emits a numbered, prefilled run sheet and copies\n"
+      "                  bundles to docs/debug/ when run from the repo root\n"
       "                  (--wake N, --settle S, --recover METHOD,\n"
-      "                  --silent, --dry-run)\n"
+      "                  --no-copy, --silent, --dry-run)\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
@@ -1089,13 +1110,16 @@ static int recoverCommand(int argc, const char *argv[]) {
 }
 
 // Captures a labeled diagnose bundle (or prints the intent under dry-run).
-static int reproCapture(NSString *label, BOOL dryRun) {
+// On success *bundleOut (if given) receives the bundle directory path.
+static int reproCapture(NSString *label, BOOL dryRun, NSString **bundleOut) {
   if (dryRun) {
     printf("  [dry-run] diagnose --quiet --label %s\n", label.UTF8String);
     return 0;
   }
   NSString *bundleDir = nil;
   int rc = runDiagnose(0, nil, nil, YES, label, &bundleDir);
+  if (bundleOut)
+    *bundleOut = bundleDir;
   if (!bundleDir)
     return rc != 0 ? rc : 1;
   // Pair the stage with its bundle by NAME, not by clock correlation: the
@@ -1110,21 +1134,198 @@ static int reproCapture(NSString *label, BOOL dryRun) {
   return rc;
 }
 
-// blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--silent]
-//                 [--dry-run]
+// docs/debug under the current directory when it exists (i.e. repro was run
+// from the repo root), else nil.
+static NSString *docsDebugDir(void) {
+  NSString *dir = [NSFileManager.defaultManager.currentDirectoryPath
+      stringByAppendingPathComponent:@"docs/debug"];
+  BOOL isDir = NO;
+  return ([NSFileManager.defaultManager fileExistsAtPath:dir
+                                             isDirectory:&isDir] &&
+          isDir)
+             ? dir
+             : nil;
+}
+
+// Next run number: 1 + the highest NNN across existing runNNN-*.md sheets
+// in the matrix directory. strtol stops at the first non-digit, so the
+// stamp suffix never contaminates the parse; an unnumbered name yields 0
+// and is ignored.
+static int nextRunNumber(NSString *matrixDir) {
+  NSArray<NSString *> *entries =
+      [NSFileManager.defaultManager contentsOfDirectoryAtPath:matrixDir
+                                                        error:NULL];
+  long maxSeen = 0;
+  for (NSString *name in entries) {
+    if (![name hasPrefix:@"run"])
+      continue;
+    long n = strtol([name substringFromIndex:3].UTF8String, NULL, 10);
+    if (n > maxSeen && n < INT_MAX)
+      maxSeen = n;
+  }
+  return (int)maxSeen + 1;
+}
+
+// The daemon's settle marker for THIS run: the last "[wake] — display
+// pipeline settled" log line, only if stamped at or after the repro start —
+// a stale marker from an earlier wake would poison the sheet, so the
+// timestamp is checked. Nil when absent (see P28: some wake paths skip the
+// settle timer, which is itself a finding worth recording).
+static NSString *settleMarkerSince(NSDate *started) {
+  NSString *line = lastLogToken(@"display pipeline settled");
+  if (line.length < 19)
+    return nil;
+  NSDateFormatter *f = [[NSDateFormatter alloc] init];
+  f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  f.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  NSDate *t = [f dateFromString:[line substringToIndex:19]];
+  if (!t || [t compare:started] == NSOrderedAscending)
+    return nil;
+  return line;
+}
+
+// Emits a prefilled matrix run sheet (docs/debug/cursor-on-black-matrix.md
+// block format) so the maintainer records only the eyewitness panel
+// observations, whether the lid moved during sleep, and notes. Written to
+// docs/debug/repro-matrix/runNNN-<stamp>.md with NNN derived from the
+// existing sheets; falls back to /tmp (unnumbered) when not run from the
+// repo root. Returns the written path, or nil after warning.
+static NSString *writeRunSheet(NSDate *started, int wake, int settle,
+                               NSString *recover, NSString *lidPre,
+                               NSString *lidCap, NSString *lockPre,
+                               NSString *lockCap, NSString *powerPre,
+                               NSString *powerCap, NSString *postWakeBundle,
+                               NSString *postRecoverBundle) {
+  NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
+  stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  stamp.dateFormat = @"yyyyMMdd-HHmmss";
+  NSDateFormatter *human = [[NSDateFormatter alloc] init];
+  human.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  human.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+
+  NSString *dir = @"/tmp";
+  int runNumber = 0;
+  NSString *docsDebug = docsDebugDir();
+  if (docsDebug) {
+    NSString *matrixDir =
+        [docsDebug stringByAppendingPathComponent:@"repro-matrix"];
+    if ([NSFileManager.defaultManager createDirectoryAtPath:matrixDir
+                                withIntermediateDirectories:YES
+                                                 attributes:nil
+                                                      error:NULL]) {
+      dir = matrixDir;
+      runNumber = nextRunNumber(matrixDir);
+    }
+  }
+
+  NSMutableString *s = [NSMutableString string];
+  [s appendString:@"<!--\n"
+                  @"SPDX-FileCopyrightText: Copyright 2026 Todd Schulman\n"
+                  @"\n"
+                  @"SPDX-License-Identifier: GPL-3.0-or-later\n"
+                  @"-->\n\n"];
+  [s appendFormat:@"# repro run sheet — %@\n\n",
+                  [stamp stringFromDate:started]];
+  [s appendString:
+          @"Machine-filled by `blackoutd repro`. Fill in the eyewitness\n"
+          @"checkboxes and notes; the matrix\n"
+          @"(`docs/debug/cursor-on-black-matrix.md`) indexes these sheets\n"
+          @"per group.\n\n"];
+  [s appendString:@"```text\n"];
+  if (runNumber > 0)
+    [s appendFormat:@"Run #: %d    started: %@\n", runNumber,
+                    [human stringFromDate:started]];
+  else
+    [s appendFormat:@"Run #: ____    started: %@\n",
+                    [human stringFromDate:started]];
+  [s appendFormat:@"Build: %s    built: %s (UTC)\n\n", BD_BUILD_GIT,
+                  BD_BUILD_TIME];
+  [s appendString:@"Conditions (pre-sleep -> at capture):\n"];
+  [s appendFormat:@"  lid .................... %@ -> %@\n", lidPre, lidCap];
+  [s appendString:@"      moved during sleep? ... [ ] no   [ ] yes: ______\n"];
+  [s appendFormat:@"  session ................ %@ -> %@\n", lockPre, lockCap];
+  [s appendFormat:@"  power .................. %@ -> %@\n", powerPre, powerCap];
+  [s appendFormat:@"  wake ................... %@\n",
+                  wake > 0
+                      ? [NSString
+                            stringWithFormat:@"scheduled (--wake %d)", wake]
+                      : @"manual (--wake 0)"];
+  [s appendFormat:@"  recovery applied ....... %@\n",
+                  recover.length ? recover : @"none"];
+  [s appendFormat:@"  settle ................. %d s\n", settle];
+  NSString *marker = settleMarkerSince(started);
+  [s appendFormat:@"  daemon settled ......... %@\n\n",
+                  marker
+                      ?: @"no marker since repro start (see daemon-log.txt)"];
+  [s appendString:@"Bundles:\n"];
+  [s appendFormat:@"  post-wake    = %@\n", postWakeBundle ?: @"(missing)"];
+  [s appendFormat:@"  post-recover = %@\n\n",
+                  recover.length ? (postRecoverBundle ?: @"(missing)")
+                                 : @"n/a"];
+  [s appendString:
+          @"@ wake (immediate — first look as the panels light):\n"
+          @"  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3\n"
+          @"  built-in ... [ ] B0   [ ] B1   [ ] B2\n\n"
+          @"@ post-wake capture (settled — at the \"capturing post wake\"\n"
+          @"                     cue; the state the bundle records):\n"
+          @"  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3\n"
+          @"  built-in ... [ ] B0   [ ] B1   [ ] B2\n\n"];
+  if (recover.length)
+    [s appendString:@"@ post-recover capture:\n"
+                    @"  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3\n"
+                    @"  built-in ... [ ] B0   [ ] B1   [ ] B2\n"
+                    @"  recovery cleared the external? ... [ ] yes   [ ] no   "
+                    @"[ ] partial\n\n"];
+  [s appendString:
+          @"Outcome:\n"
+          @"  cursor-on-black occurred this run? ... [ ] yes   [ ] no\n"
+          @"      (yes = settled external E1; note E2/E3 variants in Notes)\n"
+          @"Notes: "
+          @"____________________________________________________________\n"];
+  [s appendString:@"```\n"];
+
+  NSString *fileName =
+      runNumber > 0
+          ? [NSString stringWithFormat:@"run%03d-%@.md", runNumber,
+                                       [stamp stringFromDate:started]]
+          : [NSString
+                stringWithFormat:@"run-%@.md", [stamp stringFromDate:started]];
+  NSString *path = [dir stringByAppendingPathComponent:fileName];
+  return writeBundleText(s, path) ? path : nil;
+}
+
+// Copies one finished bundle into docs/debug/ (`/bin/cp -pR`, preserving
+// timestamps): /tmp does not survive a reboot, and sleep/wake testing is
+// exactly where reboots happen. Returns the repo copy's path, or nil when
+// the copy failed.
+static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
+  if (runStep(@"/bin/cp", @[ @"-pR", bundle, dest ], NO) != 0) {
+    fprintf(stderr, "repro: copy of %s failed\n", bundle.UTF8String);
+    return nil;
+  }
+  NSString *copied =
+      [dest stringByAppendingPathComponent:bundle.lastPathComponent];
+  printf("repro: copied %s -> %s\n", bundle.UTF8String, copied.UTF8String);
+  return copied;
+}
+
+// blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--no-copy]
+//                 [--silent] [--dry-run]
 // Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
 // wake captures a labeled bundle, optionally runs a recovery, and captures
 // again. Built to run blind: it narrates each step via `say`.
 static int reproCommand(int argc, const char *argv[]) {
   int wake = 15, settle = 20;
   NSString *recover = nil;
-  BOOL silent = NO, dryRun = NO;
+  BOOL silent = NO, dryRun = NO, noCopy = NO;
   for (int i = 2; i < argc; i++) {
     const char *opt = argv[i];
     if (strcmp(opt, "--silent") == 0) {
       silent = YES;
     } else if (strcmp(opt, "--dry-run") == 0) {
       dryRun = YES;
+    } else if (strcmp(opt, "--no-copy") == 0) {
+      noCopy = YES;
     } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
                strcmp(opt, "--recover") == 0) {
       if (i + 1 >= argc) {
@@ -1153,6 +1354,23 @@ static int reproCommand(int argc, const char *argv[]) {
       return 1;
     }
   }
+
+  // Announce start time + build identity up front, so the terminal
+  // scrollback alone distinguishes runs and rebuilds between them (a
+  // `-dirty` git stamp alone cannot; the build time can).
+  NSDate *started = NSDate.date;
+  NSDateFormatter *human = [[NSDateFormatter alloc] init];
+  human.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  human.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  printf("repro: started %s — build %s (built %s)\n",
+         [human stringFromDate:started].UTF8String, BD_BUILD_GIT,
+         BD_BUILD_TIME);
+  // Conditions are read twice — here (pre-sleep) and again at capture time
+  // — so the sheet shows both ends of the run; only "did the lid move
+  // DURING sleep" stays a maintainer field (unobservable from either end).
+  NSString *lidPre = clamshellStateShort();
+  NSString *lockPre = sessionLockState();
+  NSString *powerPre = powerSource();
 
   // Schedule the auto-wake first (only this needs sudo). wake=0 means the
   // maintainer will wake the machine manually (e.g. by opening the lid).
@@ -1194,8 +1412,14 @@ static int reproCommand(int argc, const char *argv[]) {
   if (!dryRun)
     [NSThread sleepForTimeInterval:settle];
 
+  // Second condition read: the state the post-wake bundle is taken under.
+  NSString *lidCap = clamshellStateShort();
+  NSString *lockCap = sessionLockState();
+  NSString *powerCap = powerSource();
   sayCue(@"capturing post wake", silent, dryRun);
-  int rc = reproCapture(@"post-wake", dryRun);
+  NSString *postWakeBundle = nil;
+  int rc = reproCapture(@"post-wake", dryRun, &postWakeBundle);
+  NSString *postRecoverBundle = nil;
 
   if (recover.length) {
     sayCue(@"recovering", silent, dryRun);
@@ -1215,10 +1439,51 @@ static int reproCommand(int argc, const char *argv[]) {
     if (!dryRun)
       [NSThread sleepForTimeInterval:settle];
     sayCue(@"capturing post recover", silent, dryRun);
-    int postRC = reproCapture(@"post-recover", dryRun);
+    int postRC = reproCapture(@"post-recover", dryRun, &postRecoverBundle);
     if (rc == 0)
       rc = postRC;
   }
+
+  if (dryRun) {
+    if (!noCopy)
+      printf("  [dry-run] /bin/cp -pR <bundles> docs/debug/ "
+             "(default; skip with --no-copy)\n");
+    printf("  [dry-run] write run sheet to docs/debug/repro-matrix/ "
+           "(or /tmp)\n");
+  } else {
+    // Copy first so the sheet can reference the durable repo copies rather
+    // than /tmp paths that vanish on reboot.
+    NSString *postWakeShown = postWakeBundle;
+    NSString *postRecoverShown = postRecoverBundle;
+    if (!noCopy) {
+      NSString *dest = docsDebugDir();
+      if (!dest) {
+        fprintf(stderr,
+                "repro: bundles left in /tmp — docs/debug/ not found (run "
+                "from the repo root; --no-copy silences this)\n");
+      } else {
+        if (postWakeBundle)
+          postWakeShown = copyBundleTo(dest, postWakeBundle) ?: postWakeBundle;
+        if (postRecoverBundle)
+          postRecoverShown =
+              copyBundleTo(dest, postRecoverBundle) ?: postRecoverBundle;
+      }
+    }
+    NSString *sheet = writeRunSheet(started, wake, settle, recover, lidPre,
+                                    lidCap, lockPre, lockCap, powerPre,
+                                    powerCap, postWakeShown, postRecoverShown);
+    if (sheet)
+      printf("repro: run sheet written to %s\n", sheet.UTF8String);
+    else
+      fprintf(stderr, "repro: WARNING — run sheet could not be written\n");
+  }
+
+  // Final cue only after the sheet and any copies have landed: on a
+  // baseline run this is the "everything is captured" signal that a manual
+  // hot-corner recovery can no longer contaminate the data.
+  sayCue(recover.length ? @"repro complete"
+                        : @"collection complete, safe to recover",
+         silent, dryRun);
   printf("repro: done\n");
   return rc;
 }
