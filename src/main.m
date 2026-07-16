@@ -314,6 +314,18 @@ static NSString *clamshellState(void) {
   return @"unknown";
 }
 
+// Session lock state via the CG session dictionary. The
+// CGSSessionScreenIsLocked key is present only while the loginwindow lock
+// screen is up; absent means unlocked. The key is undocumented but
+// long-stable; forensic only, never gated on.
+static NSString *sessionLockState(void) {
+  NSDictionary *session = CFBridgingRelease(CGSessionCopyCurrentDictionary());
+  if (!session)
+    return @"unknown";
+  return [session[@"CGSSessionScreenIsLocked"] boolValue] ? @"locked"
+                                                          : @"unlocked";
+}
+
 static void appendDisplays(NSMutableString *r) {
   CGDirectDisplayID displays[8];
   uint32_t count = 0;
@@ -543,6 +555,7 @@ static NSString *buildReport(void) {
   [r appendFormat:@"verbosity       : %ld\n", (long)verbosity];
   [r appendFormat:@"bundle-id       : %s\n", kBundleID.UTF8String];
   [r appendFormat:@"lid             : %@\n", clamshellState()];
+  [r appendFormat:@"session         : %@\n", sessionLockState()];
   NSString *batt = captureCommand(@"/usr/bin/pmset", @[ @"-g", @"batt" ]);
   NSString *power =
       batt.length ? [batt componentsSeparatedByString:@"\n"].firstObject : nil;
