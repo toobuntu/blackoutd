@@ -10,6 +10,7 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <IOKit/IOKitLib.h>
+#import <ctype.h>
 #import <errno.h>
 #import <libproc.h>
 #import <limits.h>
@@ -971,7 +972,8 @@ static void printUsage(void) {
       "                  emits a numbered, prefilled run sheet and copies\n"
       "                  bundles to docs/debug/ when run from the repo root\n"
       "                  (--wake N, --settle S, --recover METHOD,\n"
-      "                  --no-copy, --silent, --dry-run)\n"
+      "                  --group A..E [matrix coverage row], --no-copy,\n"
+      "                  --silent, --dry-run)\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
@@ -1187,14 +1189,19 @@ static NSString *settleMarkerSince(NSDate *started) {
 // Emits a prefilled matrix run sheet (docs/debug/cursor-on-black-matrix.md
 // block format) so the maintainer records only the eyewitness panel
 // observations, whether the lid moved during sleep, and notes. Written to
-// docs/debug/repro-matrix/runNNN-<stamp>.md with NNN derived from the
-// existing sheets; falls back to /tmp (unnumbered) when not run from the
-// repo root. Returns the written path, or nil after warning.
+// docs/debug/repro-matrix/runNNN-<group>-<stamp>.md — run numbers are
+// global across groups (NNN derived from the existing sheets), the group
+// (matrix coverage row A-E, from --group) rides in the filename so a
+// directory listing reads as the matrix. Falls back to /tmp (unnumbered)
+// when not run from the repo root; without --group the filename omits the
+// group segment and the sheet leaves it as a manual field. Returns the
+// written path, or nil after warning.
 static NSString *writeRunSheet(NSDate *started, int wake, int settle,
-                               NSString *recover, NSString *lidPre,
-                               NSString *lidCap, NSString *lockPre,
-                               NSString *lockCap, NSString *powerPre,
-                               NSString *powerCap, NSString *postWakeBundle,
+                               NSString *recover, NSString *group,
+                               NSString *lidPre, NSString *lidCap,
+                               NSString *lockPre, NSString *lockCap,
+                               NSString *powerPre, NSString *powerCap,
+                               NSString *postWakeBundle,
                                NSString *postRecoverBundle) {
   NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
   stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
@@ -1241,6 +1248,9 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
   [s appendFormat:@"Build: %s    built: %s (UTC)\n\n", BD_BUILD_GIT,
                   BD_BUILD_TIME];
   [s appendString:@"Conditions (pre-sleep -> at capture):\n"];
+  [s appendFormat:@"  group .................. %@\n",
+                  group.length ? group
+                               : @"____ (not given; pass --group A..E)"];
   [s appendFormat:@"  lid .................... %@ -> %@\n", lidPre, lidCap];
   [s appendString:@"      moved during sleep? ... [ ] no   [ ] yes: ______\n"];
   [s appendFormat:@"  session ................ %@ -> %@\n", lockPre, lockCap];
@@ -1284,12 +1294,14 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
           @"____________________________________________________________\n"];
   [s appendString:@"```\n"];
 
+  NSString *numberPart = runNumber > 0
+                             ? [NSString stringWithFormat:@"run%03d", runNumber]
+                             : @"run";
+  NSString *groupPart =
+      group.length ? [@"-" stringByAppendingString:group] : @"";
   NSString *fileName =
-      runNumber > 0
-          ? [NSString stringWithFormat:@"run%03d-%@.md", runNumber,
-                                       [stamp stringFromDate:started]]
-          : [NSString
-                stringWithFormat:@"run-%@.md", [stamp stringFromDate:started]];
+      [NSString stringWithFormat:@"%@%@-%@.md", numberPart, groupPart,
+                                 [stamp stringFromDate:started]];
   NSString *path = [dir stringByAppendingPathComponent:fileName];
   return writeBundleText(s, path) ? path : nil;
 }
@@ -1309,14 +1321,14 @@ static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
   return copied;
 }
 
-// blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--no-copy]
-//                 [--silent] [--dry-run]
+// blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--group G]
+//                 [--no-copy] [--silent] [--dry-run]
 // Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
 // wake captures a labeled bundle, optionally runs a recovery, and captures
 // again. Built to run blind: it narrates each step via `say`.
 static int reproCommand(int argc, const char *argv[]) {
   int wake = 15, settle = 20;
-  NSString *recover = nil;
+  NSString *recover = nil, *group = nil;
   BOOL silent = NO, dryRun = NO, noCopy = NO;
   for (int i = 2; i < argc; i++) {
     const char *opt = argv[i];
@@ -1327,13 +1339,27 @@ static int reproCommand(int argc, const char *argv[]) {
     } else if (strcmp(opt, "--no-copy") == 0) {
       noCopy = YES;
     } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
-               strcmp(opt, "--recover") == 0) {
+               strcmp(opt, "--recover") == 0 || strcmp(opt, "--group") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "blackoutd: %s requires a value\n", opt);
         return 1;
       }
       const char *val = argv[++i];
-      if (strcmp(opt, "--recover") == 0) {
+      if (strcmp(opt, "--group") == 0) {
+        // Embedded in the sheet filename, so keep it filename-safe: short
+        // and alphanumeric (the matrix uses single letters A-E today, but
+        // future groups are not boxed in).
+        size_t len = strlen(val);
+        BOOL ok = len >= 1 && len <= 8;
+        for (size_t k = 0; ok && k < len; k++)
+          ok = isalnum((unsigned char)val[k]) != 0;
+        if (!ok) {
+          fprintf(stderr,
+                  "blackoutd: --group must be 1-8 alphanumeric chars\n");
+          return 1;
+        }
+        group = @(val);
+      } else if (strcmp(opt, "--recover") == 0) {
         recover = @(val);
       } else {
         char *parseEnd = NULL;
@@ -1469,8 +1495,8 @@ static int reproCommand(int argc, const char *argv[]) {
               copyBundleTo(dest, postRecoverBundle) ?: postRecoverBundle;
       }
     }
-    NSString *sheet = writeRunSheet(started, wake, settle, recover, lidPre,
-                                    lidCap, lockPre, lockCap, powerPre,
+    NSString *sheet = writeRunSheet(started, wake, settle, recover, group,
+                                    lidPre, lidCap, lockPre, lockCap, powerPre,
                                     powerCap, postWakeShown, postRecoverShown);
     if (sheet)
       printf("repro: run sheet written to %s\n", sheet.UTF8String);
