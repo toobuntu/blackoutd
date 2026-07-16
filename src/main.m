@@ -14,7 +14,9 @@
 #import <errno.h>
 #import <libproc.h>
 #import <limits.h>
+#import <sys/select.h>
 #import <sys/sysctl.h>
+#import <unistd.h>
 
 // Build identity, injected by the Makefile via -D. Fallbacks keep a bare
 // `clang src/*.m` compile working without the Makefile.
@@ -973,8 +975,7 @@ static void printUsage(void) {
       "                  bundles to docs/debug/ when run from the repo root\n"
       "                  (--wake N, --settle S, --recover METHOD,\n"
       "                  --group a..e [matrix coverage row, any case],\n"
-      "                  --no-copy,\n"
-      "                  --silent, --dry-run)\n"
+      "                  --no-copy, --no-prompt, --silent, --dry-run)\n"
       "\n"
       "Internal (used by launchd; not for direct use):\n"
       "  daemon          Run as daemon\n");
@@ -1187,29 +1188,18 @@ static NSString *settleMarkerSince(NSDate *started) {
   return line;
 }
 
-// Emits a prefilled matrix run sheet (docs/debug/cursor-on-black-matrix.md
-// block format) so the maintainer records only the eyewitness panel
-// observations, whether the lid moved during sleep, and notes. Written to
-// docs/debug/repro-matrix/runNNN-grp-<g>-<stamp>.md — run numbers are
-// global across groups (NNN derived from the existing sheets), the group
-// (matrix coverage row A-E, from --group) rides in the filename so a
-// directory listing reads as the matrix. Falls back to /tmp (unnumbered)
-// when not run from the repo root; without --group the filename omits the
-// group segment and the sheet leaves it as a manual field. Returns the
-// written path, or nil after warning.
-static NSString *writeRunSheet(NSDate *started, int wake, int settle,
-                               NSString *recover, NSString *group,
-                               NSString *lidPre, NSString *lidCap,
-                               NSString *lockPre, NSString *lockCap,
-                               NSString *powerPre, NSString *powerCap,
-                               NSString *postWakeBundle,
-                               NSString *postRecoverBundle) {
+// Resolves the sheet path: docs/debug/repro-matrix/runNNN-grp-<g>-<stamp>.md.
+// Run numbers are global across groups (NNN = 1 + highest existing sheet);
+// the group (matrix coverage row A-E, from --group) rides in the filename
+// as a grp-<g> tag so a directory listing reads as the matrix. Falls back
+// to /tmp (unnumbered) when not run from the repo root; without --group
+// the filename omits the tag. *numberOut receives the run number (0 when
+// unnumbered).
+static NSString *runSheetPath(NSDate *started, NSString *group,
+                              int *numberOut) {
   NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
   stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
   stamp.dateFormat = @"yyyyMMdd-HHmmss";
-  NSDateFormatter *human = [[NSDateFormatter alloc] init];
-  human.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-  human.dateFormat = @"yyyy-MM-dd HH:mm:ss";
 
   NSString *dir = @"/tmp";
   int runNumber = 0;
@@ -1225,6 +1215,60 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
       runNumber = nextRunNumber(matrixDir);
     }
   }
+  if (numberOut)
+    *numberOut = runNumber;
+  NSString *numberPart = runNumber > 0
+                             ? [NSString stringWithFormat:@"run%03d", runNumber]
+                             : @"run";
+  NSString *groupPart =
+      group.length ? [@"-grp-" stringByAppendingString:group] : @"";
+  NSString *fileName =
+      [NSString stringWithFormat:@"%@%@-%@.md", numberPart, groupPart,
+                                 [stamp stringFromDate:started]];
+  return [dir stringByAppendingPathComponent:fileName];
+}
+
+// Renders one checkbox row ("[ ] E0   [x] E1 ..."), with the checked index
+// marked or all boxes blank when checked < 0.
+static NSString *checkRow(NSArray<NSString *> *labels, NSInteger checked) {
+  NSMutableArray<NSString *> *cells = [NSMutableArray array];
+  for (NSUInteger i = 0; i < labels.count; i++)
+    [cells addObject:[NSString
+                         stringWithFormat:@"[%@] %@",
+                                          (NSInteger)i == checked ? @"x" : @" ",
+                                          labels[i]]];
+  return [cells componentsJoinedByString:@"   "];
+}
+
+// Answer index for a prompt key: 0-based choice, or -1 when unanswered.
+static NSInteger ansIndex(NSDictionary<NSString *, NSString *> *ans,
+                          NSString *key) {
+  NSString *v = ans[key];
+  return v.length ? v.integerValue : -1;
+}
+
+// Renders the matrix run sheet (docs/debug/cursor-on-black-matrix.md block
+// format). `ans` carries the interactive observation answers (keys:
+// extWake/biWake/extSettled/biSettled/extRecover/biRecover as choice
+// digits, cleared = yes|no|partial, lid = no|opened|closed, notes = free
+// text); pass nil for the blank sheet. The Outcome line is derived from
+// the settled-external answer (E1 = cursor-on-black), never asked.
+static NSString *renderRunSheet(NSDate *started, int runNumber, int wake,
+                                int settle, NSString *recover, NSString *group,
+                                NSString *lidPre, NSString *lidCap,
+                                NSString *lockPre, NSString *lockCap,
+                                NSString *powerPre, NSString *powerCap,
+                                NSString *postWakeBundle,
+                                NSString *postRecoverBundle,
+                                NSDictionary<NSString *, NSString *> *ans) {
+  NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
+  stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  stamp.dateFormat = @"yyyyMMdd-HHmmss";
+  NSDateFormatter *human = [[NSDateFormatter alloc] init];
+  human.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  human.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  NSArray<NSString *> *extLabels = @[ @"E0", @"E1", @"E2", @"E3" ];
+  NSArray<NSString *> *biLabels = @[ @"B0", @"B1", @"B2" ];
 
   NSMutableString *s = [NSMutableString string];
   [s appendString:@"<!--\n"
@@ -1253,7 +1297,16 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
                   group.length ? group.uppercaseString
                                : @"____ (not given; pass --group a..e)"];
   [s appendFormat:@"  lid .................... %@ -> %@\n", lidPre, lidCap];
-  [s appendString:@"      moved during sleep? ... [ ] no   [ ] yes: ______\n"];
+  NSString *lidAns = ans[@"lid"];
+  if ([lidAns isEqualToString:@"no"])
+    [s appendString:
+            @"      moved during sleep? ... [x] no   [ ] yes: ______\n"];
+  else if (lidAns.length)
+    [s appendFormat:@"      moved during sleep? ... [ ] no   [x] yes: %@\n",
+                    lidAns];
+  else
+    [s appendString:
+            @"      moved during sleep? ... [ ] no   [ ] yes: ______\n"];
   [s appendFormat:@"  session ................ %@ -> %@\n", lockPre, lockCap];
   [s appendFormat:@"  power .................. %@ -> %@\n", powerPre, powerCap];
   [s appendFormat:@"  wake ................... %@\n",
@@ -1273,38 +1326,221 @@ static NSString *writeRunSheet(NSDate *started, int wake, int settle,
   [s appendFormat:@"  post-recover = %@\n\n",
                   recover.length ? (postRecoverBundle ?: @"(missing)")
                                  : @"n/a"];
-  [s appendString:
-          @"@ wake (immediate — first look as the panels light):\n"
-          @"  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3\n"
-          @"  built-in ... [ ] B0   [ ] B1   [ ] B2\n\n"
-          @"@ post-wake capture (settled — at the \"capturing post wake\"\n"
-          @"                     cue; the state the bundle records):\n"
-          @"  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3\n"
-          @"  built-in ... [ ] B0   [ ] B1   [ ] B2\n\n"];
-  if (recover.length)
-    [s appendString:@"@ post-recover capture:\n"
-                    @"  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3\n"
-                    @"  built-in ... [ ] B0   [ ] B1   [ ] B2\n"
-                    @"  recovery cleared the external? ... [ ] yes   [ ] no   "
-                    @"[ ] partial\n\n"];
-  [s appendString:
+  [s appendFormat:@"@ wake (immediate — first look as the panels light):\n"
+                  @"  external ... %@\n"
+                  @"  built-in ... %@\n\n",
+                  checkRow(extLabels, ansIndex(ans, @"extWake")),
+                  checkRow(biLabels, ansIndex(ans, @"biWake"))];
+  NSInteger extSettled = ansIndex(ans, @"extSettled");
+  [s appendFormat:@"@ post-wake capture (settled — at the \"capturing post "
+                  @"wake\"\n"
+                  @"                     cue; the state the bundle records):\n"
+                  @"  external ... %@\n"
+                  @"  built-in ... %@\n\n",
+                  checkRow(extLabels, extSettled),
+                  checkRow(biLabels, ansIndex(ans, @"biSettled"))];
+  if (recover.length) {
+    NSString *cleared = ans[@"cleared"];
+    NSArray<NSString *> *clearedLabels = @[ @"yes", @"no", @"partial" ];
+    NSInteger clearedIdx =
+        cleared.length ? (NSInteger)[clearedLabels indexOfObject:cleared] : -1;
+    [s appendFormat:@"@ post-recover capture:\n"
+                    @"  external ... %@\n"
+                    @"  built-in ... %@\n"
+                    @"  recovery cleared the external? ... %@\n\n",
+                    checkRow(extLabels, ansIndex(ans, @"extRecover")),
+                    checkRow(biLabels, ansIndex(ans, @"biRecover")),
+                    checkRow(clearedLabels, clearedIdx)];
+  }
+  NSInteger outcomeIdx = extSettled < 0 ? -1 : (extSettled == 1 ? 0 : 1);
+  [s appendFormat:
           @"Outcome:\n"
-          @"  cursor-on-black occurred this run? ... [ ] yes   [ ] no\n"
-          @"      (yes = settled external E1; note E2/E3 variants in Notes)\n"
-          @"Notes: "
-          @"____________________________________________________________\n"];
+          @"  cursor-on-black occurred this run? ... %@\n"
+          @"      (yes = settled external E1; note E2/E3 variants in Notes)\n",
+          checkRow(@[ @"yes", @"no" ], outcomeIdx)];
+  NSString *notes = ans[@"notes"];
+  [s appendFormat:@"Notes: %@\n",
+                  notes.length
+                      ? notes
+                      : @"____________________________________________________"
+                        @"________"];
   [s appendString:@"```\n"];
+  return s;
+}
 
-  NSString *numberPart = runNumber > 0
-                             ? [NSString stringWithFormat:@"run%03d", runNumber]
-                             : @"run";
-  NSString *groupPart =
-      group.length ? [@"-grp-" stringByAppendingString:group] : @"";
-  NSString *fileName =
-      [NSString stringWithFormat:@"%@%@-%@.md", numberPart, groupPart,
-                                 [stamp stringFromDate:started]];
-  NSString *path = [dir stringByAppendingPathComponent:fileName];
-  return writeBundleText(s, path) ? path : nil;
+// MARK: - Interactive observation prompts
+
+// Prints a prompt and reads one trimmed stdin line. A positive timeout
+// applies select() to fd 0 first, returning nil on timeout or EOF so the
+// caller can abandon the whole prompt pass — the maintainer may be staring
+// at a black panel, unable to see the terminal. Plain Enter returns the
+// empty string (= skip this one question).
+static NSString *promptLine(NSString *label, int timeoutSeconds) {
+  printf("%s", label.UTF8String);
+  fflush(stdout);
+  if (timeoutSeconds > 0) {
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(STDIN_FILENO, &fds);
+    struct timeval tv = {.tv_sec = timeoutSeconds, .tv_usec = 0};
+    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) <= 0)
+      return nil;
+  }
+  char buf[512];
+  if (!fgets(buf, sizeof(buf), stdin))
+    return nil;
+  NSString *line = [@(buf)
+      stringByTrimmingCharactersInSet:NSCharacterSet
+                                          .whitespaceAndNewlineCharacterSet];
+  return line ?: @"";
+}
+
+// One multiple-choice question. Returns the chosen index, -1 for skip
+// (plain Enter), -2 on timeout/EOF (abandon the pass). Re-asks on invalid
+// input, without re-arming the timeout (typing proves presence).
+static NSInteger promptChoice(NSString *question, int maxIndex,
+                              int timeoutSeconds) {
+  for (;;) {
+    NSString *line = promptLine(question, timeoutSeconds);
+    if (!line)
+      return -2;
+    if (line.length == 0)
+      return -1;
+    if (line.length == 1 && isdigit((unsigned char)[line characterAtIndex:0]) &&
+        line.integerValue <= maxIndex)
+      return line.integerValue;
+    printf("  (0-%d, or Enter to skip)\n", maxIndex);
+    timeoutSeconds = 0;
+  }
+}
+
+// Walks the plain-language observation questions and returns renderRunSheet
+// answer keys; nil when the first question times out (60 s) or stdin
+// closes, leaving the blank sheet for manual fill. Only the first question
+// carries the timeout: a black panel means the terminal is unreachable and
+// the whole pass must not block the run's exit, but any answer proves the
+// maintainer is present. With --recover the panel was just re-lit, so the
+// timeout is rarely felt there.
+static NSDictionary<NSString *, NSString *> *
+promptForObservations(BOOL didRecover) {
+  printf("\nrepro: eyewitness prompts — Enter skips a question; no answer\n"
+         "to the first question within 60 s abandons the prompts (the\n"
+         "sheet stays blank for manual fill).\n\n");
+  NSString *extScale = @"    0 = desktop rendering normally\n"
+                       @"    1 = black, mouse cursor only (cursor-on-black)\n"
+                       @"    2 = black, no cursor\n"
+                       @"    3 = no signal / off\n";
+  NSString *biScale = @"    0 = dark/off (correct blackout)\n"
+                      @"    1 = lit, black + cursor (role reversal)\n"
+                      @"    2 = lit, showing desktop\n";
+  NSMutableDictionary<NSString *, NSString *> *ans =
+      [NSMutableDictionary dictionary];
+
+  NSInteger v = promptChoice(
+      [NSString stringWithFormat:@"External panel at FIRST LIGHT (wake):\n"
+                                 @"%@  [0-3, Enter=skip] ",
+                                 extScale],
+      3, 60);
+  if (v == -2) {
+    printf("\nrepro: no answer — sheet left blank for manual fill\n");
+    return nil;
+  }
+  if (v >= 0)
+    ans[@"extWake"] = @(v).stringValue;
+
+  v = promptChoice([NSString stringWithFormat:@"Built-in panel at FIRST "
+                                              @"LIGHT (wake):\n%@  [0-2, "
+                                              @"Enter=skip] ",
+                                              biScale],
+                   2, 0);
+  if (v == -2)
+    return ans;
+  if (v >= 0)
+    ans[@"biWake"] = @(v).stringValue;
+
+  v = promptChoice(
+      [NSString
+          stringWithFormat:@"External panel at the \"capturing post wake\" "
+                           @"cue (settled):\n%@  [0-3, Enter=skip] ",
+                           extScale],
+      3, 0);
+  if (v == -2)
+    return ans;
+  if (v >= 0)
+    ans[@"extSettled"] = @(v).stringValue;
+
+  v = promptChoice(
+      [NSString
+          stringWithFormat:@"Built-in panel at the \"capturing post wake\" "
+                           @"cue (settled):\n%@  [0-2, Enter=skip] ",
+                           biScale],
+      2, 0);
+  if (v == -2)
+    return ans;
+  if (v >= 0)
+    ans[@"biSettled"] = @(v).stringValue;
+
+  if (didRecover) {
+    v = promptChoice(
+        [NSString stringWithFormat:@"External panel after the recovery "
+                                   @"(post-recover):\n%@  [0-3, Enter=skip] ",
+                                   extScale],
+        3, 0);
+    if (v == -2)
+      return ans;
+    if (v >= 0)
+      ans[@"extRecover"] = @(v).stringValue;
+    v = promptChoice(
+        [NSString stringWithFormat:@"Built-in panel after the recovery "
+                                   @"(post-recover):\n%@  [0-2, Enter=skip] ",
+                                   biScale],
+        2, 0);
+    if (v == -2)
+      return ans;
+    if (v >= 0)
+      ans[@"biRecover"] = @(v).stringValue;
+    for (;;) {
+      NSString *line = promptLine(@"Did the recovery clear the external "
+                                  @"panel? [y/n/p(artial), Enter=skip] ",
+                                  0);
+      if (!line)
+        return ans;
+      if (line.length == 0)
+        break;
+      unichar c = tolower([line characterAtIndex:0]);
+      if (c == 'y' || c == 'n' || c == 'p') {
+        ans[@"cleared"] = c == 'y' ? @"yes" : (c == 'n' ? @"no" : @"partial");
+        break;
+      }
+      printf("  (y, n, p, or Enter to skip)\n");
+    }
+  }
+
+  for (;;) {
+    NSString *line =
+        promptLine(@"Lid during sleep — unchanged, opened, or closed? "
+                   @"[u/o/c, Enter=skip] ",
+                   0);
+    if (!line)
+      return ans;
+    if (line.length == 0)
+      break;
+    unichar c = tolower([line characterAtIndex:0]);
+    if (c == 'u' || c == 'n') {
+      ans[@"lid"] = @"no";
+      break;
+    }
+    if (c == 'o' || c == 'c') {
+      ans[@"lid"] = c == 'o' ? @"opened" : @"closed";
+      break;
+    }
+    printf("  (u, o, c, or Enter to skip)\n");
+  }
+
+  NSString *notes = promptLine(@"Notes (one line, Enter=none): ", 0);
+  if (notes.length)
+    ans[@"notes"] = notes;
+  return ans;
 }
 
 // Copies one finished bundle into docs/debug/ (`/bin/cp -pR`, preserving
@@ -1323,14 +1559,14 @@ static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--group G]
-//                 [--no-copy] [--silent] [--dry-run]
+//                 [--no-copy] [--no-prompt] [--silent] [--dry-run]
 // Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
 // wake captures a labeled bundle, optionally runs a recovery, and captures
 // again. Built to run blind: it narrates each step via `say`.
 static int reproCommand(int argc, const char *argv[]) {
   int wake = 15, settle = 20;
   NSString *recover = nil, *group = nil;
-  BOOL silent = NO, dryRun = NO, noCopy = NO;
+  BOOL silent = NO, dryRun = NO, noCopy = NO, noPrompt = NO;
   for (int i = 2; i < argc; i++) {
     const char *opt = argv[i];
     if (strcmp(opt, "--silent") == 0) {
@@ -1339,6 +1575,8 @@ static int reproCommand(int argc, const char *argv[]) {
       dryRun = YES;
     } else if (strcmp(opt, "--no-copy") == 0) {
       noCopy = YES;
+    } else if (strcmp(opt, "--no-prompt") == 0) {
+      noPrompt = YES;
     } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
                strcmp(opt, "--recover") == 0 || strcmp(opt, "--group") == 0) {
       if (i + 1 >= argc) {
@@ -1473,6 +1711,10 @@ static int reproCommand(int argc, const char *argv[]) {
       rc = postRC;
   }
 
+  NSString *sheetPath = nil;
+  int runNumber = 0;
+  NSString *postWakeShown = postWakeBundle;
+  NSString *postRecoverShown = postRecoverBundle;
   if (dryRun) {
     if (!noCopy)
       printf("  [dry-run] /bin/cp -pR <bundles> docs/debug/ "
@@ -1482,8 +1724,6 @@ static int reproCommand(int argc, const char *argv[]) {
   } else {
     // Copy first so the sheet can reference the durable repo copies rather
     // than /tmp paths that vanish on reboot.
-    NSString *postWakeShown = postWakeBundle;
-    NSString *postRecoverShown = postRecoverBundle;
     if (!noCopy) {
       NSString *dest = docsDebugDir();
       if (!dest) {
@@ -1498,21 +1738,40 @@ static int reproCommand(int argc, const char *argv[]) {
               copyBundleTo(dest, postRecoverBundle) ?: postRecoverBundle;
       }
     }
-    NSString *sheet = writeRunSheet(started, wake, settle, recover, group,
-                                    lidPre, lidCap, lockPre, lockCap, powerPre,
-                                    powerCap, postWakeShown, postRecoverShown);
-    if (sheet)
-      printf("repro: run sheet written to %s\n", sheet.UTF8String);
-    else
+    // Write the blank sheet BEFORE the prompt pass: an unanswered or
+    // interrupted pass must still leave the run fully recorded on disk.
+    sheetPath = runSheetPath(started, group, &runNumber);
+    NSString *sheet =
+        renderRunSheet(started, runNumber, wake, settle, recover, group, lidPre,
+                       lidCap, lockPre, lockCap, powerPre, powerCap,
+                       postWakeShown, postRecoverShown, nil);
+    if (writeBundleText(sheet, sheetPath))
+      printf("repro: run sheet written to %s\n", sheetPath.UTF8String);
+    else {
       fprintf(stderr, "repro: WARNING — run sheet could not be written\n");
+      sheetPath = nil;
+    }
   }
 
-  // Final cue only after the sheet and any copies have landed: on a
-  // baseline run this is the "everything is captured" signal that a manual
-  // hot-corner recovery can no longer contaminate the data.
+  // Final cue before the prompt pass: on a black baseline run the
+  // maintainer must first hear that a hot-corner recovery is safe, recover
+  // the panel, and only then can they see the terminal to answer.
   sayCue(recover.length ? @"repro complete"
                         : @"collection complete, safe to recover",
          silent, dryRun);
+
+  if (!dryRun && !noPrompt && sheetPath && isatty(STDIN_FILENO)) {
+    NSDictionary<NSString *, NSString *> *answers =
+        promptForObservations(recover.length > 0);
+    if (answers.count) {
+      NSString *filled =
+          renderRunSheet(started, runNumber, wake, settle, recover, group,
+                         lidPre, lidCap, lockPre, lockCap, powerPre, powerCap,
+                         postWakeShown, postRecoverShown, answers);
+      if (writeBundleText(filled, sheetPath))
+        printf("repro: observations recorded in %s\n", sheetPath.UTF8String);
+    }
+  }
   printf("repro: done\n");
   return rc;
 }
