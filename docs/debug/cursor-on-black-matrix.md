@@ -178,14 +178,14 @@ Stop a group once its question is answered or it reproduces consistently
 
 Runs 1–8 were recorded inline here before the run-sheet workflow existed
 and were converted to backfilled sheets under `repro-matrix/` — same
-data, new layout. Immediate/settled attribution per the maintainer: runs
-2, 4, 6 had checked the settled state (transition in Notes); runs 3, 5,
-7, 8 had checked the immediate state; run 1 recorded only the settled
-state.
+data, new layout, with both moments recorded. Immediate/settled
+attribution per the maintainer: runs 1, 2, 4, 6 had checked the settled
+state (transition in Notes; run 1's `B2/E2 -> B0/E0` supplied after the
+fact); runs 3, 5, 7, 8 had checked the immediate state.
 
 | run | sheet                                            | immediate E/B | settled E/B | black? |
 |-----|--------------------------------------------------|---------------|-------------|--------|
-| 1   | [run001](repro-matrix/run001-20260716-013347.md) | not recorded  | E0/B0       | no     |
+| 1   | [run001](repro-matrix/run001-20260716-013347.md) | E2/B2         | E0/B0       | no     |
 | 2   | [run002](repro-matrix/run002-20260716-014527.md) | E2/B2         | E0/B0       | no     |
 | 3   | [run003](repro-matrix/run003-20260716-015013.md) | E2/B1         | E1/B0       | yes    |
 | 4   | [run004](repro-matrix/run004-20260716-020245.md) | E2/B2         | E0/B0       | no     |
