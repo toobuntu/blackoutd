@@ -57,8 +57,10 @@ Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
 (`post-wake` / `post-recover`). Flags: `--group G` (coverage row A–E,
 any case — normalized to lowercase, recorded in the sheet and as a
 `grp-<g>` filename tag), `--settle S` (seconds before each capture,
-default 20), `--no-copy` (keep bundles in /tmp only), `--silent` (no
-speech), `--dry-run` (preview without sleeping).
+default 20), `--no-copy` (keep bundles in /tmp only), `--no-prompt`
+(skip the eyewitness prompts), `--silent` (no speech — mind that the
+spoken cues are most of the point of a blind run), `--dry-run` (preview
+without sleeping).
 
 `repro` also emits a prefilled, numbered **run sheet** at
 `docs/debug/repro-matrix/runNNN-grp-<g>-<stamp>.md` (NNN = 1 + the
@@ -71,9 +73,18 @@ group, start time, build identity, both bundle paths, the daemon's
 repro start, so a stale marker from an earlier wake is never reported),
 and each condition repro can read — lid, session lock, and power source,
 captured **twice** (pre-sleep and again at capture time) so both ends of
-the run are on record. Only three things stay manual: whether the lid
-moved *during* sleep (unobservable from either end), the eyewitness
-checkboxes, and notes.
+the run are on record.
+
+The three fields no machine can read — the eyewitness panel states,
+whether the lid moved *during* sleep, and notes — are **prompted for
+interactively** after the all-clear cue, in plain language (no E/B
+shorthand to memorize); answers are written into the sheet, and the
+Outcome line is derived from the settled-external answer. Enter skips
+any one question. The **first** question times out after 60 s: if you
+are staring at a black panel and cannot see the terminal, the prompts
+abandon themselves and the sheet stays blank for manual fill — the
+bundles and sheet are already on disk by then. `--no-prompt` (or a
+non-interactive stdin) skips the pass entirely.
 
 Unless `--no-copy` is given, the finished bundles are also copied into
 `docs/debug/` (`/bin/cp -pR`) — /tmp does not survive a reboot, and
