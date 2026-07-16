@@ -176,247 +176,27 @@ Stop a group once its question is answered or it reproduces consistently
 
 ### Group A
 
-> **Format note — runs 1–8** predate the immediate/settled split and the
-> run sheet. Checkbox attribution per the maintainer: runs 2, 4, 6
-> checked the **settled** state (transition in Notes); runs 3, 5, 7, 8
-> checked the **immediate** state (settled state in Notes); run 1
-> recorded only the settled state. The Outcome line keys on the settled
-> state throughout. Their `build:` field lacks a build time, so it
-> cannot distinguish the rebuild between runs 7 and 8 (both `-dirty`);
-> `version.txt` in the bundles is authoritative there.
+Runs 1–8 were recorded inline here before the run-sheet workflow existed
+and were converted to backfilled sheets under `repro-matrix/` — same
+data, new layout. Immediate/settled attribution per the maintainer: runs
+2, 4, 6 had checked the settled state (transition in Notes); runs 3, 5,
+7, 8 had checked the immediate state; run 1 recorded only the settled
+state.
 
-```text
-Run #: 1    date/time: 2026-07-16 01:33:47    build: blackoutd 0.3.0 (v0.3.0-28-g8640711)
-       (build = `./build/blackoutd --version` first line)
+| run | sheet                                            | immediate E/B | settled E/B | black? |
+|-----|--------------------------------------------------|---------------|-------------|--------|
+| 1   | [run001](repro-matrix/run001-20260716-013347.md) | not recorded  | E0/B0       | no     |
+| 2   | [run002](repro-matrix/run002-20260716-014527.md) | E2/B2         | E0/B0       | no     |
+| 3   | [run003](repro-matrix/run003-20260716-015013.md) | E2/B1         | E1/B0       | yes    |
+| 4   | [run004](repro-matrix/run004-20260716-020245.md) | E2/B2         | E0/B0       | no     |
+| 5   | [run005](repro-matrix/run005-20260716-020540.md) | E2/B1         | E1/B0       | yes    |
+| 6   | [run006](repro-matrix/run006-20260716-020824.md) | E2/B2         | E0/B0       | no     |
+| 7   | [run007](repro-matrix/run007-20260716-021316.md) | E2/B1         | E1/B0       | yes    |
+| 8   | [run008](repro-matrix/run008-20260716-021755.md) | E2/B1         | E1/B0       | yes    |
 
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-013420
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [x] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [x] B0   [ ] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [ ] yes   [x] no
-Notes: ____________________________________________________________________
-```
-
-```text
-Run #: 2    date/time: 2026-07-16 01:45:27    build: blackoutd 0.3.0 (v0.3.0-28-g8640711)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-014554
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [x] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [x] B0   [ ] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [ ] yes   [x] no
-Notes: built-in active on wake and quickly blacked out (B2/E2 -> B0/E0)
-```
-
-```text
-Run #: 3    date/time: 2026-07-16 01:50:13    build: blackoutd 0.3.0 (v0.3.0-28-g8640711)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-015046
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [ ] E0   [ ] E1   [x] E2   [ ] E3
-  built-in ... [ ] B0   [x] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [x] yes   [ ] no
-Notes: B1/E2 on wake and quickly -> B0/E1, manual displaysleep recovery after capture
-```
-
-```text
-Run #: 4    date/time: 2026-07-16 02:02:45    build: blackoutd 0.3.0 (v0.3.0-28-g8640711)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-020315
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [x] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [x] B0   [ ] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [ ] yes   [x] no
-Notes: built-in active on wake and quickly blacked out (B2/E2 -> B0/E0)
-```
-
-```text
-Run #: 5    date/time: 2026-07-16 02:05:40    build: blackoutd 0.3.0 (v0.3.0-28-g8640711)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-020610
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [ ] E0   [ ] E1   [x] E2   [ ] E3
-  built-in ... [ ] B0   [x] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [x] yes   [ ] no
-Notes: B1/E2 on wake and quickly -> B0/E1, manual displaysleep recovery after capture
-```
-
-```text
-Run #: 6    date/time: 2026-07-16 02:08:24    build: blackoutd 0.3.0 (v0.3.0-28-g8640711)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-020854
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [x] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [x] B0   [ ] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [ ] yes   [x] no
-Notes: built-in active on wake and quickly blacked out (B2/E2 -> B0/E0)
-```
-
-```text
-Run #: 7    date/time: 2026-07-16 02:13:16    build: blackoutd 0.3.0 (v0.3.0-28-g8640711-dirty)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-021346
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [ ] E0   [ ] E1   [x] E2   [ ] E3
-  built-in ... [ ] B0   [x] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [x] yes   [ ] no
-Notes: B1/E2 on wake and quickly -> B0/E1, manual displaysleep recovery after capture
-```
-
-```text
-Run #: 8    date/time: 2026-07-16 02:17:55    build: blackoutd 0.3.0 (v0.3.0-28-g8640711-dirty)
-       (build = `./build/blackoutd --version` first line)
-
-Conditions:
-  lid during sleep ....... [ ] closed   [x] open
-  wake ................... [x] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [x] unlocked (Watch/TouchID)
-  power .................. [x] battery  [ ] AC
-  recovery applied ....... [x] none     [ ] displaysleep
-
-Bundles:
-  post-wake    = /tmp/blackoutd-diag-20260716-021825
-  post-recover = n/a   (n/a if no recovery)
-
-@ post-wake:
-  external ... [ ] E0   [ ] E1   [x] E2   [ ] E3
-  built-in ... [ ] B0   [x] B1   [ ] B2
-
-@ post-recover (only if --recover):
-  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
-  built-in ... [ ] B0   [ ] B1   [ ] B2
-  recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
-
-Outcome:
-  cursor-on-black occurred this run? ... [x] yes   [ ] no
-Notes: B1/E2 on wake and quickly -> B0/E1, manual displaysleep recovery after capture
-```
-
+Group A stands at 4 black (runs 3, 5, 7, 8) and 4 clean (runs 1, 2, 4, 6)
+settled captures — the ≥3 black / ≥3 clean bar is met; detection diffing
+can begin while further groups run.
 ## What we do with the data
 
 - **Detection** — diff `dcp.txt` / `connection-mode.txt` (and the raw
