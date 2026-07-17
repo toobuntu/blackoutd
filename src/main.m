@@ -1253,14 +1253,16 @@ static NSInteger ansIndex(NSDictionary<NSString *, NSString *> *ans,
 // digits, cleared = yes|no|partial, lid = no|opened|closed, notes = free
 // text); pass nil for the blank sheet. The Outcome line is derived from
 // the settled-external answer (E1 = cursor-on-black), never asked.
-static NSString *renderRunSheet(NSDate *started, int runNumber, int wake,
-                                int settle, NSString *recover, NSString *group,
-                                NSString *lidPre, NSString *lidCap,
-                                NSString *lockPre, NSString *lockCap,
-                                NSString *powerPre, NSString *powerCap,
-                                NSString *postWakeBundle,
-                                NSString *postRecoverBundle,
-                                NSDictionary<NSString *, NSString *> *ans) {
+// `settleMarker` is sampled ONCE by the caller and passed to every render:
+// re-reading it on the post-prompt rewrite could replace the post-wake
+// marker with one from a later event (e.g. a manual hot-corner recovery).
+static NSString *
+renderRunSheet(NSDate *started, int runNumber, int wake, int settle,
+               NSString *recover, NSString *group, NSString *lidPre,
+               NSString *lidCap, NSString *lockPre, NSString *lockCap,
+               NSString *powerPre, NSString *powerCap, NSString *settleMarker,
+               NSString *postWakeBundle, NSString *postRecoverBundle,
+               NSDictionary<NSString *, NSString *> *ans) {
   NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
   stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
   stamp.dateFormat = @"yyyyMMdd-HHmmss";
@@ -1321,9 +1323,8 @@ static NSString *renderRunSheet(NSDate *started, int runNumber, int wake,
   [s appendFormat:@"  recovery applied ....... %@\n",
                   recover.length ? recover : @"none"];
   [s appendFormat:@"  settle ................. %d s\n", settle];
-  NSString *marker = settleMarkerSince(started);
   [s appendFormat:@"  daemon settled ......... %@\n\n",
-                  marker
+                  settleMarker
                       ?: @"no marker since repro start (see daemon-log.txt)"];
   [s appendString:@"Bundles:\n"];
   [s appendFormat:@"  post-wake    = %@\n", postWakeBundle ?: @"(missing)"];
@@ -1383,11 +1384,19 @@ static NSString *promptLine(NSString *label, int timeoutSeconds) {
   printf("%s", label.UTF8String);
   fflush(stdout);
   if (timeoutSeconds > 0) {
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(STDIN_FILENO, &fds);
-    struct timeval tv = {.tv_sec = timeoutSeconds, .tv_usec = 0};
-    if (select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv) <= 0)
+    // Retry on EINTR so a stray signal does not masquerade as the timeout
+    // and silently abandon the pass. macOS select() leaves the timeout
+    // struct unmodified, so the retry re-arms the full window — acceptable
+    // for a rare interruption, wrong only in the harmless direction.
+    int ready;
+    do {
+      fd_set fds;
+      FD_ZERO(&fds);
+      FD_SET(STDIN_FILENO, &fds);
+      struct timeval tv = {.tv_sec = timeoutSeconds, .tv_usec = 0};
+      ready = select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
+    } while (ready < 0 && errno == EINTR);
+    if (ready <= 0)
       return nil;
   }
   char buf[512];
@@ -1410,9 +1419,12 @@ static NSInteger promptChoice(NSString *question, int maxIndex,
       return -2;
     if (line.length == 0)
       return -1;
-    if (line.length == 1 && isdigit((unsigned char)[line characterAtIndex:0]) &&
-        line.integerValue <= maxIndex)
-      return line.integerValue;
+    // Compare the unichar directly — byte-oriented ctype(3) would
+    // misclassify non-ASCII input after truncation to unsigned char.
+    unichar digit = [line characterAtIndex:0];
+    if (line.length == 1 && digit >= '0' && digit <= '9' &&
+        digit - '0' <= maxIndex)
+      return digit - '0';
     printf("  (0-%d, or Enter to skip)\n", maxIndex);
     timeoutSeconds = 0;
   }
@@ -1511,9 +1523,14 @@ promptForObservations(BOOL didRecover) {
         return ans;
       if (line.length == 0)
         break;
-      unichar c = tolower([line characterAtIndex:0]);
-      if (c == 'y' || c == 'n' || c == 'p') {
-        ans[@"cleared"] = c == 'y' ? @"yes" : (c == 'n' ? @"no" : @"partial");
+      // Direct case-pair comparison — ctype(3) tolower would truncate a
+      // non-ASCII unichar and can misclassify it.
+      unichar c = [line characterAtIndex:0];
+      if (c == 'y' || c == 'Y' || c == 'n' || c == 'N' || c == 'p' ||
+          c == 'P') {
+        ans[@"cleared"] = (c == 'y' || c == 'Y')
+                              ? @"yes"
+                              : ((c == 'n' || c == 'N') ? @"no" : @"partial");
         break;
       }
       printf("  (y, n, p, or Enter to skip)\n");
@@ -1529,13 +1546,14 @@ promptForObservations(BOOL didRecover) {
       return ans;
     if (line.length == 0)
       break;
-    unichar c = tolower([line characterAtIndex:0]);
-    if (c == 'u' || c == 'n') {
+    // Direct case-pair comparison — see the y/n/p handler above.
+    unichar c = [line characterAtIndex:0];
+    if (c == 'u' || c == 'U' || c == 'n' || c == 'N') {
       ans[@"lid"] = @"no";
       break;
     }
-    if (c == 'o' || c == 'c') {
-      ans[@"lid"] = c == 'o' ? @"opened" : @"closed";
+    if (c == 'o' || c == 'O' || c == 'c' || c == 'C') {
+      ans[@"lid"] = (c == 'o' || c == 'O') ? @"opened" : @"closed";
       break;
     }
     printf("  (u, o, c, or Enter to skip)\n");
@@ -1549,8 +1567,8 @@ promptForObservations(BOOL didRecover) {
 
 // Copies one finished bundle into docs/debug/ (`/bin/cp -pR`, preserving
 // timestamps): /tmp does not survive a reboot, and sleep/wake testing is
-// exactly where reboots happen. Returns the repo copy's path, or nil when
-// the copy failed.
+// exactly where reboots happen. Returns the repo-relative reference
+// (docs/debug/<bundle>) for the run sheet, or nil when the copy failed.
 static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
   if (runStep(@"/bin/cp", @[ @"-pR", bundle, dest ], NO) != 0) {
     fprintf(stderr, "repro: copy of %s failed\n", bundle.UTF8String);
@@ -1559,7 +1577,10 @@ static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
   NSString *copied =
       [dest stringByAppendingPathComponent:bundle.lastPathComponent];
   printf("repro: copied %s -> %s\n", bundle.UTF8String, copied.UTF8String);
-  return copied;
+  // Return the repo-relative reference: the run sheet commits this value,
+  // and an absolute destination would leak the local checkout path.
+  return
+      [@"docs/debug" stringByAppendingPathComponent:bundle.lastPathComponent];
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--group G]
@@ -1610,7 +1631,10 @@ static int reproCommand(int argc, const char *argv[]) {
         char *parseEnd = NULL;
         errno = 0;
         long n = strtol(val, &parseEnd, 10);
-        if (*parseEnd != '\0' || errno != 0 || n < 0 || n > INT_MAX) {
+        // parseEnd == val rejects a digitless value ("" or "abc"), which
+        // strtol maps to 0 — otherwise `--wake ""` silently means manual.
+        if (parseEnd == val || *parseEnd != '\0' || errno != 0 || n < 0 ||
+            n > INT_MAX) {
           fprintf(stderr, "blackoutd: %s requires a non-negative integer\n",
                   opt);
           return 1;
@@ -1636,13 +1660,6 @@ static int reproCommand(int argc, const char *argv[]) {
   printf("repro: started %s — build %s (built %s)\n",
          [human stringFromDate:started].UTF8String, BD_BUILD_GIT,
          BD_BUILD_TIME);
-  // Conditions are read twice — here (pre-sleep) and again at capture time
-  // — so the sheet shows both ends of the run; only "did the lid move
-  // DURING sleep" stays a maintainer field (unobservable from either end).
-  NSString *lidPre = clamshellStateShort();
-  NSString *lockPre = sessionLockState();
-  NSString *powerPre = powerSource();
-
   // Schedule the auto-wake first (only this needs sudo). wake=0 means the
   // maintainer will wake the machine manually (e.g. by opening the lid).
   if (wake > 0) {
@@ -1676,6 +1693,14 @@ static int reproCommand(int argc, const char *argv[]) {
     }
   }
 
+  // Conditions are read twice — just before sleep and again just before
+  // the capture — so the sheet shows both ends of the run; only "did the
+  // lid move DURING sleep" stays a maintainer field (unobservable from
+  // either end). Read AFTER the schedule step: a sudo prompt can sit for
+  // minutes, and a pre-prompt reading would be stale.
+  NSString *lidPre = clamshellStateShort();
+  NSString *lockPre = sessionLockState();
+  NSString *powerPre = powerSource();
   sayCue(@"sleeping now", silent, dryRun);
   if (runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun) != 0)
     return 1;
@@ -1683,11 +1708,12 @@ static int reproCommand(int argc, const char *argv[]) {
   if (!dryRun)
     [NSThread sleepForTimeInterval:settle];
 
-  // Second condition read: the state the post-wake bundle is taken under.
+  sayCue(@"capturing post wake", silent, dryRun);
+  // Second condition read, after the cue's synchronous speech so it is as
+  // close to the bundle capture as possible.
   NSString *lidCap = clamshellStateShort();
   NSString *lockCap = sessionLockState();
   NSString *powerCap = powerSource();
-  sayCue(@"capturing post wake", silent, dryRun);
   NSString *postWakeBundle = nil;
   int rc = reproCapture(@"post-wake", dryRun, &postWakeBundle);
   NSString *postRecoverBundle = nil;
@@ -1719,6 +1745,7 @@ static int reproCommand(int argc, const char *argv[]) {
   int runNumber = 0;
   NSString *postWakeShown = postWakeBundle;
   NSString *postRecoverShown = postRecoverBundle;
+  NSString *settleMarker = nil;
   if (dryRun) {
     if (!noCopy)
       printf("  [dry-run] /bin/cp -pR <bundles> docs/debug/ "
@@ -1726,6 +1753,9 @@ static int reproCommand(int argc, const char *argv[]) {
     printf("  [dry-run] write run sheet to docs/debug/repro-matrix/ "
            "(or /tmp)\n");
   } else {
+    // A failed copy or sheet write means the durable record is incomplete;
+    // fold it into the exit status (first nonzero still wins) so a
+    // successful capture cannot mask a lost artifact.
     // Copy first so the sheet can reference the durable repo copies rather
     // than /tmp paths that vanish on reboot.
     if (!noCopy) {
@@ -1735,25 +1765,42 @@ static int reproCommand(int argc, const char *argv[]) {
                 "repro: bundles left in /tmp — docs/debug/ not found (run "
                 "from the repo root; --no-copy silences this)\n");
       } else {
-        if (postWakeBundle)
-          postWakeShown = copyBundleTo(dest, postWakeBundle) ?: postWakeBundle;
-        if (postRecoverBundle)
-          postRecoverShown =
-              copyBundleTo(dest, postRecoverBundle) ?: postRecoverBundle;
+        if (postWakeBundle) {
+          postWakeShown = copyBundleTo(dest, postWakeBundle);
+          if (!postWakeShown) {
+            postWakeShown = postWakeBundle;
+            if (rc == 0)
+              rc = 1;
+          }
+        }
+        if (postRecoverBundle) {
+          postRecoverShown = copyBundleTo(dest, postRecoverBundle);
+          if (!postRecoverShown) {
+            postRecoverShown = postRecoverBundle;
+            if (rc == 0)
+              rc = 1;
+          }
+        }
       }
     }
+    // Sample the settle marker ONCE, before any prompt-pass rewrite: a
+    // re-read could pick up a later settle event (e.g. from a manual
+    // hot-corner recovery) and silently replace the post-wake marker.
+    settleMarker = settleMarkerSince(started);
     // Write the blank sheet BEFORE the prompt pass: an unanswered or
     // interrupted pass must still leave the run fully recorded on disk.
     sheetPath = runSheetPath(started, group, &runNumber);
     NSString *sheet =
         renderRunSheet(started, runNumber, wake, settle, recover, group, lidPre,
                        lidCap, lockPre, lockCap, powerPre, powerCap,
-                       postWakeShown, postRecoverShown, nil);
+                       settleMarker, postWakeShown, postRecoverShown, nil);
     if (writeBundleText(sheet, sheetPath))
       printf("repro: run sheet written to %s\n", sheetPath.UTF8String);
     else {
       fprintf(stderr, "repro: WARNING — run sheet could not be written\n");
       sheetPath = nil;
+      if (rc == 0)
+        rc = 1;
     }
   }
 
@@ -1774,12 +1821,20 @@ static int reproCommand(int argc, const char *argv[]) {
       // hurry back to the terminal, the sheet stays blank for manual fill.
       sayCue(@"prompts timed out, sheet left blank", silent, NO);
     } else if (answers.count) {
-      NSString *filled =
-          renderRunSheet(started, runNumber, wake, settle, recover, group,
-                         lidPre, lidCap, lockPre, lockCap, powerPre, powerCap,
-                         postWakeShown, postRecoverShown, answers);
+      NSString *filled = renderRunSheet(
+          started, runNumber, wake, settle, recover, group, lidPre, lidCap,
+          lockPre, lockCap, powerPre, powerCap, settleMarker, postWakeShown,
+          postRecoverShown, answers);
       if (writeBundleText(filled, sheetPath))
         printf("repro: observations recorded in %s\n", sheetPath.UTF8String);
+      else {
+        fprintf(stderr,
+                "repro: WARNING — observations NOT recorded; the blank sheet "
+                "stands, fill %s manually\n",
+                sheetPath.UTF8String);
+        if (rc == 0)
+          rc = 1;
+      }
     }
   }
   printf("repro: done\n");
