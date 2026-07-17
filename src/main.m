@@ -1763,7 +1763,13 @@ static int reproCommand(int argc, const char *argv[]) {
   if (!dryRun && !noPrompt && sheetPath && isatty(STDIN_FILENO)) {
     NSDictionary<NSString *, NSString *> *answers =
         promptForObservations(recover.length > 0);
-    if (answers.count) {
+    if (!answers) {
+      // Audible close for the abandoned pass. Recovery safety was already
+      // announced before the prompts (the all-clear cue); what the timeout
+      // uniquely adds is that the answer window has closed — no need to
+      // hurry back to the terminal, the sheet stays blank for manual fill.
+      sayCue(@"prompts timed out, sheet left blank", silent, NO);
+    } else if (answers.count) {
       NSString *filled =
           renderRunSheet(started, runNumber, wake, settle, recover, group,
                          lidPre, lidCap, lockPre, lockCap, powerPre, powerCap,

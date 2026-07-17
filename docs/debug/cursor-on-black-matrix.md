@@ -83,7 +83,11 @@ Outcome line is derived from the settled-external answer. Enter skips
 any one question. The **first** question times out after 60 s: if you
 are staring at a black panel and cannot see the terminal, the prompts
 abandon themselves and the sheet stays blank for manual fill — the
-bundles and sheet are already on disk by then. `--no-prompt` (or a
+bundles and sheet are already on disk by then. (Recovery safety is
+announced *before* the prompts, by the all-clear cue — on every run
+shape.) A further spoken cue, **"prompts timed out, sheet left
+blank"**, marks the answer window closing, so away from the terminal
+you know there is no need to hurry back. `--no-prompt` (or a
 non-interactive stdin) skips the pass entirely.
 
 Unless `--no-copy` is given, the finished bundles are also copied into
