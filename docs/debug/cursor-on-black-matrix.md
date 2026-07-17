@@ -216,27 +216,29 @@ fact); runs 3, 5, 7, 8 had checked the immediate state.
 | 6   | [run006](repro-matrix/run006-grp-a-20260716-020824.md) | E2/B2         | E0/B0       | no     |
 | 7   | [run007](repro-matrix/run007-grp-a-20260716-021316.md) | E2/B1         | E1/B0       | yes    |
 | 8   | [run008](repro-matrix/run008-grp-a-20260716-021755.md) | E2/B1         | E1/B0       | yes    |
-| 9   | [run009](repro-matrix/run009-grp-a-20260716-122626.md) | E0/B0         | E0/B0       | no     |
+| 9   | [run009](repro-matrix/run009-grp-a-20260716-122626.md) | *stricken*    | *stricken*  | —      |
 | 10  | [run010](repro-matrix/run010-grp-a-20260716-134416.md) | E2/B2         | E0/B0       | no     |
 
 Runs 9–10 were `--silent` runs on the run-sheet build (observations
-filled in manually). Run 9 is the only recorded **instantly clean**
-wake — E0/B0 from first light, no transition at all — but see the
-cohort note below before leaning on it.
+filled in manually). **Run 9 is stricken**: the maintainer is unsure
+its observations were recorded correctly, and its claimed instantly
+clean wake (immediate E0/B0) appears in no other run — its bundle
+remains for machine-side reference only.
 
 **Cohort 1 — superseded for analysis.** Runs 1–10 predate the finished
 tooling: 1–8 were recorded in the pre-split format and their
 immediate/settled attribution was reconstructed after the fact (twice,
 for run 1); 9–10 ran `--silent`, so the eyewitness states were recalled
-without cue anchors rather than prompted at the moment (run 9's unique
-instant-clean immediate state is the least corroborated datum here).
-The settled classifications are well corroborated — every black run
-required its manual displaysleep recovery, no clean run did — so these
-sheets and bundles stay on record as corroboration. But detection
-diffing must gate on a fresh cohort collected with the current build
-(spoken cues, at-the-moment prompts, boundary-timed condition reads,
-single-sample settle marker). **Cohort 2 starts at run 011 and owes its
-own ≥3 black / ≥3 clean settled captures before analysis begins.**
+without cue anchors rather than prompted at the moment.
+The settled classifications are otherwise well corroborated — every
+black run required its manual displaysleep recovery, no clean run did —
+so these sheets and bundles stay on record as corroboration: 4 black
+(runs 3, 5, 7, 8), 5 clean (runs 1, 2, 4, 6, 10), 1 stricken (run 9).
+But detection diffing must gate on a fresh cohort collected with the
+current build (spoken cues, at-the-moment prompts, boundary-timed
+condition reads, single-sample settle marker). **Cohort 2 starts at run
+011 and owes its own ≥3 black / ≥3 clean settled captures before
+analysis begins.**
 ## What we do with the data
 
 - **Detection** — diff `dcp.txt` / `connection-mode.txt` (and the raw
