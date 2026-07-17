@@ -22,9 +22,11 @@ The captures drive the CLI only, so the resident daemon need not be
 restarted; still, one `make dev` before a session (restarts the agent)
 aligns the daemon's build stamp with the CLI so `config.txt` does not warn
 about a CLI/daemon mismatch. A per-run `make dev` is **not** needed —
-rebuild only when sources change. Every run's sheet and terminal header
-carry the git describe **and the build time**, so a rebuild between runs
-is visible even when both stamps say `-dirty`.
+rebuild only when sources change. Every repro-generated sheet and its
+terminal header carry the git describe **and the build time**, so a
+rebuild between runs is visible even when both stamps say `-dirty`
+(backfilled sheets for runs 1–8 predate this and lack a recorded build
+time; their bundles' `version.txt` is authoritative).
 
 ## How to run one trial
 
@@ -214,10 +216,17 @@ fact); runs 3, 5, 7, 8 had checked the immediate state.
 | 6   | [run006](repro-matrix/run006-grp-a-20260716-020824.md) | E2/B2         | E0/B0       | no     |
 | 7   | [run007](repro-matrix/run007-grp-a-20260716-021316.md) | E2/B1         | E1/B0       | yes    |
 | 8   | [run008](repro-matrix/run008-grp-a-20260716-021755.md) | E2/B1         | E1/B0       | yes    |
+| 9   | [run009](repro-matrix/run009-grp-a-20260716-122626.md) | E0/B0         | E0/B0       | no     |
+| 10  | [run010](repro-matrix/run010-grp-a-20260716-134416.md) | E2/B2         | E0/B0       | no     |
 
-Group A stands at 4 black (runs 3, 5, 7, 8) and 4 clean (runs 1, 2, 4, 6)
-settled captures — the ≥3 black / ≥3 clean bar is met; detection diffing
-can begin while further groups run.
+Runs 9–10 were `--silent` runs on the run-sheet build (observations
+filled in manually). Run 9 is the first recorded **instantly clean**
+wake — E0/B0 from first light, no transition at all — so the immediate
+state varies across clean runs (E0/B0, E2/B2) as well as black ones.
+
+Group A stands at 4 black (runs 3, 5, 7, 8) and 6 clean (runs 1, 2, 4,
+6, 9, 10) settled captures — the ≥3 black / ≥3 clean bar is met;
+detection diffing can begin while further groups run.
 ## What we do with the data
 
 - **Detection** — diff `dcp.txt` / `connection-mode.txt` (and the raw
