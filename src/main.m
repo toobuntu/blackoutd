@@ -1273,8 +1273,7 @@ renderRunSheet(NSDate *started, int runNumber, int wake, int settle,
   NSArray<NSString *> *biLabels = @[ @"B0", @"B1", @"B2" ];
 
   NSMutableString *s = [NSMutableString string];
-  // String literals comprising the emitted sheet's own SPDX header, not
-  // this file's licensing info.
+  // String literals emitting the sheet's own SPDX header, not this file's.
   // REUSE-IgnoreStart
   [s appendString:@"<!--\n"
                   @"SPDX-FileCopyrightText: Copyright 2026 Todd Schulman\n"
