@@ -1181,8 +1181,18 @@ static NSString *settleMarkerSince(NSDate *started) {
     return nil;
   NSDateFormatter *f = [[NSDateFormatter alloc] init];
   f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-  f.dateFormat = @"yyyy-MM-dd HH:mm:ss";
-  NSDate *t = [f dateFromString:[line substringToIndex:19]];
+  // NSLog stamps carry milliseconds; keep them so a marker logged later
+  // within the start's own second is not truncated into the past and
+  // discarded. Fall back to the second-granular form for other stamps.
+  NSDate *t = nil;
+  if (line.length >= 23 && [line characterAtIndex:19] == '.') {
+    f.dateFormat = @"yyyy-MM-dd HH:mm:ss.SSS";
+    t = [f dateFromString:[line substringToIndex:23]];
+  }
+  if (!t) {
+    f.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+    t = [f dateFromString:[line substringToIndex:19]];
+  }
   if (!t || [t compare:started] == NSOrderedAscending)
     return nil;
   return line;
