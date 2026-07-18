@@ -21,7 +21,12 @@ external-display bug). Build the binary first: `make` → `./build/blackoutd`.
 The captures drive the CLI only, so the resident daemon need not be
 restarted; still, one `make dev` before a session (restarts the agent)
 aligns the daemon's build stamp with the CLI so `config.txt` does not warn
-about a CLI/daemon mismatch.
+about a CLI/daemon mismatch. A per-run `make dev` is **not** needed —
+rebuild only when sources change. Every repro-generated sheet and its
+terminal header carry the git describe **and the build time**, so a
+rebuild between runs is visible even when both stamps say `-dirty`
+(backfilled sheets for runs 1–8 predate this and lack a recorded build
+time; their bundles' `version.txt` is authoritative).
 
 ## How to run one trial
 
@@ -31,11 +36,12 @@ From a terminal with the panels visible (before sleep):
 sudo --validate   # primes sudo so the schedule-wake step never prompts
                   # (repro falls back to one pre-sleep prompt if it must)
 
-# Baseline (detection): wake, capture, no recovery.
-./build/blackoutd repro --wake 15
+# Baseline (detection): wake, capture, no recovery. Group A of the
+# coverage table below.
+./build/blackoutd repro --wake 15 --group A
 
 # With recovery: wake, capture, display-sleep cycle, capture again.
-./build/blackoutd repro --wake 15 --recover displaysleep
+./build/blackoutd repro --wake 15 --recover displaysleep --group B
 ```
 
 `repro` schedules the wake (the only step that needs `sudo`), sleeps, and on
@@ -50,9 +56,49 @@ Watch the **panels**, not the terminal. When you hear:
   *post-recover* rows.
 
 Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
-(`post-wake` / `post-recover`). Record the two paths in the run block. Flags:
-`--settle S` (seconds before each capture, default 20), `--silent` (no speech),
-`--dry-run` (preview without sleeping).
+(`post-wake` / `post-recover`). Flags: `--group G` (coverage row A–E,
+any case — normalized to lowercase, recorded in the sheet and as a
+`grp-<g>` filename tag), `--settle S` (seconds before each capture,
+default 20), `--no-copy` (keep bundles in /tmp only), `--no-prompt`
+(skip the eyewitness prompts), `--silent` (no speech — mind that the
+spoken cues are most of the point of a blind run), `--dry-run` (preview
+without sleeping).
+
+`repro` also emits a prefilled, numbered **run sheet** at
+`docs/debug/repro-matrix/runNNN-grp-<g>-<stamp>.md` (NNN = 1 + the
+highest existing sheet number, global across groups; stamp = repro
+start; falls back to `/tmp`, unnumbered, when not run from the repo
+root; without `--group` the filename omits the grp tag and the sheet
+leaves the group as a manual field). Machine-filled: run number,
+group, start time, build identity, both bundle paths, the daemon's
+`[wake] — display pipeline settled` marker (timestamp-checked against the
+repro start, so a stale marker from an earlier wake is never reported),
+and each condition repro can read — lid, session lock, and power source,
+captured **twice** (pre-sleep and again at capture time) so both ends of
+the run are on record.
+
+The three fields no machine can read — the eyewitness panel states,
+whether the lid moved *during* sleep, and notes — are **prompted for
+interactively** after the all-clear cue, in plain language (no E/B
+shorthand to memorize); answers are written into the sheet, and the
+Outcome line is derived from the settled-external answer. Enter skips
+any one question. The **first** question times out after 60 s: if you
+are staring at a black panel and cannot see the terminal, the prompts
+abandon themselves and the sheet stays blank for manual fill — the
+bundles and sheet are already on disk by then. (Recovery safety is
+announced *before* the prompts, by the all-clear cue — on every run
+shape.) A further spoken cue, **"prompts timed out, sheet left
+blank"**, marks the answer window closing, so away from the terminal
+you know there is no need to hurry back. `--no-prompt` (or a
+non-interactive stdin) skips the pass entirely.
+
+Unless `--no-copy` is given, the finished bundles are also copied into
+`docs/debug/` (`/bin/cp -pR`) — /tmp does not survive a reboot, and
+sleep/wake testing is where reboots happen — and the sheet's bundle paths
+point at the repo copies. The final spoken cue — **"collection complete,
+safe to recover"** on a baseline run (**"repro complete"** with
+`--recover`) — fires only after the sheet and copies have landed: until
+you hear it, a manual hot-corner recovery would contaminate the run.
 
 > **Intermittent.** Not every run goes black. Repeat the baseline; record
 > **every** run — clean runs are the controls the diff needs.
@@ -61,7 +107,16 @@ Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
 > Watch / step out of range / disable TouchID), so the session stays locked
 > through the capture and recovery.
 
-## Observation legend (check one per panel)
+## Observation legend (check one per panel, per moment)
+
+Record each panel at **two moments** — the states often differ (a run may
+open B2/E2 and settle to B0/E1 within seconds):
+
+- **@ wake (immediate)** — the first look as the panels light. Documents
+  the transition (e.g. a role reversal, or blackout re-asserting).
+- **@ post-wake capture (settled)** — at the "capturing post wake" cue.
+  **This is the state the bundle records**, so it is the one that
+  classifies the run for detection diffing; the Outcome line keys on it.
 
 **External panel**
 - `E0` — desktop/content rendering normally
@@ -74,36 +129,59 @@ Each capture writes `/tmp/blackoutd-diag-<stamp>/` with a `label.txt`
 - `B1` — lit, cursor-on-black (role reversal — wrongly active)
 - `B2` — lit, showing desktop/content (blackout not holding)
 
-## Per-run record (copy one block per trial)
+## Per-run record
+
+`repro` generates this block prefilled (the `<machine>` fields) in the run
+sheet; fill in the rest there. The group sections below index the sheets.
+For a trial run without `repro`, copy the block by hand.
 
 ```text
-Run #: ____    date/time: __________________    build: ____________________
-       (build = `./build/blackoutd --version` first line)
+Run #: <machine: NNN>    started: <machine: yyyy-MM-dd HH:mm:ss>
+Build: <machine: git describe>    built: <machine: build stamp> (UTC)
 
-Conditions:
-  lid during sleep ....... [ ] closed   [ ] open
-  wake ................... [ ] scheduled (repro --wake)   [ ] manual lid-open
-  session at wake ........ [ ] locked   [ ] unlocked (Watch/TouchID)
-  power .................. [ ] battery  [ ] AC
-  recovery applied ....... [ ] none     [ ] displaysleep
+Conditions (pre-sleep -> at capture):
+  group .................. <machine: A..E from --group (any case), else manual>
+  lid .................... <machine: open|closed -> open|closed>
+      moved during sleep? ... [ ] no   [ ] yes: ______
+  session ................ <machine: locked|unlocked -> locked|unlocked>
+  power .................. <machine: battery|AC -> battery|AC>
+  wake ................... <machine: scheduled (--wake N) | manual (--wake 0)>
+  recovery applied ....... <machine: none | displaysleep>
+  settle ................. <machine: N s>
+  daemon settled ......... <machine: settle-marker log line, this run only>
 
 Bundles:
-  post-wake    = /tmp/blackoutd-diag-________________
-  post-recover = /tmp/blackoutd-diag-________________   (n/a if no recovery)
+  post-wake    = <machine: docs/debug/blackoutd-diag-... | /tmp/...>
+  post-recover = <machine: docs/debug/blackoutd-diag-... | /tmp/... | n/a>
 
-@ post-wake:
+@ wake (immediate — first look as the panels light):
   external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
   built-in ... [ ] B0   [ ] B1   [ ] B2
 
-@ post-recover (only if --recover):
+@ post-wake capture (settled — at the "capturing post wake"
+                     cue; the state the bundle records):
+  external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
+  built-in ... [ ] B0   [ ] B1   [ ] B2
+
+@ post-recover capture (only if --recover):
   external ... [ ] E0   [ ] E1   [ ] E2   [ ] E3
   built-in ... [ ] B0   [ ] B1   [ ] B2
   recovery cleared the external? ... [ ] yes   [ ] no   [ ] partial
 
 Outcome:
   cursor-on-black occurred this run? ... [ ] yes   [ ] no
+      (yes = settled external E1; note E2/E3 variants in Notes)
 Notes: ____________________________________________________________________
 ```
+
+**Notes field** — anything the checkboxes cannot express:
+
+- transition timing and order (`B1/E2 on wake, ~2 s -> B0/E1`);
+- manual interventions and when (hot-corner recovery, unlock, keypress);
+- anomalies (flicker, pink cast, menu-bar icon state, missing `say` cue);
+- procedure deviations (moved the lid, touched input before the capture
+  cue, sudo prompted mid-run);
+- anything odd in the bundle or the Notification Center timestamps.
 
 ## Suggested coverage (challenge the priors)
 
@@ -119,6 +197,48 @@ Stop a group once its question is answered or it reproduces consistently
 | D     | scheduled     | unlocked | **AC**  | displaysleep | challenge "not power-dependent" (P29)      |
 | E     | **manual lid-open** | unlocked | battery | displaysleep | the lived scenario vs. the scheduled repro |
 
+### Group A
+
+Runs 1–8 were recorded inline here before the run-sheet workflow existed
+and were converted to backfilled sheets under `repro-matrix/` — same
+data, new layout, with both moments recorded. Immediate/settled
+attribution per the maintainer: runs 1, 2, 4, 6 had checked the settled
+state (transition in Notes; run 1's `B2/E2 -> B0/E0` supplied after the
+fact); runs 3, 5, 7, 8 had checked the immediate state.
+
+| run | sheet                                            | immediate E/B | settled E/B | black? |
+|-----|--------------------------------------------------|---------------|-------------|--------|
+| 1   | [run001](repro-matrix/run001-grp-a-20260716-013347.md) | E2/B2         | E0/B0       | no     |
+| 2   | [run002](repro-matrix/run002-grp-a-20260716-014527.md) | E2/B2         | E0/B0       | no     |
+| 3   | [run003](repro-matrix/run003-grp-a-20260716-015013.md) | E2/B1         | E1/B0       | yes    |
+| 4   | [run004](repro-matrix/run004-grp-a-20260716-020245.md) | E2/B2         | E0/B0       | no     |
+| 5   | [run005](repro-matrix/run005-grp-a-20260716-020540.md) | E2/B1         | E1/B0       | yes    |
+| 6   | [run006](repro-matrix/run006-grp-a-20260716-020824.md) | E2/B2         | E0/B0       | no     |
+| 7   | [run007](repro-matrix/run007-grp-a-20260716-021316.md) | E2/B1         | E1/B0       | yes    |
+| 8   | [run008](repro-matrix/run008-grp-a-20260716-021755.md) | E2/B1         | E1/B0       | yes    |
+| 9   | [run009](repro-matrix/run009-grp-a-20260716-122626.md) | *stricken*    | *stricken*  | —      |
+| 10  | [run010](repro-matrix/run010-grp-a-20260716-134416.md) | E2/B2         | E0/B0       | no     |
+
+Runs 9–10 were `--silent` runs on the run-sheet build (observations
+filled in manually). **Run 9 is stricken**: the maintainer is unsure
+its observations were recorded correctly, and its claimed instantly
+clean wake (immediate E0/B0) appears in no other run — its bundle
+remains for machine-side reference only.
+
+**Cohort 1 — superseded for analysis.** Runs 1–10 predate the finished
+tooling: 1–8 were recorded in the pre-split format and their
+immediate/settled attribution was reconstructed after the fact (twice,
+for run 1); 9–10 ran `--silent`, so the eyewitness states were recalled
+without cue anchors rather than prompted at the moment.
+The settled classifications are otherwise well corroborated — every
+black run required its manual displaysleep recovery, no clean run did —
+so these sheets and bundles stay on record as corroboration: 4 black
+(runs 3, 5, 7, 8), 5 clean (runs 1, 2, 4, 6, 10), 1 stricken (run 9).
+But detection diffing must gate on a fresh cohort collected with the
+current build (spoken cues, at-the-moment prompts, boundary-timed
+condition reads, single-sample settle marker). **Cohort 2 starts at run
+011 and owes its own ≥3 black / ≥3 clean settled captures before
+analysis begins.**
 ## What we do with the data
 
 - **Detection** — diff `dcp.txt` / `connection-mode.txt` (and the raw

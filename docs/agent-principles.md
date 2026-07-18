@@ -149,6 +149,16 @@ minor extension. SRP taken to extremes produces a maze of tiny
 methods. The agent should hold all of them and pick the one that
 applies most strongly to the situation.
 
+## Lint and scanner suppressions
+
+When a suppression directive is necessary (`# rubocop:disable`,
+`// NOLINT`, `# shellcheck disable=`, `REUSE-IgnoreStart`, and kin),
+put a one-line comment immediately above it explaining why — unless
+the directive is inline on a top-level line (e.g. a first-line magic
+comment), where no preceding comment is possible. Scope suppressions
+as narrowly as the tool allows, and never use one to silence a
+genuine finding.
+
 ## Citing external code
 
 When using code, configuration, or technique borrowed from a public

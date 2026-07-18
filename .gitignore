@@ -45,6 +45,9 @@ docs/debug/*
 !docs/debug/REUSE.toml
 !docs/debug/REPRO.md
 !docs/debug/cursor-on-black-matrix.md
+# Run sheets are small text records, one per repro run; track them all.
+# Bundles that repro copies into docs/debug/ stay ignored until curated.
+!docs/debug/repro-matrix/
 
 # Early mechanism evidence (WS: no Display:Mode during the black wake).
 !docs/debug/blackoutd-diag-20260525-192959/
