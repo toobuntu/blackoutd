@@ -1789,6 +1789,78 @@ Sequence:
 3. Only then wire detector ⇒ recovery, behind a `recoveryStrategy`
    pref (separate PR, per the matrix's "What we do with the data").
 
+**Update (2026-07-19, later) — extension runs 41–60: marker at 19/19
+vs 0/26; a manual repro lever (C1); recovery question answered.**
+
+- *Marker validated on 20 more runs.* Blacks 49, 51–54, 56–57 (group
+  B) and 58, 60 (group C series): the hotplug-coalescing marker fires
+  in-window on **9/9**; the 11 cleans (41–48, 50, 55, 59) show **0**.
+  Running total **19/19 black vs 0/26 clean** across all recorded
+  runs. The FuseBoard occluded→visible secondary is demoted: the
+  extension breaks its clean split (black run 49 shows 1, locked
+  black run 60 shows 5) — corroborator only, not a detector.
+- *C1 — the cable trigger (first on-demand repro lever).* Unplugging
+  the external's **USB-C end** pre-run (leaving it out until the
+  built-in fully redraws, then replugging) provoked cursor-on-black
+  on the next wake in 8 of 9 tries (blacks 49, 51–54, 56–57, 60;
+  miss 55). Mechanistically consistent with the coalescing story: a
+  fresh physical re-attach immediately before sleep leaves link
+  state that drops again across the sleep boundary. Critically, the
+  C1-miss run 55 shows the pre-run replug alone does **not** plant
+  the marker — the marker still tracks the black, not the cable
+  handling. Run 58 went black with *no* C1 (natural repro amid the
+  series). C1 makes recovery-candidate testing cheap: black on
+  demand, ~3 min per data point.
+- *Recovery: displaysleep is 10/10.* Every black in the extension was
+  cleared end-to-end by `--recover displaysleep` (`pmset
+  displaysleepnow` + `caffeinate -u`, no root), including run 60
+  **while the session stayed locked**. With run 37 that is 10/10
+  programmatic clears plus cohort 1's four manual ones. Group B's
+  question is answered; group C (locked) is 1/1 and stays open until
+  n ≥ 2. The 2026-05-21 "displaysleepnow = flicker dead end" note is
+  fully superseded for the *recovery* path (flicker accepted).
+- *Deterministic detection beyond the log query (survey, untested).*
+  The marker is not a proxy — it is the trace of the exact SkyLight
+  branch that matters (the pending-"out" coalescing decision), and
+  no exported SkyLight symbol surfaces that queue state; a private
+  SkyLight *notification* would sit downstream of the same coalescing
+  and inherit the blind spot (the falsified `0x133e` flag is the
+  public shadow of exactly that). The genuinely deterministic path is
+  to observe the raw hotplug **upstream** of WindowServer:
+  `IOMobileFramebuffer.framework` exports
+  `IOMobileFramebufferEnableHotPlugDetectNotifications` /
+  `IOMobileFramebufferGetHotPlugRunLoopSource` (per-framebuffer HPD
+  events; BetterDisplay links this framework from an ordinary
+  notarized app, so the user client is reachable without special
+  entitlements). blackoutd already opens no IOMFB connection; a
+  read-only spike would open the external framebuffer
+  (`IOMobileFramebufferOpenByName`, name `external-0` per the WS
+  logs) at daemon start, log timestamped HPD events, and let a C1
+  series show whether an HPD-event pattern around the sleep boundary
+  splits black/clean. If it does, detection needs no log query at
+  all. Until then, `OSLogStore` (in-process, structured predicate,
+  no subprocess) is the implementation of record for the marker
+  query — prefer it over spawning `log show`.
+- *Targeted recovery beyond displaysleep (survey, untested).*
+  Candidates, in prototype order: (1)
+  `IOMobileFramebufferRequestPowerChange` on the external framebuffer
+  only — a DCP-level power cycle scoped to one display, no global
+  display sleep, no lock-screen interaction; (2) blackoutd's own
+  primitive, `CGSConfigureDisplayEnabled(external, false→true)` — no
+  new API but CG-level, may not reach the DCP (P29 lever b, still
+  untested); (3) DDC power cycle of the sink (VCP 0xD6 off→on via
+  `IOAVService` I2C, the Lunar/m1ddc path, open source — no RE
+  needed) — the software analog of the physical replug that C1 shows
+  re-arms the link, but sink-side and dependent on the SP2309W's DDC
+  support. Test each as a new `--recover` method against C1 blacks;
+  adopt over displaysleep only if ≥ its reliability. BetterDisplay
+  RE (its `_reinitializeOnWake` implementation) is the fallback if
+  all three miss.
+- *Group C invocation* (osascript lock before `repro`) is recorded in
+  the matrix, with run 58's ordering lesson (lock keystroke chained
+  after `repro` never took effect; its machine-read session field
+  caught it).
+
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR
 0009 (SP2309W YCbCr), and the inject_edid `--mode` reader (of which
