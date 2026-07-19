@@ -1808,9 +1808,11 @@ vs 0/26; a manual repro lever (C1); recovery question answered.**
   state that drops again across the sleep boundary. Critically, the
   C1-miss run 55 shows the pre-run replug alone does **not** plant
   the marker — the marker still tracks the black, not the cable
-  handling. Run 58 went black with *no* C1 (natural repro amid the
-  series). C1 makes recovery-candidate testing cheap: black on
-  demand, ~3 min per data point.
+  handling. Run 58's Notes record no C1, but the maintainer later
+  recalled the cable trigger may have been applied there too — do
+  not cite run 58 as a trigger-free natural repro. C1 makes
+  recovery-candidate testing cheap: black on demand, ~3 min per
+  data point.
 - *Recovery: displaysleep is 10/10.* Every black in the extension was
   cleared end-to-end by `--recover displaysleep` (`pmset
   displaysleepnow` + `caffeinate -u`, no root), including run 60
@@ -1860,6 +1862,22 @@ vs 0/26; a manual repro lever (C1); recovery question answered.**
   the matrix, with run 58's ordering lesson (lock keystroke chained
   after `repro` never took effect; its machine-read session field
   caught it).
+- *Tooling (implemented same day, runtime-untested).* Candidate (2)
+  above — the external disable/re-enable cycle — is now built as
+  `extcycle`, dispatchable both as a recovery (`recover --method
+  extcycle`, `repro --recover extcycle`) and as a pre-sleep trigger
+  (`repro --trigger extcycle`, the software analog of C1: disable,
+  5 s for the built-in restore/redraw, re-enable, 5 s re-attach
+  settle). The sheet's conditions block gains a machine-filled
+  `trigger` line so soft-trigger runs are distinguished from
+  physical C1 runs, and `blackoutd --help` now documents the
+  recover/repro methods. Validation order: (a) soft-trigger A/B —
+  does `--trigger extcycle` reproduce the black like C1? Either
+  answer is informative: yes ⇒ fully software repro, no ⇒ the
+  trigger's essence is physical HPD, itself a mechanism datum;
+  (b) if C1 (or the soft trigger) keeps producing blacks, race
+  `--recover extcycle` against them — does a CG-level cycle clear
+  what the no-op recommit could not?
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR

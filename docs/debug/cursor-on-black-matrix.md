@@ -44,6 +44,15 @@ sudo --validate   # primes sudo so the schedule-wake step never prompts
 ./build/blackoutd repro --wake 15 --recover displaysleep --group B
 ```
 
+To emulate the C1 cable trigger in software (no cable handling), add
+`--trigger extcycle`: after scheduling the wake and before sleeping,
+`repro` disables the external display via CG, waits 5 s for the
+built-in to restore and redraw (the daemon's safety invariant does the
+restore), re-enables it, and waits 5 s for the re-attach — then sleeps
+as usual. The sheet's `trigger` field records it, so soft-trigger runs
+are machine-distinguished from physical `C1` runs (which stay a Notes
+code).
+
 `repro` schedules the wake (the only step that needs `sudo`), sleeps, and on
 wake **speaks each step** (`say`) so you can follow it with the screen black.
 Each step also posts a Notification Center banner stamped `HH:mm:ss` —
@@ -168,7 +177,8 @@ Conditions (pre-sleep -> at capture):
   session ................ <machine: locked|unlocked -> locked|unlocked>
   power .................. <machine: battery|AC -> battery|AC>
   wake ................... <machine: scheduled (--wake N) | manual (--wake 0)>
-  recovery applied ....... <machine: none | displaysleep>
+  trigger ................ <machine: none | extcycle (--trigger)>
+  recovery applied ....... <machine: none | displaysleep | extcycle>
   settle ................. <machine: N s>
   daemon settled ......... <machine: settle-marker log line, this run only>
 
@@ -370,10 +380,12 @@ note above.)
 ¹ Run 58's lock keystroke ran after `repro` (see above); the sheet's
 machine-read session field correctly records unlocked → unlocked, so
 it is effectively a group B data point. Codes: `M1` on 58–60; `C1` on
-60. Run 58 went black *without* the cable trigger (a natural repro
-amid the C1 series). Run 60 is the first **locked** black: the
-displaysleep recovery cleared it while the session stayed locked
-(n=1; group C stays open until n ≥ 2).
+60 — and **possibly on 58**: its Notes do not record C1, but the
+maintainer later recalled the cable trigger may have been applied
+there too, so do not cite run 58 as a trigger-free natural repro. Run
+60 is the first **locked** black: the displaysleep recovery cleared
+it while the session stayed locked (n=1; group C stays open until
+n ≥ 2).
 
 **Detection result (2026-07-19)**: the field-by-field diff over this
 cohort found a WindowServer log marker that splits black from clean —
