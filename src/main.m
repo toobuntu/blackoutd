@@ -968,12 +968,18 @@ static void printUsage(void) {
       "  daemon stop     Stop the daemon and restore built-in display\n"
       "\n"
       "Experimental (cursor-on-black investigation; maintainer-run):\n"
-      "  recover         Run one display-sleep recovery cycle\n"
-      "                  (--method displaysleep, --dry-run)\n"
+      "  recover         Run one recovery cycle (--method METHOD, --dry-run)\n"
+      "                  Methods: displaysleep — display-sleep cycle (pmset\n"
+      "                  displaysleepnow + caffeinate -u; the validated\n"
+      "                  recovery); extcycle — disable/re-enable the external\n"
+      "                  display via CG (experimental, narrower; no flicker\n"
+      "                  on the built-in beyond the daemon's own restore)\n"
       "  repro           Sleep/wake repro with labeled captures + recovery;\n"
       "                  emits a numbered, prefilled run sheet and copies\n"
       "                  bundles to docs/debug/ when run from the repo root\n"
-      "                  (--wake N, --settle S, --recover METHOD,\n"
+      "                  (--wake N, --settle S, --recover METHOD [as above],\n"
+      "                  --trigger extcycle [pre-sleep software analog of\n"
+      "                  the C1 cable trigger — see the matrix legend],\n"
       "                  --group a..e [matrix coverage row, any case],\n"
       "                  --no-copy, --no-prompt, --silent, --dry-run)\n"
       "\n"
@@ -1072,14 +1078,102 @@ static void sayCue(NSString *text, BOOL silent, BOOL dryRun) {
     runStep(@"/usr/bin/say", @[ text ], dryRun);
 }
 
-// Performs one recovery attempt. The only method today is "displaysleep": a
-// programmatic display-sleep cycle (pmset displaysleepnow, then caffeinate -u
-// to re-declare user activity and wake the panel). Flicker is accepted; this
-// supersedes the older "displaysleepnow = flicker dead end" note now that the
-// maintainer confirms it reliably recovers regardless of lock state.
+// Private API (see DisplayController.m for the daemon-side declaration and
+// rationale): enables/disables a display inside a CGDisplayConfigRef
+// transaction. Declared here for the CLI-side extcycle primitive below.
+extern CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef, CGDirectDisplayID,
+                                          bool);
+
+// Returns the first online hardware-backed external display, or
+// kCGNullDirectDisplay if none. Virtual/placeholder displays carry FourCC
+// pseudo-vendor IDs > 0xFFFF (see displayIsHardwareBacked() in
+// DisplayController.m; the vendor heuristic alone suffices here and avoids
+// the deprecated CGDisplayIOServicePort in this file).
+static CGDirectDisplayID firstExternalDisplayID(void) {
+  CGDirectDisplayID displays[8];
+  uint32_t count = 0;
+  CGGetOnlineDisplayList(8, displays, &count);
+  for (uint32_t i = 0; i < count; i++) {
+    if (!CGDisplayIsBuiltin(displays[i]) &&
+        CGDisplayVendorNumber(displays[i]) <= 0xFFFF)
+      return displays[i];
+  }
+  return kCGNullDirectDisplay;
+}
+
+// CLI-side mirror of DisplayController's setDisplay:enabled: transaction
+// (without the daemon's recommit preamble). The resident daemon reacts to
+// the resulting reconfiguration callbacks exactly as it would to a physical
+// unplug/replug: safety-invariant restore on disable, auto-blackout on
+// re-enable.
+static CGError cliSetDisplayEnabled(CGDirectDisplayID display, bool enabled) {
+  CGDisplayConfigRef config;
+  CGError err = CGBeginDisplayConfiguration(&config);
+  if (err != kCGErrorSuccess)
+    return err;
+  err = CGSConfigureDisplayEnabled(config, display, enabled);
+  if (err != kCGErrorSuccess) {
+    CGCancelDisplayConfiguration(config);
+    return err;
+  }
+  return CGCompleteDisplayConfiguration(config, kCGConfigurePermanently);
+}
+
+// The "extcycle" primitive — software analog of the C1 cable trigger and
+// P29's recovery lever (b): disable the external display, wait for the
+// built-in to come back and fully redraw (the daemon's safety invariant
+// restores it; C1's lesson is that replugging before the redraw completes
+// weakens the trigger), then re-enable the external and give it the
+// few-seconds re-attach settle (P20). Serves as both a repro --trigger
+// (provoke cursor-on-black on the next wake) and a --recover method
+// (tear down and rebuild the external's configuration). CG-level: whether
+// it reaches the DCP where the no-op recommit did not is exactly the open
+// question it exists to answer.
+static int performExternalCycle(BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] extcycle: disable external, wait 5 s, re-enable, "
+           "wait 5 s\n");
+    return 0;
+  }
+  CGDirectDisplayID external = firstExternalDisplayID();
+  if (external == kCGNullDirectDisplay) {
+    fprintf(stderr, "blackoutd: extcycle: no external display online\n");
+    return 1;
+  }
+  CGError err = cliSetDisplayEnabled(external, false);
+  if (err != kCGErrorSuccess) {
+    fprintf(stderr, "blackoutd: extcycle: disable failed (CGError %d)\n",
+            (int)err);
+    return 1;
+  }
+  [NSThread sleepForTimeInterval:5.0];
+  err = cliSetDisplayEnabled(external, true);
+  if (err != kCGErrorSuccess) {
+    fprintf(stderr, "blackoutd: extcycle: re-enable failed (CGError %d)\n",
+            (int)err);
+    return 1;
+  }
+  [NSThread sleepForTimeInterval:5.0];
+  return 0;
+}
+
+// Performs one recovery attempt. Methods:
+//   displaysleep — programmatic display-sleep cycle (pmset displaysleepnow,
+//                  then caffeinate -u to re-declare user activity and wake
+//                  the panel). Flicker is accepted; this supersedes the
+//                  older "displaysleepnow = flicker dead end" note now that
+//                  the matrix confirms it reliably recovers regardless of
+//                  lock state (10/10 through run 60).
+//   extcycle     — external display disable/re-enable cycle (see
+//                  performExternalCycle above). Experimental: candidate
+//                  narrower recovery, untested against a black as of run 60.
 static int performRecovery(NSString *method, BOOL dryRun) {
+  if ([method isEqualToString:@"extcycle"])
+    return performExternalCycle(dryRun);
   if (![method isEqualToString:@"displaysleep"]) {
-    fprintf(stderr, "blackoutd: unknown recovery method '%s'\n",
+    fprintf(stderr,
+            "blackoutd: unknown recovery method '%s' (known: displaysleep, "
+            "extcycle)\n",
             method.UTF8String);
     return 1;
   }
@@ -1091,7 +1185,7 @@ static int performRecovery(NSString *method, BOOL dryRun) {
   return runStep(@"/usr/bin/caffeinate", @[ @"-u", @"-t", @"2" ], dryRun);
 }
 
-// blackoutd recover [--method displaysleep] [--dry-run]
+// blackoutd recover [--method displaysleep|extcycle] [--dry-run]
 static int recoverCommand(int argc, const char *argv[]) {
   NSString *method = @"displaysleep";
   BOOL dryRun = NO;
@@ -1266,13 +1360,12 @@ static NSInteger ansIndex(NSDictionary<NSString *, NSString *> *ans,
 // `settleMarker` is sampled ONCE by the caller and passed to every render:
 // re-reading it on the post-prompt rewrite could replace the post-wake
 // marker with one from a later event (e.g. a manual hot-corner recovery).
-static NSString *
-renderRunSheet(NSDate *started, int runNumber, int wake, int settle,
-               NSString *recover, NSString *group, NSString *lidPre,
-               NSString *lidCap, NSString *lockPre, NSString *lockCap,
-               NSString *powerPre, NSString *powerCap, NSString *settleMarker,
-               NSString *postWakeBundle, NSString *postRecoverBundle,
-               NSDictionary<NSString *, NSString *> *ans) {
+static NSString *renderRunSheet(
+    NSDate *started, int runNumber, int wake, int settle, NSString *recover,
+    NSString *trigger, NSString *group, NSString *lidPre, NSString *lidCap,
+    NSString *lockPre, NSString *lockCap, NSString *powerPre,
+    NSString *powerCap, NSString *settleMarker, NSString *postWakeBundle,
+    NSString *postRecoverBundle, NSDictionary<NSString *, NSString *> *ans) {
   NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
   stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
   stamp.dateFormat = @"yyyyMMdd-HHmmss";
@@ -1329,6 +1422,8 @@ renderRunSheet(NSDate *started, int runNumber, int wake, int settle,
                       ? [NSString
                             stringWithFormat:@"scheduled (--wake %d)", wake]
                       : @"manual (--wake 0)"];
+  [s appendFormat:@"  trigger ................ %@\n",
+                  trigger.length ? trigger : @"none"];
   [s appendFormat:@"  recovery applied ....... %@\n",
                   recover.length ? recover : @"none"];
   [s appendFormat:@"  settle ................. %d s\n", settle];
@@ -1593,13 +1688,16 @@ static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--group G]
-//                 [--no-copy] [--no-prompt] [--silent] [--dry-run]
-// Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
-// wake captures a labeled bundle, optionally runs a recovery, and captures
-// again. Built to run blind: it narrates each step via `say`.
+//                 [--trigger extcycle] [--no-copy] [--no-prompt] [--silent]
+//                 [--dry-run]
+// Schedules an auto-wake (sudo — only the schedule needs it), optionally
+// fires a pre-sleep trigger (the software analog of the C1 cable trigger),
+// sleeps, then on wake captures a labeled bundle, optionally runs a
+// recovery, and captures again. Built to run blind: it narrates each step
+// via `say`.
 static int reproCommand(int argc, const char *argv[]) {
   int wake = 15, settle = 20;
-  NSString *recover = nil, *group = nil;
+  NSString *recover = nil, *group = nil, *trigger = nil;
   BOOL silent = NO, dryRun = NO, noCopy = NO, noPrompt = NO;
   for (int i = 2; i < argc; i++) {
     const char *opt = argv[i];
@@ -1611,6 +1709,20 @@ static int reproCommand(int argc, const char *argv[]) {
       noCopy = YES;
     } else if (strcmp(opt, "--no-prompt") == 0) {
       noPrompt = YES;
+    } else if (strcmp(opt, "--trigger") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "blackoutd: --trigger requires a value\n");
+        return 1;
+      }
+      const char *val = argv[++i];
+      // Validate at parse time: an unknown trigger discovered pre-sleep
+      // would otherwise abort the run after the sudo prompt already fired.
+      if (strcmp(val, "extcycle") != 0) {
+        fprintf(stderr, "blackoutd: unknown trigger '%s' (known: extcycle)\n",
+                val);
+        return 1;
+      }
+      trigger = @(val);
     } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
                strcmp(opt, "--recover") == 0 || strcmp(opt, "--group") == 0) {
       if (i + 1 >= argc) {
@@ -1698,6 +1810,22 @@ static int reproCommand(int argc, const char *argv[]) {
     if (schedRC != 0) {
       fprintf(stderr, "repro: could not schedule wake (rc=%d); aborting\n",
               schedRC);
+      return 1;
+    }
+  }
+
+  // Pre-sleep trigger, after the schedule step (so a sudo prompt cannot
+  // stretch the trigger-to-sleep gap) and before the condition read (the
+  // cycle flips lock-adjacent display state the read should see settled).
+  // A failed trigger aborts: nothing is captured yet, and a run whose
+  // trigger silently misfired would poison the matrix's C1-vs-soft data.
+  if (trigger.length) {
+    sayCue(@"triggering external cycle", silent, dryRun);
+    int trigRC = performExternalCycle(dryRun);
+    if (trigRC != 0) {
+      fprintf(stderr,
+              "repro: trigger '%s' failed (rc=%d); aborting pre-sleep\n",
+              trigger.UTF8String, trigRC);
       return 1;
     }
   }
@@ -1799,10 +1927,10 @@ static int reproCommand(int argc, const char *argv[]) {
     // Write the blank sheet BEFORE the prompt pass: an unanswered or
     // interrupted pass must still leave the run fully recorded on disk.
     sheetPath = runSheetPath(started, group, &runNumber);
-    NSString *sheet =
-        renderRunSheet(started, runNumber, wake, settle, recover, group, lidPre,
-                       lidCap, lockPre, lockCap, powerPre, powerCap,
-                       settleMarker, postWakeShown, postRecoverShown, nil);
+    NSString *sheet = renderRunSheet(started, runNumber, wake, settle, recover,
+                                     trigger, group, lidPre, lidCap, lockPre,
+                                     lockCap, powerPre, powerCap, settleMarker,
+                                     postWakeShown, postRecoverShown, nil);
     if (writeBundleText(sheet, sheetPath))
       printf("repro: run sheet written to %s\n", sheetPath.UTF8String);
     else {
@@ -1831,9 +1959,9 @@ static int reproCommand(int argc, const char *argv[]) {
       sayCue(@"prompts timed out, sheet left blank", silent, NO);
     } else if (answers.count) {
       NSString *filled = renderRunSheet(
-          started, runNumber, wake, settle, recover, group, lidPre, lidCap,
-          lockPre, lockCap, powerPre, powerCap, settleMarker, postWakeShown,
-          postRecoverShown, answers);
+          started, runNumber, wake, settle, recover, trigger, group, lidPre,
+          lidCap, lockPre, lockCap, powerPre, powerCap, settleMarker,
+          postWakeShown, postRecoverShown, answers);
       if (writeBundleText(filled, sheetPath))
         printf("repro: observations recorded in %s\n", sheetPath.UTF8String);
       else {
