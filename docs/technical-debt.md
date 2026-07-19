@@ -787,6 +787,17 @@ that list — capture the connection mode (BetterDisplay `get -connectionMode`, 
 a native reader once it exists) *during* the broken state, to distinguish "stuck
 in a bad mode" from "no active mode".
 
+**2026-07-19 update — capture gate met; first surviving detector
+candidate.** Cohort 2 (matrix runs 011+) delivered the required ≥3
+black / ≥3 clean settled `verbosityLevel=2` captures during genuine
+occurrences, satisfying the "Diagnostic data needed" list below via the
+`repro` workflow. The field diff found the first black/clean splitter
+to survive n ≥ 3: a WindowServer hotplug-coalescing log marker, 10/10
+black wakes vs 0/15 clean across both cohorts, supporting hypothesis A
+(link drop during sleep, coalesced on wake). Full diff record,
+mechanism reading, caveats, and next steps under P29 (2026-07-19
+update).
+
 **Architecture analysis confirming the gap**:
 
 `recommitDisplayConfiguration` fires from exactly two paths today
@@ -1688,6 +1699,95 @@ fields), and a six-bundle A/B on 2026-06-10/11 found no consistent 0-vs-4
 black/clean split. `DCPPowerState` carries no cursor-on-black signal on
 either controller. `NormalModeActive` and `DCPPowerAssertionCount` remain
 untested as detectors; capture them at the black instant to test.
+
+**Update (2026-07-19) — cohort 2 diff: a WindowServer log marker splits
+black from clean, 10/10 vs 0/15.** Cohort 2 (matrix runs 011+, sheets
+under `docs/debug/repro-matrix/`, v0.4.0 build) satisfied the capture
+gate: settled group A blacks runs 14, 22, 24 (battery, on-condition;
+run 11 also black but on AC) vs cleans runs 12, 13, 15, 16, 18, 20,
+21, 23, 36. Run 17 settled E2 (black, no cursor — a black panel the
+E1-keyed Outcome line scores "no"); run 19 disregarded (maintainer:
+possibly misreported). Field-by-field diff of the post-wake bundles
+under matching conditions:
+
+- `dcp.txt` / `connection-mode.txt`: **byte-identical** across all
+  three on-condition blacks and all nine cleans. This extends the dead
+  `DCPPowerState` verdict to the previously untested fields:
+  `NormalModeActive`, `DCPPowerAssertionCount`, resolution /
+  `DPTimingModeId` / `Transport`, and the advertised ColorElements
+  catalog — none carries any black/clean signal (negative).
+- `config.txt`: differs only in timestamps (negative).
+- `ioreg.txt`: with volatile fields masked (object ids, busy times,
+  retain counts, `IOPowerManagement`, `DebugState`, statistics,
+  `TransferCount`), the external `dcpext@71C00000` subtree of black
+  run 14 is byte-identical to clean runs 13 and 36, and black run 22
+  to clean run 18; the built-in `dcp@31C00000` subtree is identical
+  across all on-condition blacks and cleans. The stalled scanout is
+  not surfaced to ioreg at all — confirms the 2026-06-10 reading
+  (negative).
+- `windowserver.txt`: **positive.** Clipped to each run's own wake
+  window (per the classify-per-wake rule above), the SkyLight line
+  `[ Display:Hotplug ] Replacing existing hotplug event for state
+  "out" with "in", display id: 2` appears exactly once at the wake of
+  every black-panel run — run 14 (11:02:20), run 22 (12:19:31), run 24
+  (12:23:07), plus corroborating run 11 (00:09:39, AC), run 37
+  (14:18:40, group B post-wake), and the E2-variant run 17 (12:06:07)
+  — and zero times in all nine cleans, each of whose logs covers the
+  full wake window. Cohort 1 corroborates: in-window marker on all
+  four blacks (runs 3, 5, 7, 8), on none of the five cleans nor
+  stricken run 9 (run 10's file carries the line 7 minutes *before*
+  its run — outside the window, the same per-wake trap as the 0x133e
+  grep). Combined: **10/10 black-panel wakes vs 0/15 clean**; the
+  n ≥ 3 bar is met on cohort 2 alone.
+
+**Mechanism reading.** The marker means WindowServer still holds an
+unprocessed hotplug "out" for display 2 when the wake "in" arrives,
+and SkyLight coalesces the pair. So on black wakes the external
+dropped its link during sleep (hypothesis A, Alt Mode dropout) and
+WindowServer — seeing continuity — skips the full teardown/re-attach,
+leaving the DCP scanout un-rearmed while every CG/WS-visible field
+looks healthy (the below-WS mechanism above). Clean wakes show no
+coalescing. A secondary, effect-side split points the same way: the
+FuseBoard `updated window N from "occluded" to "visible"` line appears
+≥ 5 times in every clean wake window and never in a black one (windows
+only become visible when the external actually renders).
+
+**Side observations (not detectors).**
+
+- Runs 11 and 37 — the only two blacks whose sheets record an
+  *immediate* E1/B0 wake (no role reversal) — are also the only two
+  captures whose built-in DCP reads `DCPPowerState=4` / assertion 1,
+  with the built-in advertising ColorElements; run 37's post-recover
+  bundle still reads 4, and the clean music-playing runs 38–40 read 0.
+  The on-condition blacks (14, 22, 24; immediate E2/B1) read 0 like
+  every clean. This sub-classes the wake shape, not black vs clean.
+- Disregarded run 19: later runs' log windows show the marker fired at
+  12:08:58, inside run 19's wake window — consistent with its original
+  "black" record, but it stays out of every tally per the maintainer.
+
+**Next steps.** Detection is now plausible with no new private API: at
+`wakeSettleTimerFired`, query the unified log for the marker over the
+last ~60 s (`OSLogStore`, or `log show --last 60s --predicate 'process
+== "WindowServer" AND eventMessage CONTAINS "Replacing existing
+hotplug event"'`; the line logs at Default level, so it is in the
+persistent store without any debug-logging setup; in cohort 2 it fires
+~3.5 s *before* the daemon's settle marker, so it is already on disk
+when the settle timer fires). Marker present ⇒ arm the
+display-power-cycle-class recovery; absent ⇒ do nothing. Caveats: the
+wording is private SkyLight internals and can change across macOS
+releases — treat a missing marker as "unknown", pin the predicate per
+macOS version, and keep the eyewitness matrix as the validation loop.
+Sequence:
+
+1. More group B runs until a second black lands (recovery is 1/1 in
+   cohort 2 — run 37 black ⇒ `--recover displaysleep` ⇒ cleared,
+   post-recover E0/B0 — corroborated by cohort 1's four manual clears,
+   but below the matrix's n ≥ 2 bar); then group C (locked).
+2. Prototype the detector read-only (log the query verdict at settle
+   time, no recovery wiring) and validate it live against ≥ 3 further
+   eyewitness-confirmed blacks and cleans.
+3. Only then wire detector ⇒ recovery, behind a `recoveryStrategy`
+   pref (separate PR, per the matrix's "What we do with the data").
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR
