@@ -239,6 +239,71 @@ current build (spoken cues, at-the-moment prompts, boundary-timed
 condition reads, single-sample settle marker). **Cohort 2 starts at run
 011 and owes its own ≥3 black / ≥3 clean settled captures before
 analysis begins.**
+
+### Group A — cohort 2 (runs 011+, v0.4.0 build)
+
+Collected 2026-07-19 on the merged v0.4.0 build with the full
+workflow. The cohort satisfies the capture gate: 3 on-condition black
+(runs 14, 22, 24) and 9 clean settled captures.
+
+| run | sheet                                                  | immediate E/B | settled E/B | black? |
+|-----|--------------------------------------------------------|---------------|-------------|--------|
+| 11  | [run011](repro-matrix/run011-grp-a-20260719-000924.md) | E1/B0         | E1/B0       | yes¹   |
+| 12  | [run012](repro-matrix/run012-grp-a-20260719-082315.md) | E2/B2         | E0/B0       | no     |
+| 13  | [run013](repro-matrix/run013-grp-a-20260719-110044.md) | E2/B2         | E0/B0       | no     |
+| 14  | [run014](repro-matrix/run014-grp-a-20260719-110205.md) | E2/B1         | E1/B0       | yes    |
+| 15  | [run015](repro-matrix/run015-grp-a-20260719-110325.md) | E2/B2         | E0/B0       | no     |
+| 16  | [run016](repro-matrix/run016-grp-a-20260719-110439.md) | E2/B2         | E0/B0       | no     |
+| 17  | [run017](repro-matrix/run017-grp-a-20260719-120552.md) | E2/B1         | E2/B0       | no²    |
+| 18  | [run018](repro-matrix/run018-grp-a-20260719-120742.md) | E2/B2         | E0/B0       | no     |
+| 19  | [run019](repro-matrix/run019-grp-a-20260719-120843.md) | *disregarded* | *disregarded* | —    |
+| 20  | [run020](repro-matrix/run020-grp-a-20260719-120955.md) | E2/B2         | E0/B0       | no     |
+| 21  | [run021](repro-matrix/run021-grp-a-20260719-121755.md) | E2/B2         | E0/B0       | no     |
+| 22  | [run022](repro-matrix/run022-grp-a-20260719-121916.md) | E2/B1         | E1/B0       | yes    |
+| 23  | [run023](repro-matrix/run023-grp-a-20260719-122131.md) | E2/B2         | E0/B0       | no     |
+| 24  | [run024](repro-matrix/run024-grp-a-20260719-122252.md) | E2/B1         | E1/B0       | yes    |
+| 36  | [run036](repro-matrix/run036-grp-a-20260719-141127.md) | E2/B2         | E0/B0       | no     |
+
+¹ Run 11 ran on AC (group A specifies battery): a black capture kept
+as corroboration, off-condition for the matched diff.
+² Run 17 settled **E2** (black, no cursor) — a black panel that the
+E1-keyed Outcome line scores "no". Out of both pools for the matched
+diff; corroboration for the detector (its bundle sides with the
+blacks).
+Run 19 is disregarded (maintainer: possibly misreported); its window
+is excluded from every tally.
+
+### Group B (runs 025+)
+
+| run | sheet                                                  | settled E/B | black? | recovery cleared? |
+|-----|--------------------------------------------------------|-------------|--------|-------------------|
+| 25  | [run025](repro-matrix/run025-grp-b-20260719-122426.md) | E0/B0       | no     | n/a (was clean)   |
+| 26  | [run026](repro-matrix/run026-grp-b-20260719-122726.md) | E0/B0       | no     | n/a (was clean)   |
+| 27  | [run027](repro-matrix/run027-grp-b-20260719-122934.md) | E0/B0       | no     | n/a (was clean)   |
+| 28  | [run028](repro-matrix/run028-grp-b-20260719-131053.md) | E0/B0       | no     | n/a (was clean)   |
+| 29  | [run029](repro-matrix/run029-grp-b-20260719-131252.md) | E0/B0       | no     | n/a (was clean)   |
+| 30  | [run030](repro-matrix/run030-grp-b-20260719-131452.md) | E0/B0       | no     | n/a (was clean)   |
+| 31  | [run031](repro-matrix/run031-grp-b-20260719-131825.md) | E0/B0       | no     | n/a (was clean)   |
+| 32  | [run032](repro-matrix/run032-grp-b-20260719-132525.md) | E0/B0       | no     | n/a (was clean)   |
+| 33  | [run033](repro-matrix/run033-grp-b-20260719-132720.md) | E0/B0       | no     | n/a (was clean)   |
+| 34  | [run034](repro-matrix/run034-grp-b-20260719-132947.md) | E0/B0       | no     | n/a (was clean)   |
+| 35  | [run035](repro-matrix/run035-grp-b-20260719-140116.md) | E0/B0       | no     | n/a (was clean)   |
+| 37  | [run037](repro-matrix/run037-grp-b-20260719-141825.md) | E1/B0       | yes    | **yes**           |
+| 38  | [run038](repro-matrix/run038-grp-b-20260719-142134.md) | E0/B0       | no     | n/a (was clean)   |
+| 39  | [run039](repro-matrix/run039-grp-b-20260719-142353.md) | E0/B0       | no     | n/a (was clean)   |
+| 40  | [run040](repro-matrix/run040-grp-b-20260719-142621.md) | E0/B0       | no     | n/a (was clean)   |
+
+14 valid runs, one black (run 37): the `displaysleep` recovery cleared
+it end-to-end (post-recover E0/B0). Positive but n=1; cohort 1's four
+manual displaysleep clears corroborate. Group B stays open until a
+second black lands (n ≥ 2).
+
+**Detection result (2026-07-19)**: the field-by-field diff over this
+cohort found a WindowServer log marker that splits black from clean —
+10/10 black wakes vs 0/15 clean across both cohorts. See
+`docs/technical-debt.md` P29 (2026-07-19 update) for the diff record,
+mechanism reading, and caveats.
+
 ## What we do with the data
 
 - **Detection** — diff `dcp.txt` / `connection-mode.txt` (and the raw
