@@ -129,6 +129,28 @@ open B2/E2 and settle to B0/E1 within seconds):
 - `B1` — lit, cursor-on-black (role reversal — wrongly active)
 - `B2` — lit, showing desktop/content (blackout not holding)
 
+**Notes short codes** (used in the sheets' Notes field from run 46 on):
+
+- `R0` — no recovery needed (the run settled clean; the group B/C
+  displaysleep cycle ran anyway but had nothing to clear)
+- `M1` — Music.app playing during the run
+- `C1` — pre-run cable trigger: the external's **USB-C end** of its
+  USB-C → HDMI cable was unplugged from the MacBook and replugged
+  *before* the run, leaving it unplugged until the built-in fully
+  redrew. Mostly (not completely) reliably provokes cursor-on-black
+  on the following wake — the first on-demand repro lever (found run
+  49; missed on run 55).
+
+> **Built-in immediate-state caveat (2026-07-19).** The built-in
+> panel is small and glare-prone, and a cursor is easy to miss — it
+> is possible that all role reversals are *full* inversions
+> (immediate `E2/B1`) and that some earlier records under-report the
+> built-in as `B0`/`B2` because the cursor went unseen. From run 54
+> the maintainer pre-positions the cursor near the top of the screen
+> and observed the full `E2/B1` inversion directly on runs 54, 56,
+> and 57. Treat pre-54 *immediate built-in* states as approximate;
+> settled states and Outcome lines are unaffected.
+
 ## Per-run record
 
 `repro` generates this block prefilled (the `<machine>` fields) in the run
@@ -292,17 +314,74 @@ is excluded from every tally.
 | 38  | [run038](repro-matrix/run038-grp-b-20260719-142134.md) | E0/B0       | no     | n/a (was clean)   |
 | 39  | [run039](repro-matrix/run039-grp-b-20260719-142353.md) | E0/B0       | no     | n/a (was clean)   |
 | 40  | [run040](repro-matrix/run040-grp-b-20260719-142621.md) | E0/B0       | no     | n/a (was clean)   |
+| 41  | [run041](repro-matrix/run041-grp-b-20260719-145713.md) | E0/B0       | no     | n/a (R0)          |
+| 42  | [run042](repro-matrix/run042-grp-b-20260719-150121.md) | E0/B0       | no     | n/a (R0)          |
+| 43  | [run043](repro-matrix/run043-grp-b-20260719-150356.md) | E0/B0       | no     | n/a (R0)          |
+| 44  | [run044](repro-matrix/run044-grp-b-20260719-150606.md) | E0/B0       | no     | n/a (R0)          |
+| 45  | [run045](repro-matrix/run045-grp-b-20260719-150805.md) | E0/B0       | no     | n/a (R0)          |
+| 46  | [run046](repro-matrix/run046-grp-b-20260719-151024.md) | E0/B0       | no     | n/a (R0)          |
+| 47  | [run047](repro-matrix/run047-grp-b-20260719-151223.md) | E0/B0       | no     | n/a (R0)          |
+| 48  | [run048](repro-matrix/run048-grp-b-20260719-151427.md) | E0/B0       | no     | n/a (R0)          |
+| 49  | [run049](repro-matrix/run049-grp-b-20260719-151715.md) | E1/B0       | yes    | **yes**           |
+| 50  | [run050](repro-matrix/run050-grp-b-20260719-152024.md) | E0/B0       | no     | n/a (R0)          |
+| 51  | [run051](repro-matrix/run051-grp-b-20260719-152300.md) | E1/B0       | yes    | **yes**           |
+| 52  | [run052](repro-matrix/run052-grp-b-20260719-152718.md) | E1/B0       | yes    | **yes**           |
+| 53  | [run053](repro-matrix/run053-grp-b-20260719-153031.md) | E1/B0       | yes    | **yes**           |
+| 54  | [run054](repro-matrix/run054-grp-b-20260719-153227.md) | E1/B0       | yes    | **yes**           |
+| 55  | [run055](repro-matrix/run055-grp-b-20260719-153508.md) | E0/B0       | no     | n/a (R0)          |
+| 56  | [run056](repro-matrix/run056-grp-b-20260719-153711.md) | E1/B0       | yes    | **yes**           |
+| 57  | [run057](repro-matrix/run057-grp-b-20260719-153916.md) | E1/B0       | yes    | **yes**           |
 
-14 valid runs, one black (run 37): the `displaysleep` recovery cleared
-it end-to-end (post-recover E0/B0). Positive but n=1; cohort 1's four
-manual displaysleep clears corroborate. Group B stays open until a
-second black lands (n ≥ 2).
+Codes on the extension runs (see legend): `M1` on runs 37–57; `C1` on
+runs 49 and 51–57 (49 is where the cable trigger was discovered — its
+sheet describes the unplug/replug in prose; run 55 is the C1 miss —
+cable trigger applied, wake settled clean). Run 47 ran on AC; run 48's
+lid was closed during sleep (no visible or audible wake until the
+clamshell reopened).
+
+Group B verdict: 8 blacks (runs 37, 49, 51–54, 56–57), and the
+`displaysleep` recovery cleared **every one** end-to-end (post-recover
+E0/B0) — well past the n ≥ 2 consistency bar; cohort 1's four manual
+clears corroborate. The group's question is answered: yes, the
+display-sleep cycle clears it.
+
+### Group C (runs 058+) — recovery while locked
+
+Working invocation (run 59 first; lock the session **before**
+starting `repro` — run 58 chained the `osascript` *after* `repro`, so
+the lock never took effect and the run executed unlocked):
+
+```sh
+sudo --validate && \
+  osascript -l JavaScript -e 'Application("System Events").keystroke("q", {using:["control down","command down"]})' && \
+  ./build/blackoutd repro --wake 15 --recover displaysleep --group C
+```
+
+(`ctrl-cmd-q` locks the screen; needs Accessibility permission for the
+terminal app. Keep the Apple Watch off/out of range per the LOCKED
+note above.)
+
+| run | sheet                                                  | session | settled E/B | black? | recovery cleared? |
+|-----|--------------------------------------------------------|---------|-------------|--------|-------------------|
+| 58  | [run058](repro-matrix/run058-grp-c-20260719-154916.md) | unlocked¹ | E1/B0     | yes    | **yes**           |
+| 59  | [run059](repro-matrix/run059-grp-c-20260719-155209.md) | locked  | E0/B0       | no     | n/a (R0)          |
+| 60  | [run060](repro-matrix/run060-grp-c-20260719-155510.md) | locked  | E1/B0       | yes    | **yes**           |
+
+¹ Run 58's lock keystroke ran after `repro` (see above); the sheet's
+machine-read session field correctly records unlocked → unlocked, so
+it is effectively a group B data point. Codes: `M1` on 58–60; `C1` on
+60. Run 58 went black *without* the cable trigger (a natural repro
+amid the C1 series). Run 60 is the first **locked** black: the
+displaysleep recovery cleared it while the session stayed locked
+(n=1; group C stays open until n ≥ 2).
 
 **Detection result (2026-07-19)**: the field-by-field diff over this
 cohort found a WindowServer log marker that splits black from clean —
-10/10 black wakes vs 0/15 clean across both cohorts. See
-`docs/technical-debt.md` P29 (2026-07-19 update) for the diff record,
-mechanism reading, and caveats.
+10/10 black wakes vs 0/15 clean across both cohorts, extended to
+**19/19 vs 0/26** by the run 41–60 extension (including the C1-miss
+run 55 and the locked runs). See `docs/technical-debt.md` P29
+(2026-07-19 updates) for the diff record, mechanism reading, and
+caveats.
 
 ## What we do with the data
 
