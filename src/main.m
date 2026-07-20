@@ -977,9 +977,12 @@ static void printUsage(void) {
       "  repro           Sleep/wake repro with labeled captures + recovery;\n"
       "                  emits a numbered, prefilled run sheet and copies\n"
       "                  bundles to docs/debug/ when run from the repo root\n"
-      "                  (--wake N, --settle S, --recover METHOD [as above],\n"
+      "                  (--wake N [seconds; 0 = manual wake], --settle S,\n"
+      "                  --recover METHOD [as above],\n"
       "                  --trigger extcycle [pre-sleep software analog of\n"
       "                  the C1 cable trigger — see the matrix legend],\n"
+      "                  --lock [lock the session just before sleep;\n"
+      "                  keep the Apple Watch off/out of range],\n"
       "                  --group a..e [matrix coverage row, any case],\n"
       "                  --no-copy, --no-prompt, --silent, --dry-run)\n"
       "\n"
@@ -1688,17 +1691,17 @@ static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--group G]
-//                 [--trigger extcycle] [--no-copy] [--no-prompt] [--silent]
-//                 [--dry-run]
-// Schedules an auto-wake (sudo — only the schedule needs it), optionally
-// fires a pre-sleep trigger (the software analog of the C1 cable trigger),
-// sleeps, then on wake captures a labeled bundle, optionally runs a
-// recovery, and captures again. Built to run blind: it narrates each step
-// via `say`.
+//                 [--trigger extcycle] [--lock] [--no-copy] [--no-prompt]
+//                 [--silent] [--dry-run]
+// Primes sudo, optionally fires a pre-sleep trigger (the software analog
+// of the C1 cable trigger), schedules an auto-wake (sudo — only the
+// schedule needs it), optionally locks the session, sleeps, then on wake
+// captures a labeled bundle, optionally runs a recovery, and captures
+// again. Built to run blind: it narrates each step via `say`.
 static int reproCommand(int argc, const char *argv[]) {
   int wake = 15, settle = 20;
   NSString *recover = nil, *group = nil, *trigger = nil;
-  BOOL silent = NO, dryRun = NO, noCopy = NO, noPrompt = NO;
+  BOOL silent = NO, dryRun = NO, noCopy = NO, noPrompt = NO, lock = NO;
   for (int i = 2; i < argc; i++) {
     const char *opt = argv[i];
     if (strcmp(opt, "--silent") == 0) {
@@ -1709,6 +1712,8 @@ static int reproCommand(int argc, const char *argv[]) {
       noCopy = YES;
     } else if (strcmp(opt, "--no-prompt") == 0) {
       noPrompt = YES;
+    } else if (strcmp(opt, "--lock") == 0) {
+      lock = YES;
     } else if (strcmp(opt, "--trigger") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "blackoutd: --trigger requires a value\n");
@@ -1781,21 +1786,49 @@ static int reproCommand(int argc, const char *argv[]) {
   printf("repro: started %s — build %s (built %s)\n",
          [human stringFromDate:started].UTF8String, BD_BUILD_GIT,
          BD_BUILD_TIME);
-  // Schedule the auto-wake first (only this needs sudo). wake=0 means the
-  // maintainer will wake the machine manually (e.g. by opening the lid).
+  // Prime sudo credentials up front (one interactive prompt at most,
+  // screen lit, nothing captured yet), so the schedule step below never
+  // prompts. Previously the matrix doc asked for a manual `sudo --validate
+  // &&` prefix; building it in removes that failure mode.
+  if (wake > 0) {
+    printf("repro: priming sudo credentials (sudo --validate)\n");
+    if (runStep(@"/usr/bin/sudo", @[ @"--validate" ], dryRun) != 0) {
+      fprintf(stderr, "repro: sudo --validate failed; aborting\n");
+      return 1;
+    }
+  }
+
+  // Pre-sleep trigger, BEFORE the wake is scheduled: the cycle takes
+  // ~12-20 s (two cues, two 5 s settles, CG transactions), which is most
+  // of a --wake 15 lead — scheduling first left the wake time in the past
+  // by the time the machine slept, the cause of every W1 "scheduled wake
+  // failed" run (61-80). A failed trigger aborts: nothing is captured
+  // yet, and a run whose trigger silently misfired would poison the
+  // matrix's C1-vs-soft data.
+  if (trigger.length) {
+    sayCue(@"triggering external cycle", silent, dryRun);
+    int trigRC = performExternalCycle(dryRun);
+    if (trigRC != 0) {
+      fprintf(stderr,
+              "repro: trigger '%s' failed (rc=%d); aborting pre-sleep\n",
+              trigger.UTF8String, trigRC);
+      return 1;
+    }
+  }
+
+  // Schedule the auto-wake, computing the wake time only now so the
+  // trigger's duration cannot eat the lead. wake=0 means the maintainer
+  // will wake the machine manually (e.g. by opening the lid).
   if (wake > 0) {
     NSDateFormatter *f = [[NSDateFormatter alloc] init];
     f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
     f.dateFormat = @"MM/dd/yy HH:mm:ss";
     NSString *when =
         [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
-    // Probe with --non-interactive first: when credentials are primed
-    // (sudo --validate, per the matrix doc) this never prompts. If they are
-    // not — including policies that disable credential caching entirely
-    // (timestamp_timeout=0), where priming cannot help — fall back to one
-    // interactive prompt. The fallback is safe by construction: this is
-    // repro's first step, before any sleep, with the screen lit; the blind
-    // phase contains no sudo calls.
+    // Probe with --non-interactive first (credentials were primed above).
+    // The interactive fallback remains for policies that disable credential
+    // caching entirely (timestamp_timeout=0), where priming cannot help; it
+    // is safe by construction — pre-sleep, screen lit, before --lock.
     printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
     int schedRC =
         runStep(@"/usr/bin/sudo",
@@ -1814,20 +1847,27 @@ static int reproCommand(int argc, const char *argv[]) {
     }
   }
 
-  // Pre-sleep trigger, after the schedule step (so a sudo prompt cannot
-  // stretch the trigger-to-sleep gap) and before the condition read (the
-  // cycle flips lock-adjacent display state the read should see settled).
-  // A failed trigger aborts: nothing is captured yet, and a run whose
-  // trigger silently misfired would poison the matrix's C1-vs-soft data.
-  if (trigger.length) {
-    sayCue(@"triggering external cycle", silent, dryRun);
-    int trigRC = performExternalCycle(dryRun);
-    if (trigRC != 0) {
+  // Lock the session last before sleep (after every possible sudo prompt),
+  // so the condition read below records the locked state. Same mechanism
+  // as the manual group C invocation this replaces: a ctrl-cmd-q keystroke
+  // via System Events (needs Accessibility permission for the terminal
+  // app). Remember to keep the Apple Watch off/out of range for the run.
+  if (lock) {
+    sayCue(@"locking session", silent, dryRun);
+    NSString *lockScript =
+        @"Application(\"System Events\").keystroke(\"q\", {using:[\"control "
+        @"down\",\"command down\"]})";
+    int lockRC = runStep(@"/usr/bin/osascript",
+                         @[ @"-l", @"JavaScript", @"-e", lockScript ], dryRun);
+    if (lockRC != 0) {
       fprintf(stderr,
-              "repro: trigger '%s' failed (rc=%d); aborting pre-sleep\n",
-              trigger.UTF8String, trigRC);
+              "repro: session lock failed (rc=%d); aborting — a run "
+              "recorded as locked must actually be locked\n",
+              lockRC);
       return 1;
     }
+    if (!dryRun)
+      [NSThread sleepForTimeInterval:2.0];
   }
 
   // Conditions are read twice — just before sleep and again just before
@@ -1841,7 +1881,26 @@ static int reproCommand(int argc, const char *argv[]) {
   sayCue(@"sleeping now", silent, dryRun);
   if (runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun) != 0)
     return 1;
-  // System sleeps here; execution resumes on the scheduled wake.
+  // System sleeps here. Detect the wake instant rather than sleeping a
+  // fixed interval: 1 s thread sleeps do not run while the system is
+  // asleep, so a tick whose wall-clock duration jumps past 5 s means the
+  // machine slept across it and is now awake. Works for scheduled and
+  // manual wakes alike (a manual overnight wake just loops longer), and
+  // anchors the settle countdown at the wake itself, so the capture is a
+  // consistent `settle` seconds post-wake regardless of how long the
+  // machine slept.
+  if (!dryRun) {
+    for (;;) {
+      NSDate *tick = NSDate.date;
+      [NSThread sleepForTimeInterval:1.0];
+      if (-[tick timeIntervalSinceNow] > 5.0)
+        break;
+    }
+  }
+  // First cue after wake — as close to the wake instant as the tick
+  // granularity allows (~1 s), so the eyewitness can anchor the
+  // "immediate" observation to it while the panels first light.
+  sayCue(@"awake", silent, dryRun);
   if (!dryRun)
     [NSThread sleepForTimeInterval:settle];
 
