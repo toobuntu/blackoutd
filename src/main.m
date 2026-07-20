@@ -11,6 +11,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <IOKit/IOKitLib.h>
 #import <ctype.h>
+#import <dlfcn.h>
 #import <errno.h>
 #import <libproc.h>
 #import <limits.h>
@@ -1021,8 +1022,10 @@ static void printUsage(void) {
       "                  Methods: displaysleep — display-sleep cycle (pmset\n"
       "                  displaysleepnow + caffeinate -u; the validated\n"
       "                  recovery); extcycle — disable/re-enable the external\n"
-      "                  display via CG (experimental, narrower; no flicker\n"
-      "                  on the built-in beyond the daemon's own restore)\n"
+      "                  display via CG (unlocked sessions ONLY — hazardous\n"
+      "                  while locked); fbpower — experimental private\n"
+      "                  IOMobileFramebuffer power-cycle probe (unverified\n"
+      "                  signatures; flicker-free candidate)\n"
       "  repro           Sleep/wake repro with labeled captures + recovery;\n"
       "                  emits a numbered, prefilled run sheet and copies\n"
       "                  bundles to docs/debug/ when run from the repo root\n"
@@ -1209,6 +1212,60 @@ static int performExternalCycle(BOOL dryRun) {
   return 0;
 }
 
+// Experimental flicker-free recovery candidate (P29): power-cycle only the
+// external framebuffer via private IOMobileFramebuffer.framework calls,
+// resolved with dlsym so the binary carries no link-time dependency. The
+// signatures are reconstructed from public reverse-engineering headers and
+// are UNVERIFIED on macOS 26 — a crash of this CLI invocation is a data
+// point, not a regression. Even a refusal at open answers a standing
+// question (whether a third-party process can reach the IOMFB user client
+// at all — the same gate the HPD-notification detection idea depends on).
+// CLI-only: the daemon's recoveryStrategy accepts only none|displaysleep.
+static int performFramebufferPowerCycle(BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] fbpower: open external-0 via IOMobileFramebuffer, "
+           "power 0, wait 2 s, power 1, wait 5 s\n");
+    return 0;
+  }
+  void *fw = dlopen("/System/Library/PrivateFrameworks/"
+                    "IOMobileFramebuffer.framework/IOMobileFramebuffer",
+                    RTLD_LAZY);
+  if (!fw) {
+    fprintf(stderr, "blackoutd: fbpower: dlopen failed: %s\n", dlerror());
+    return 1;
+  }
+  typedef int (*BDIOMFBOpenByNameFn)(CFStringRef, void **);
+  typedef int (*BDIOMFBRequestPowerChangeFn)(void *, uint32_t);
+  BDIOMFBOpenByNameFn openByName =
+      (BDIOMFBOpenByNameFn)dlsym(fw, "IOMobileFramebufferOpenByName");
+  BDIOMFBRequestPowerChangeFn requestPower = (BDIOMFBRequestPowerChangeFn)dlsym(
+      fw, "IOMobileFramebufferRequestPowerChange");
+  if (!openByName || !requestPower) {
+    fprintf(stderr,
+            "blackoutd: fbpower: symbol lookup failed (OpenByName=%d "
+            "RequestPowerChange=%d)\n",
+            openByName != NULL, requestPower != NULL);
+    return 1;
+  }
+  void *fb = NULL;
+  // "external-0" is the framebuffer name WindowServer's own open logs show
+  // for the external display on this machine.
+  int rc = openByName(CFSTR("external-0"), &fb);
+  printf("fbpower: OpenByName(external-0) rc=0x%x fb=%p\n", rc, fb);
+  if (rc != 0 || fb == NULL)
+    return 1;
+  // Power values mirror IOMFB's own update_power_state logging (0 = off,
+  // 1 = on); whether this API level uses the same scale is part of what
+  // the probe answers.
+  rc = requestPower(fb, 0);
+  printf("fbpower: RequestPowerChange(0) rc=0x%x\n", rc);
+  [NSThread sleepForTimeInterval:2.0];
+  int rc2 = requestPower(fb, 1);
+  printf("fbpower: RequestPowerChange(1) rc=0x%x\n", rc2);
+  [NSThread sleepForTimeInterval:5.0];
+  return (rc == 0 && rc2 == 0) ? 0 : 1;
+}
+
 // Performs one recovery attempt. Methods:
 //   displaysleep — programmatic display-sleep cycle (pmset displaysleepnow,
 //                  then caffeinate -u to re-declare user activity and wake
@@ -1217,15 +1274,20 @@ static int performExternalCycle(BOOL dryRun) {
 //                  the matrix confirms it reliably recovers regardless of
 //                  lock state (10/10 through run 60).
 //   extcycle     — external display disable/re-enable cycle (see
-//                  performExternalCycle above). Experimental: candidate
-//                  narrower recovery, untested against a black as of run 60.
+//                  performExternalCycle above). Clears blacks unlocked
+//                  (10/10, runs 69-80) but is hazardous while locked
+//                  (runs 81-85) — never wire it to automatic use.
+//   fbpower      — experimental IOMobileFramebuffer probe (see
+//                  performFramebufferPowerCycle above).
 static int performRecovery(NSString *method, BOOL dryRun) {
   if ([method isEqualToString:@"extcycle"])
     return performExternalCycle(dryRun);
+  if ([method isEqualToString:@"fbpower"])
+    return performFramebufferPowerCycle(dryRun);
   if (![method isEqualToString:@"displaysleep"]) {
     fprintf(stderr,
             "blackoutd: unknown recovery method '%s' (known: displaysleep, "
-            "extcycle)\n",
+            "extcycle, fbpower)\n",
             method.UTF8String);
     return 1;
   }
