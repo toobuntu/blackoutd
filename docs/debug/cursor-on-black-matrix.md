@@ -33,16 +33,22 @@ time; their bundles' `version.txt` is authoritative).
 From a terminal with the panels visible (before sleep):
 
 ```sh
-sudo --validate   # primes sudo so the schedule-wake step never prompts
-                  # (repro falls back to one pre-sleep prompt if it must)
-
 # Baseline (detection): wake, capture, no recovery. Group A of the
 # coverage table below.
 ./build/blackoutd repro --wake 15 --group A
 
 # With recovery: wake, capture, display-sleep cycle, capture again.
 ./build/blackoutd repro --wake 15 --recover displaysleep --group B
+
+# Locked (group C): --lock issues the ctrl-cmd-q lock keystroke just
+# before sleep (keep the Apple Watch off/out of range).
+./build/blackoutd repro --wake 15 --recover displaysleep --group C --lock
 ```
+
+`repro` primes sudo itself (`sudo --validate` as its first step — one
+interactive prompt at most, pre-sleep; builds before 2026-07-19
+evening needed a manual `sudo --validate &&` prefix and a separate
+osascript lock command).
 
 To emulate the C1 cable trigger in software (no cable handling), add
 `--trigger extcycle`: after scheduling the wake and before sleeping,
@@ -60,6 +66,11 @@ invisible during the black, but retained, so after recovery the notification
 log shows when each stage ran and pairs with the bundles' timestamps.
 Watch the **panels**, not the terminal. When you hear:
 
+- **"awake"** — spoken within ~1 s of the wake instant (repro detects
+  the wake rather than sleeping a fixed interval). Anchor the
+  *immediate* observation to this cue; the settle countdown also
+  starts here, so the capture is a consistent `--settle` seconds
+  post-wake.
 - **"capturing post wake"** — look at both panels, fill the *post-wake* rows.
 - **"recovering"** then **"capturing post recover"** — look again, fill the
   *post-recover* rows.
@@ -142,13 +153,22 @@ open B2/E2 and settle to B0/E1 within seconds):
 
 - `R0` — no recovery needed (the run settled clean; the group B/C
   displaysleep cycle ran anyway but had nothing to clear)
-- `M1` — Music.app playing during the run
+- `M1` — Music.app playing during the run (`M0` — explicitly not
+  playing)
 - `C1` — pre-run cable trigger: the external's **USB-C end** of its
   USB-C → HDMI cable was unplugged from the MacBook and replugged
   *before* the run, leaving it unplugged until the built-in fully
   redrew. Mostly (not completely) reliably provokes cursor-on-black
   on the following wake — the first on-demand repro lever (found run
   49; missed on run 55).
+- `W1` — scheduled wake failed; the maintainer woke the machine
+  manually (Space bar or trackpad press). Applies to every
+  `--trigger` run 61–80: a repro bug scheduled the wake *before* the
+  trigger, whose ~15 s of cueing and settling left the wake time in
+  the past by the time the machine slept. Fixed the same evening
+  (trigger now runs first; the wake time is computed after it). The
+  W1 runs stay valid — they additionally show the black reproduces
+  on manual wakes, so the failure is not scheduled-wake-specific.
 
 > **Built-in immediate-state caveat (2026-07-19).** The built-in
 > panel is small and glare-prone, and a cursor is easy to miss — it
@@ -355,6 +375,57 @@ E0/B0) — well past the n ≥ 2 consistency bar; cohort 1's four manual
 clears corroborate. The group's question is answered: yes, the
 display-sleep cycle clears it.
 
+### Group B — soft-trigger series (runs 061–080)
+
+All twenty runs used `--trigger extcycle` (the software C1 analog) and
+carry `W1` (see the legend; wake was manual — Space bar or trackpad).
+Runs 61–68 recovered with `displaysleep`, 69–80 with `extcycle`.
+
+| run | sheet                                                  | recovery     | settled E/B | black? | cleared? |
+|-----|--------------------------------------------------------|--------------|-------------|--------|----------|
+| 61  | [run061](repro-matrix/run061-grp-b-20260719-202401.md) | displaysleep | E1/B0       | yes    | yes      |
+| 62  | [run062](repro-matrix/run062-grp-b-20260719-202947.md) | displaysleep | E1/B0       | yes    | yes      |
+| 63  | [run063](repro-matrix/run063-grp-b-20260719-203423.md) | displaysleep | E1/B0       | yes    | yes      |
+| 64  | [run064](repro-matrix/run064-grp-b-20260719-203715.md) | displaysleep | E1/B0       | yes    | yes      |
+| 65  | [run065](repro-matrix/run065-grp-b-20260719-203953.md) | displaysleep | E1/B0       | yes    | yes      |
+| 66  | [run066](repro-matrix/run066-grp-b-20260719-204340.md) | displaysleep | E1/B0       | yes    | yes      |
+| 67  | [run067](repro-matrix/run067-grp-b-20260719-204849.md) | displaysleep | E1/B0       | yes    | yes      |
+| 68  | [run068](repro-matrix/run068-grp-b-20260719-205256.md) | displaysleep | E1/B0       | yes    | yes      |
+| 69  | [run069](repro-matrix/run069-grp-b-20260719-205745.md) | extcycle     | E1/B0       | yes    | yes      |
+| 70  | [run070](repro-matrix/run070-grp-b-20260719-210158.md) | extcycle     | E1/B0       | yes¹   | yes      |
+| 71  | [run071](repro-matrix/run071-grp-b-20260719-210655.md) | extcycle     | E0/B0       | no     | n/a      |
+| 72  | [run072](repro-matrix/run072-grp-b-20260719-211053.md) | extcycle     | E0/B0       | no     | n/a      |
+| 73  | [run073](repro-matrix/run073-grp-b-20260719-211335.md) | extcycle     | E1/B0       | yes²   | yes      |
+| 74  | [run074](repro-matrix/run074-grp-b-20260719-211608.md) | extcycle     | E1/B0       | yes    | yes      |
+| 75  | [run075](repro-matrix/run075-grp-b-20260719-212006.md) | extcycle     | E1/B0       | yes²   | yes      |
+| 76  | [run076](repro-matrix/run076-grp-b-20260719-212233.md) | extcycle     | E1/B0       | yes    | yes      |
+| 77  | [run077](repro-matrix/run077-grp-b-20260719-212714.md) | extcycle     | E1/B0       | yes    | yes      |
+| 78  | [run078](repro-matrix/run078-grp-b-20260719-212937.md) | extcycle     | E1/B0       | yes    | yes      |
+| 79  | [run079](repro-matrix/run079-grp-b-20260719-213221.md) | extcycle     | E1/B0       | yes    | yes      |
+| 80  | [run080](repro-matrix/run080-grp-b-20260719-214926.md) | extcycle     | E1/B0       | yes    | yes      |
+
+¹ Run 70: the maintainer pressed the Space bar just as the "capturing
+post wake" cue played (the press was already in motion) — treat the
+settled record as possibly contaminated; the session was also locked
+by capture time.
+² Runs 73 and 75: the maintainer flags the *immediate* observation as
+possibly incomplete (run 73 likely missed a built-in cursor-on-black
+preceding the external's). Runs 76, 77, and 80 were carefully
+observed; run 76's sequence was E2/B1 → brief E1/B1 → E1/B0 →
+recovery to E0/B0.
+
+**Soft-trigger verdict**: `--trigger extcycle` provoked cursor-on-black
+in **18 of 20** runs (misses 71, 72) — the repro is now fully
+software-driven; no cable handling, no physical HPD event. `M1` on
+none of 61–80 (run 61 notes `M0`). Codes: `W1` on all twenty.
+
+**extcycle-as-recovery verdict (split by lock state)**: while
+**unlocked**, extcycle cleared 10/10 blacks (69–70, 73–80). While
+**locked** (group C runs 81–85 below), it failed on both blacks and
+*induced* a black external (or both panels black) even on clean wakes.
+`displaysleep` remains the recovery of record; extcycle is usable only
+in an unlocked session.
+
 ### Group C (runs 058+) — recovery while locked
 
 Working invocation (run 59 first; lock the session **before**
@@ -384,16 +455,41 @@ it is effectively a group B data point. Codes: `M1` on 58–60; `C1` on
 maintainer later recalled the cable trigger may have been applied
 there too, so do not cite run 58 as a trigger-free natural repro. Run
 60 is the first **locked** black: the displaysleep recovery cleared
-it while the session stayed locked (n=1; group C stays open until
-n ≥ 2).
+it while the session stayed locked (n=1 for displaysleep-locked).
+
+### Group C — extcycle recovery while locked (runs 081–085)
+
+Same locked invocation (osascript lock, then repro), `--recover
+extcycle`, no trigger, Apple Watch off. These runs answer a different
+question than planned: extcycle **must not be used while locked**.
+
+| run | sheet                                                  | settled E/B | black? | recovery outcome                                   |
+|-----|--------------------------------------------------------|-------------|--------|----------------------------------------------------|
+| 81  | [run081](repro-matrix/run081-grp-c-20260719-215853.md) | E1/B0       | yes    | cleared, then **both panels black**¹               |
+| 82  | [run082](repro-matrix/run082-grp-c-20260719-220650.md) | E0/B0       | no     | n/a (R0)                                           |
+| 83  | [run083](repro-matrix/run083-grp-c-20260719-220914.md) | E1/B0       | yes    | **both panels black**; manual Space + unlock fixed |
+| 84  | [run084](repro-matrix/run084-grp-c-20260719-221345.md) | E0/B0       | no     | **induced** black external; left it CG-offline²    |
+| 85  | [run085](repro-matrix/run085-grp-c-20260719-222052.md) | E0/B0       | no     | **induced** transient both-black; Space restored   |
+
+¹ Run 81: after the both-black state, Space restored the built-in but
+the external stayed black; four `blackoutd off`/`on` cycles did not
+restore it; the next run's sleep/wake (run 82) did.
+² Run 84's aftermath: a subsequent `--trigger extcycle` attempt failed
+with `extcycle: no external display online` — the external was not
+merely dark but absent from CGGetOnlineDisplayList. Run 85's
+sleep/wake re-onlined it. An extcycle failure mode can therefore
+drop the external below CG visibility entirely.
 
 **Detection result (2026-07-19)**: the field-by-field diff over this
 cohort found a WindowServer log marker that splits black from clean —
 10/10 black wakes vs 0/15 clean across both cohorts, extended to
 **19/19 vs 0/26** by the run 41–60 extension (including the C1-miss
-run 55 and the locked runs). See `docs/technical-debt.md` P29
-(2026-07-19 updates) for the diff record, mechanism reading, and
-caveats.
+run 55 and the locked runs), and to **39/39 vs 0/31** by the
+soft-trigger series 61–85 — where the two trigger-but-clean runs (71,
+72) show the trigger's own pre-sleep hotplug pair does **not** plant
+the marker, and every marker timestamp sits at the wake, not at the
+trigger. See `docs/technical-debt.md` P29 (2026-07-19 updates) for
+the diff record, mechanism reading, and caveats.
 
 ## What we do with the data
 

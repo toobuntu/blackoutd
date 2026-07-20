@@ -1879,6 +1879,68 @@ vs 0/26; a manual repro lever (C1); recovery question answered.**
   `--recover extcycle` against them — does a CG-level cycle clear
   what the no-op recommit could not?
 
+**Update (2026-07-19, evening) — soft trigger works (18/20); marker
+at 39/39 vs 0/31; extcycle recovery is lock-state-dependent; the bug
+is host-side.** Runs 61–85 (matrix "soft-trigger series" and group C
+extension tables).
+
+- *The repro is now fully software.* `--trigger extcycle` provoked
+  cursor-on-black in **18 of 20** runs (blacks 61–70, 73–80; misses
+  71–72) with **no cable handling and no physical HPD event** — the
+  external only entered powersave during the cycle. Healthy-state
+  sanity: 9/9 manual `recover --method extcycle` cycles ran the same
+  sequence (external drops → built-in lights at native resolution →
+  external powersave → built-in re-mirrors the external's resolution
+  → built-in re-blacks → external returns).
+- *All 20 trigger runs were `W1` (scheduled wake failed, manual
+  Space/trackpad wake) — a repro bug, not a power quirk*: the wake
+  was scheduled before the trigger, whose ~15 s of cueing and
+  settling left the wake time in the past by the time the machine
+  slept. Fixed same evening: `sudo --validate` is now built into
+  repro (no more manual prefix), the trigger runs before the
+  schedule step and the wake time is computed after it, a new
+  **"awake" cue** speaks within ~1 s of the detected wake (the
+  settle countdown now anchors at the wake, not at sleepnow), and a
+  new `--lock` flag replaces the manual osascript lock chain.
+  Silver lining recorded: the W1 runs show the black reproduces on
+  *manual* wakes too — it is not scheduled-wake-specific.
+- *Marker: 20/20 new blacks, 0/5 new cleans — running total 39/39
+  vs 0/31.* Critically, the two trigger-but-clean runs (71, 72)
+  show the trigger's own pre-sleep hotplug pair does **not** plant
+  the marker, and every marker timestamp sits at the wake instant
+  (e.g. run 61: start 20:24:01, marker 20:25:20 at the manual
+  wake), not at the trigger. The detector survives the soft-trigger
+  regime intact.
+- *extcycle as recovery: usable only unlocked.* Unlocked (runs
+  69–80): cleared **10/10** blacks — the first recovery besides the
+  display-sleep class, and evidence that a CG-level teardown/rebuild
+  *can* re-arm the scanout (where the no-op recommit could not).
+  Locked (runs 81–85): it failed on both blacks (81, 83: cleared
+  then **both panels went black**) and **induced** a black external
+  on clean wakes (84, 85); run 84's aftermath left the external
+  absent from CGGetOnlineDisplayList entirely (`extcycle: no
+  external display online`) until the next sleep/wake re-onlined
+  it, and `blackoutd off`/`on` cycles did not restore it after run
+  81. **displaysleep remains the recovery of record** (works locked
+  and unlocked); any future automatic wiring must either gate
+  extcycle on an unlocked session or just use displaysleep.
+- *Attribution (maintainer asked: OS, cable, display, or interfering
+  software?).* The evidence points at the **macOS display stack
+  (SkyLight/DCP wake path), host-side**: the soft trigger reproduces
+  the black with the cable untouched and no physical HPD (cable and
+  monitor-side link exonerated as necessary conditions); the
+  detector is WindowServer's own hotplug-coalescing bookkeeping; and
+  every recovery that works (hot corner, displaysleep, unlocked
+  extcycle, physical replug) is a host-side pipeline rebuild. The
+  SP2309W/adapter's slow re-attach remains a plausible
+  *frequency* contributor (it shapes when a hotplug pair straddles
+  the wake), and one third-party confound is untested:
+  MonitorControlLite (software brightness shade) was running during
+  all recorded runs. Cheap control series: quit MonitorControlLite
+  (slider at 100%), run ~6 soft-trigger runs — if blacks persist,
+  the confound is retired; Brisync was never running and is
+  irrelevant.
+
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR
 0009 (SP2309W YCbCr), and the inject_edid `--mode` reader (of which
