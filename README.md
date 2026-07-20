@@ -94,10 +94,17 @@ blackoutd on                  Black out built-in display
 blackoutd off                 Restore built-in display
 blackoutd status              Show daemon and display status
 blackoutd auto on|off         Enable/disable auto-blackout on external connect
-blackoutd --config            Print diagnostic info for bug reports
+blackoutd verbosity <0|1|2>   Set daemon log verbosity
+blackoutd recovery <none|displaysleep>
+                              Set post-wake cursor-on-black auto-recovery
+blackoutd diagnose            Collect a diagnostic bundle for bug reports
 blackoutd daemon start        Start daemon via launchctl
 blackoutd daemon stop         Stop daemon and restore built-in display
 ```
+
+Run `blackoutd` with no arguments for the full list, including the
+experimental `recover` and `repro` tooling used to investigate the
+cursor-on-black failure (maintainer-run).
 
 ## Upgrade
 
@@ -209,18 +216,12 @@ Verbosity is level 1 by default (semantic logs only). Level 2 adds
 `[verbose=2]`-tagged lines with raw CGDisplayChangeSummaryFlags values and
 decoded connectivity details, useful for diagnosing unexpected display events.
 
-Enable verbose logging at runtime without restarting the daemon:
+Set verbosity at runtime without restarting the daemon; the value persists
+and the daemon reloads it immediately:
 
 ```sh
-defaults write blackoutd verbosityLevel -int 2
-killall -HUP blackoutd
-```
-
-Reset to default:
-
-```sh
-defaults delete blackoutd verbosityLevel
-killall -HUP blackoutd
+blackoutd verbosity 2      # verbose
+blackoutd verbosity 1      # back to the default
 ```
 
 ## How it works
@@ -233,6 +234,13 @@ process holds a live WindowServer connection that maintains the enabled state.
 On external display disconnect, the built-in is unconditionally restored
 regardless of user intent. Leaving a Mac with no usable display is never
 acceptable.
+
+After a sleep/wake cycle the daemon re-applies the blackout and, when the
+external wakes to a cursor-on-black state (a macOS DCP/scanout stall it
+detects from a WindowServer signal), recovers it with a display-sleep cycle.
+This runs at wake-settle and is controlled by the `recoveryStrategy`
+preference (default `displaysleep`); disable it with `blackoutd recovery
+none`. See [ADR 0010](docs/decisions/0010-cursor-on-black-detection-and-recovery.md).
 
 ## Known issues
 
@@ -316,12 +324,13 @@ NSUserDefaults. When the daemon is not running it reports "not running" and
 exits with code 1; when running it prints the PID, display state, and
 auto-blackout setting.
 
-`blackoutd --config` prints diagnostic info for bug reports: daemon state,
-macOS version, per-display CoreGraphics info (vendor, model, resolution,
-physical size), and hardware info via system_profiler. Log data (daemon log,
-system log filtered by the blackoutd predicate, pmset sleep/wake events) is
-collected into a timestamped directory under `/tmp/blackoutd-diag-*/` to
-avoid flooding the terminal. The output prints the path to this directory.
+`blackoutd diagnose` collects a diagnostic bundle for bug reports into a
+timestamped directory under `/tmp/blackoutd-diag-*/`: daemon state, macOS
+version, per-display CoreGraphics info (vendor, model, resolution, physical
+size), hardware info via system_profiler, the DCP/framebuffer and connection
+state used by the cursor-on-black investigation, and log data (daemon log,
+system log filtered by the blackoutd predicate, pmset sleep/wake events). The
+output prints the path to this directory.
 
 ## Contributing
 
