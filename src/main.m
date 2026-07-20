@@ -1816,42 +1816,11 @@ static int reproCommand(int argc, const char *argv[]) {
     }
   }
 
-  // Schedule the auto-wake, computing the wake time only now so the
-  // trigger's duration cannot eat the lead. wake=0 means the maintainer
-  // will wake the machine manually (e.g. by opening the lid).
-  if (wake > 0) {
-    NSDateFormatter *f = [[NSDateFormatter alloc] init];
-    f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-    f.dateFormat = @"MM/dd/yy HH:mm:ss";
-    NSString *when =
-        [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
-    // Probe with --non-interactive first (credentials were primed above).
-    // The interactive fallback remains for policies that disable credential
-    // caching entirely (timestamp_timeout=0), where priming cannot help; it
-    // is safe by construction — pre-sleep, screen lit, before --lock.
-    printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
-    int schedRC =
-        runStep(@"/usr/bin/sudo",
-                @[ @"--non-interactive", @"pmset", @"schedule", @"wake", when ],
-                dryRun);
-    if (schedRC != 0 && !dryRun) {
-      fprintf(stderr, "repro: sudo credentials not cached; prompting now "
-                      "(pre-sleep)\n");
-      schedRC = runStep(@"/usr/bin/sudo",
-                        @[ @"pmset", @"schedule", @"wake", when ], NO);
-    }
-    if (schedRC != 0) {
-      fprintf(stderr, "repro: could not schedule wake (rc=%d); aborting\n",
-              schedRC);
-      return 1;
-    }
-  }
-
-  // Lock the session last before sleep (after every possible sudo prompt),
-  // so the condition read below records the locked state. Same mechanism
-  // as the manual group C invocation this replaces: a ctrl-cmd-q keystroke
-  // via System Events (needs Accessibility permission for the terminal
-  // app). Remember to keep the Apple Watch off/out of range for the run.
+  // Lock the session before the conditions read records the lock state.
+  // Same mechanism as the manual group C invocation this replaces: a
+  // ctrl-cmd-q keystroke via System Events (needs Accessibility permission
+  // for the terminal app). Remember to keep the Apple Watch off/out of
+  // range for the run.
   if (lock) {
     sayCue(@"locking session", silent, dryRun);
     NSString *lockScript =
@@ -1873,33 +1842,109 @@ static int reproCommand(int argc, const char *argv[]) {
   // Conditions are read twice — just before sleep and again just before
   // the capture — so the sheet shows both ends of the run; only "did the
   // lid move DURING sleep" stays a maintainer field (unobservable from
-  // either end). Read AFTER the schedule step: a sudo prompt can sit for
-  // minutes, and a pre-prompt reading would be stale.
+  // either end). The only interactive prompt (sudo --validate) already
+  // ran, so this reading cannot go stale behind a prompt.
   NSString *lidPre = clamshellStateShort();
   NSString *lockPre = sessionLockState();
   NSString *powerPre = powerSource();
-  sayCue(@"sleeping now", silent, dryRun);
-  if (runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun) != 0)
-    return 1;
-  // System sleeps here. Detect the wake instant rather than sleeping a
-  // fixed interval: 1 s thread sleeps do not run while the system is
-  // asleep, so a tick whose wall-clock duration jumps past 5 s means the
-  // machine slept across it and is now awake. Works for scheduled and
-  // manual wakes alike (a manual overnight wake just loops longer), and
-  // anchors the settle countdown at the wake itself, so the capture is a
-  // consistent `settle` seconds post-wake regardless of how long the
-  // machine slept.
-  if (!dryRun) {
-    for (;;) {
-      NSDate *tick = NSDate.date;
-      [NSThread sleepForTimeInterval:1.0];
-      if (-[tick timeIntervalSinceNow] > 5.0)
-        break;
+
+  // Schedule the auto-wake LAST, immediately before sleepnow, so the lead
+  // is consumed only by falling asleep — cue speech, lock, and condition
+  // reads all happen before the clock starts. (The machine takes ~5-10 s
+  // to commit to sleep after sleepnow; a wake time that passes during
+  // that window is silently dropped, which is what made short effective
+  // leads unreliable.) wake=0 means the maintainer will wake the machine
+  // manually (e.g. by opening the lid).
+  if (wake > 0) {
+    NSDateFormatter *f = [[NSDateFormatter alloc] init];
+    f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    f.dateFormat = @"MM/dd/yy HH:mm:ss";
+    NSString *when =
+        [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
+    printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
+    // Non-interactive only when locked (nobody can answer a prompt); the
+    // interactive fallback remains for unlocked runs under policies that
+    // disable credential caching (timestamp_timeout=0), where the
+    // --validate priming cannot help.
+    int schedRC =
+        runStep(@"/usr/bin/sudo",
+                @[ @"--non-interactive", @"pmset", @"schedule", @"wake", when ],
+                dryRun);
+    if (schedRC != 0 && !dryRun && !lock) {
+      fprintf(stderr, "repro: sudo credentials not cached; prompting now "
+                      "(pre-sleep)\n");
+      schedRC = runStep(@"/usr/bin/sudo",
+                        @[ @"pmset", @"schedule", @"wake", when ], NO);
+    }
+    if (schedRC != 0) {
+      fprintf(stderr, "repro: could not schedule wake (rc=%d); aborting\n",
+              schedRC);
+      return 1;
     }
   }
-  // First cue after wake — as close to the wake instant as the tick
-  // granularity allows (~1 s), so the eyewitness can anchor the
-  // "immediate" observation to it while the panels first light.
+
+  // Register for the sleep/wake notifications BEFORE issuing sleepnow so
+  // neither can be missed. NSWorkspaceDidWakeNotification is the
+  // deterministic wake signal (fires however short the sleep was — a
+  // wall-clock tick-jump heuristic missed sub-5 s sleeps, the shakedown
+  // failure after run 85); the will-sleep observer feeds a 60 s
+  // did-not-sleep guard so a sleepnow that silently fails cannot hang the
+  // run. The wake side has no ceiling on purpose: a manual overnight wake
+  // is a legitimate run shape.
+  __block BOOL sleepSeen = NO, wakeSeen = NO;
+  NSNotificationCenter *wsCenter =
+      NSWorkspace.sharedWorkspace.notificationCenter;
+  id willSleepObs =
+      [wsCenter addObserverForName:NSWorkspaceWillSleepNotification
+                            object:nil
+                             queue:nil
+                        usingBlock:^(NSNotification *__unused note) {
+                          sleepSeen = YES;
+                        }];
+  id didWakeObs =
+      [wsCenter addObserverForName:NSWorkspaceDidWakeNotification
+                            object:nil
+                             queue:nil
+                        usingBlock:^(NSNotification *__unused note) {
+                          wakeSeen = YES;
+                        }];
+  sayCue(@"sleeping now", silent, dryRun);
+  int sleepRC = runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun);
+  if (sleepRC != 0) {
+    [wsCenter removeObserver:willSleepObs];
+    [wsCenter removeObserver:didWakeObs];
+    return 1;
+  }
+  // System sleeps here. Run the run loop in 1 s slices (delivering the
+  // observers' notifications) until the wake arrives. The tick-jump check
+  // stays as a fallback in case notification delivery ever fails in a
+  // CLI process: a slice that spans > 5 s of wall clock straddled a
+  // sleep.
+  if (!dryRun) {
+    NSDate *sleepCmdAt = NSDate.date;
+    for (;;) {
+      NSDate *tick = NSDate.date;
+      [[NSRunLoop currentRunLoop]
+          runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
+      if (wakeSeen || -[tick timeIntervalSinceNow] > 5.0)
+        break;
+      if (!sleepSeen && -[sleepCmdAt timeIntervalSinceNow] > 60.0) {
+        fprintf(stderr,
+                "repro: no sleep observed within 60 s of sleepnow (or the "
+                "sleep notification was missed); aborting\n");
+        [wsCenter removeObserver:willSleepObs];
+        [wsCenter removeObserver:didWakeObs];
+        return 1;
+      }
+    }
+  }
+  [wsCenter removeObserver:willSleepObs];
+  [wsCenter removeObserver:didWakeObs];
+  // First cue after wake — within ~1 s of the wake instant, so the
+  // eyewitness can anchor the "immediate" observation to it while the
+  // panels first light. The settle countdown starts here, so the capture
+  // is a consistent `settle` seconds post-wake regardless of how long the
+  // machine slept.
   sayCue(@"awake", silent, dryRun);
   if (!dryRun)
     [NSThread sleepForTimeInterval:settle];
