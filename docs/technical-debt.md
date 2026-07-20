@@ -2013,6 +2013,15 @@ Runs 86–104 (matrix "shakedowns, MCL controls, groups C/D/E" table):
   inaudible right after wake (audio-device bring-up race; both power
   sources affected). Detection and captures are unaffected; the
   Notification Center banner carries the timestamp. Known quirk.
+- *Live validation (runs 106–107).* With `recoveryStrategy
+  displaysleep` active and no repro-side `--recover`, a soft-trigger
+  black wake (run 106) cleared to E0/B0 before the "capturing post
+  wake" cue, and a clean wake (run 107) passed through untouched —
+  and the maintainer perceived **no flicker**: firing the cycle at
+  wake-settle lands it inside the wake transition, before the panels
+  have visibly stabilized. That takes most of the urgency out of the
+  flicker-free follow-up (fbpower probe untried as of run 107); it
+  remains worth one smoke test on principle.
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR
