@@ -2003,6 +2003,12 @@ Runs 86–104 (matrix "shakedowns, MCL controls, groups C/D/E" table):
   and a BD `_reinitializeOnWake` RE pass — behind the now-standing
   detector, as a follow-up PR. The extcycle recovery is ruled out for
   automatic use (locked-session hazard, 2026-07-19 evening update).
+  A first probe is in the tree: `recover --method fbpower` (CLI-only,
+  dlsym-resolved, signatures unverified — a crash is a data point).
+  Smoke it against a soft-trigger black; even a refusal at
+  `IOMobileFramebufferOpenByName` is an answer, since the
+  HPD-notification detection idea rides on the same user-client
+  access.
 - *Wake-cue audibility*: the "awake" `say` cue is intermittently
   inaudible right after wake (audio-device bring-up race; both power
   sources affected). Detection and captures are unaffected; the
