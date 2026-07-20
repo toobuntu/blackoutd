@@ -57,9 +57,31 @@ Orthogonality note (P29 insists): this is the *color-encoding* defect.
 It is unrelated to cursor-on-black, which is the absence of scanout —
 the two must not be entangled in code or triggers.
 
-## Decision
+## Decision Drivers
 
-Host the correction as an **opt-in, isolated quirk module**:
+* Other users must carry no Dell-specific dead code and no additional
+  private-API surface in their binaries.
+* One display actor: the correction must ride blackoutd's existing
+  callback and wake-settle timing (inject_edid ADR 0002).
+* The single-monitor scope argues against any generality beyond one
+  guarded hook (YAGNI).
+* The unconditional safety invariant must be untouched.
+
+## Considered Options
+
+* **Opt-in, isolated quirk module compiled under `make QUIRKS=sp2309w`**
+  (chosen, proposed).
+* Compile the quirk in unconditionally, gate at runtime only.
+* A generic quirk framework (registry, per-display hooks).
+* Standalone resident daemon.
+* Do nothing (keep BetterDisplay + watchdog).
+
+## Decision Outcome
+
+Chosen: host the correction as an **opt-in, isolated quirk module**,
+because it keeps every non-Dell build free of the quirk's code and
+private-API fragility while giving the quirk build blackoutd's
+single-actor timing:
 
 * Its own translation unit, `src/quirks/DisplayColorController.{h,m}`
   — a sibling to `DisplayController`, not code woven into it.
@@ -80,24 +102,35 @@ Host the correction as an **opt-in, isolated quirk module**:
   `_actionInProgress`-style suppression) **without weakening the
   unconditional safety-invariant check**.
 
-## Consequences
+### Consequences
 
-* Good: other users' builds carry no Dell-specific code, no extra
-  private-API dependency, and no behavioral difference — the quirk
-  cannot regress the core for anyone who does not opt in.
-* Good: the quirk user gets a preventive fix (YCbCr never negotiated)
-  applied at exactly the right moments by the actor that already owns
-  the timing, retiring the BetterDisplay + `restore_rgb.sh` watchdog.
-* Bad: `IOAVServiceSetVirtualEDIDMode` is private and fragile across
-  macOS updates — but that surface exists only in quirk builds.
-* Bad: a compile-time flag means no single released binary serves
-  both audiences, and the `QUIRKS=sp2309w` configuration needs its
-  own build check (or knowingly stays maintainer-built-only).
-* Accepting this ADR is P26's first acceptance criterion; if the
-  standalone-daemon alternative is chosen instead, this ADR moves to
-  `rejected` and inject_edid ADR 0002 gets a superseding note.
+* Good, because other users' builds carry no Dell-specific code, no
+  extra private-API dependency, and no behavioral difference — the
+  quirk cannot regress the core for anyone who does not opt in.
+* Good, because the quirk user gets a preventive fix (YCbCr never
+  negotiated) applied at exactly the right moments by the actor that
+  already owns the timing, retiring the BetterDisplay +
+  `restore_rgb.sh` watchdog.
+* Bad, because `IOAVServiceSetVirtualEDIDMode` is private and fragile
+  across macOS updates — but that surface exists only in quirk builds.
+* Bad, because a compile-time flag means no single released binary
+  serves both audiences, and the `QUIRKS=sp2309w` configuration needs
+  its own build check (or knowingly stays maintainer-built-only).
+* Neutral, because accepting this ADR is P26's first acceptance
+  criterion; if the standalone-daemon alternative is chosen instead,
+  this ADR moves to `rejected` and inject_edid ADR 0002 gets a
+  superseding note.
 
-## Considered Options and Alternatives
+### Confirmation
+
+Pending — the module has not landed. The underlying mechanism is
+confirmed in the standalone tool (inject_edid ADR 0002: cast cleared,
+`YCbCr 4:4:4 Limited` → `RGB Full`, CEA byte 131 `0xF1` → `0xC1`);
+what remains is the hosted form: no competing actor, no safety-
+invariant interaction, re-application on each wake via the
+wake-settle hook.
+
+## Pros and Cons of the Options
 
 ### Compile the quirk in unconditionally, gate at runtime only
 

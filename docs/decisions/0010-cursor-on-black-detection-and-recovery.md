@@ -43,7 +43,32 @@ The empirical matrix (`docs/debug/cursor-on-black-matrix.md`, runs
   attempt in the matrix, locked (n=5) and unlocked alike, plus all
   manual hot-corner clears. It needs no privileges.
 
-## Decision
+## Decision Drivers
+
+* Recovery must not flicker healthy wakes — the majority — so it needs
+  a detection gate, not a schedule.
+* Both halves must rest on the recorded run matrix, not on mechanism
+  theory (every theory-first candidate in P29 was falsified).
+* Must work at the lock screen (the lived scenario includes locked
+  wakes).
+* No new resident actors or privileges; fail quiet on any uncertainty.
+
+## Considered Options
+
+* **Marker-gated displaysleep cycle at wake-settle** (chosen).
+* Reconfiguration-flag keying (`0x133e` flap vs `0x111e`).
+* Below-CG state polling (`DCPPowerState`, `NormalModeActive`, ioreg).
+* Unconditional recovery on every wake-with-external.
+* `extcycle` (CG disable/re-enable of the external) as the recovery.
+* IOMobileFramebuffer HPD notifications as the detector.
+* OSLogStore instead of spawning `log show`.
+
+## Decision Outcome
+
+Chosen: **marker-gated displaysleep cycle at wake-settle**, because it
+is the only detector that survived n ≥ 3 validation (56/56 vs 0/33)
+paired with the only recovery that cleared every recorded black,
+locked and unlocked.
 
 At `wakeSettleTimerFired` (the ADR-0003 quiet point), when an external
 display is present, the daemon:
@@ -66,7 +91,7 @@ err=1014 retries), a `_systemSleeping` re-check after the query, and
 the fact that a display-sleep cycle emits screen — not system — sleep
 notifications, so it cannot re-arm the wake path and loop.
 
-## Consequences
+### Consequences
 
 * Good, because recovery is targeted: healthy wakes (marker absent) see
   no flicker at all, and black wakes recover in seconds without user
@@ -87,7 +112,15 @@ notifications, so it cannot re-arm the wake path and loop.
   none` first, or captures record the recovered panel (documented in
   the matrix how-to).
 
-## Considered Options and Alternatives
+### Confirmation
+
+Live-validated on the target hardware (matrix runs 106–107): with
+`recoveryStrategy displaysleep` active and no repro-side recovery, a
+soft-trigger black wake cleared to E0/B0 before the post-wake capture
+cue, and a clean wake passed through untouched — with no perceived
+flicker, the cycle landing inside the wake transition.
+
+## Pros and Cons of the Options
 
 ### Reconfiguration-flag keying (`0x133e` flap vs `0x111e`)
 
