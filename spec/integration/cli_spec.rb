@@ -13,10 +13,12 @@ require "open3"
 #
 # The write-back subcommands (auto / verbosity / recovery) normally mutate
 # the real "blackoutd" NSUserDefaults suite and SIGHUP the running daemon.
-# The accept-path examples here set BLACKOUTD_DEFAULTS_SUITE to a throwaway
-# suite (the src/main.m test seam): writes divert to that suite and the
-# daemon is not signalled, so these tests never touch the user's real
-# preferences or the running daemon.
+# The accept-path examples here set BLACKOUTD_TEST_DEFAULTS_SUITE to a
+# throwaway suite (the src/main.m test seam): writes divert to that suite and
+# the daemon is not signaled, so these tests never touch the user's real
+# preferences or the running daemon. An invalid value for that var (the real
+# suite name, or non-UTF-8) is a hard error before any write — exercised by
+# the "test-suite isolation guard" examples.
 #
 # The macOS-only ObjC binary is built once in before(:all); the RSpec CI job
 # runs on macos-latest but does not build, so the suite builds it itself.
@@ -43,10 +45,12 @@ module CLISpecHelpers
     system("defaults", "delete", suite, out: File::NULL, err: File::NULL)
   end
 
-  # Raw `defaults read` output for a key in the real suite (value line or the
-  # "does not exist" message), used to assert the real suite is untouched.
+  # The value of a key in the real suite, or "" when absent. stdout only:
+  # an absent key sends a timestamped `defaults[pid]` diagnostic to stderr
+  # (differs between calls), while stdout is the value or empty — the stable
+  # thing to compare when asserting the real suite is untouched.
   def real_default(key)
-    out, = Open3.capture2e("defaults", "read", "blackoutd", key)
+    out, = Open3.capture3("defaults", "read", "blackoutd", key)
     out.force_encoding("UTF-8")
   end
 end
@@ -110,11 +114,11 @@ RSpec.describe "blackoutd CLI" do
       expect(status.exitstatus).to eq(1)
     end
 
-    it "persists a valid level to an isolated suite without signalling" do
+    it "persists a valid level to an isolated suite without signaling" do
       with_isolated_suite do |suite|
         out, _err, status =
           blackoutd("verbosity", "2",
-                    env: { "BLACKOUTD_DEFAULTS_SUITE" => suite })
+                    env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite })
         expect(status.exitstatus).to eq(0)
         expect(out).to match(/verbosity: 2 .*isolated test suite/)
       end
@@ -138,7 +142,7 @@ RSpec.describe "blackoutd CLI" do
       with_isolated_suite do |suite|
         out, _err, status =
           blackoutd("recovery", "displaysleep",
-                    env: { "BLACKOUTD_DEFAULTS_SUITE" => suite })
+                    env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite })
         expect(status.exitstatus).to eq(0)
         expect(out).to match(/recovery: displaysleep .*isolated test suite/)
       end
@@ -148,7 +152,7 @@ RSpec.describe "blackoutd CLI" do
       with_isolated_suite do |suite|
         out, _err, status =
           blackoutd("recovery", "none",
-                    env: { "BLACKOUTD_DEFAULTS_SUITE" => suite })
+                    env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite })
         expect(status.exitstatus).to eq(0)
         expect(out).to match(/recovery: none .*isolated test suite/)
       end
@@ -157,7 +161,7 @@ RSpec.describe "blackoutd CLI" do
     it "leaves the real blackoutd suite untouched when isolated" do
       before_val = real_default("recoveryStrategy")
       with_isolated_suite do |suite|
-        env = { "BLACKOUTD_DEFAULTS_SUITE" => suite }
+        env = { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite }
         blackoutd("recovery", "none", env: env)
         blackoutd("recovery", "displaysleep", env: env)
       end
@@ -182,10 +186,41 @@ RSpec.describe "blackoutd CLI" do
       with_isolated_suite do |suite|
         out, _err, status =
           blackoutd("auto", "off",
-                    env: { "BLACKOUTD_DEFAULTS_SUITE" => suite })
+                    env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite })
         expect(status.exitstatus).to eq(0)
         expect(out).to match(/auto-blackout: disabled .*isolated test suite/)
       end
+    end
+  end
+
+  # The seam must fail loudly on an invalid isolation value rather than
+  # silently falling back to the real suite (which would write real
+  # preferences while skipping the daemon signal). Because the guard aborts
+  # before any subcommand runs, these rejection paths are safe to automate.
+  describe "test-suite isolation guard" do
+    it "refuses to run when the test suite names the real suite" do
+      out, err, status =
+        blackoutd("recovery", "displaysleep",
+                  env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => "blackoutd" })
+      expect(status.exitstatus).to eq(2)
+      expect(err).to include("must not be the real suite")
+      expect(out).not_to include("isolated test suite")
+    end
+
+    it "refuses to run on a non-UTF-8 test suite" do
+      out, err, status =
+        blackoutd("recovery", "none",
+                  env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => "\xFF\xFE".b })
+      expect(status.exitstatus).to eq(2)
+      expect(err).to include("not valid UTF-8")
+      expect(out).not_to include("isolated test suite")
+    end
+
+    it "does not touch the real suite when it rejects the value" do
+      before_val = real_default("recoveryStrategy")
+      blackoutd("recovery", "none",
+                env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => "blackoutd" })
+      expect(real_default("recoveryStrategy")).to eq(before_val)
     end
   end
 
