@@ -1924,6 +1924,28 @@ extension tables).
   81. **displaysleep remains the recovery of record** (works locked
   and unlocked); any future automatic wiring must either gate
   extcycle on an unlocked session or just use displaysleep.
+- *Shakedown after run 85 (23:01, unnumbered — Ctrl-C'd, no sheet):
+  the tick-loop wake detector was defective and is replaced.* On the
+  reordered build the trigger again produced the black (E2/B1 →
+  E1/B1 → E1/B0, held indefinitely; hot corner recovered), but repro
+  went silent: no "awake" cue, no capture. Root cause: the loop
+  detected a wake only when one 1 s tick spanned > 5 s of wall
+  clock, and with the wake lead consumed by fall-asleep time the
+  actual sleep span can be under 5 s — the scheduled wake most
+  likely fired (the panels lit unprompted) and the detector missed
+  it, spinning forever (it had no ceiling). Reworked same night:
+  repro now registers `NSWorkspaceWillSleepNotification` /
+  `NSWorkspaceDidWakeNotification` observers before `sleepnow` and
+  waits on the did-wake notification in a run loop (deterministic
+  for arbitrarily short sleeps), keeps the tick-jump check only as
+  a fallback, aborts if no will-sleep arrives within 60 s of
+  `sleepnow` (a sleep that never happens must error, not hang; the
+  wake side deliberately has no ceiling — overnight manual wakes
+  are legitimate), and schedules the wake immediately before
+  `sleepnow` so lock/conditions/cue time no longer shaves the
+  sleep span. For the record: the 1 s ticks cannot cause or prevent
+  a wake — sleeping threads hold no power assertions and userspace
+  timers do not program RTC wakes.
 - *Attribution (maintainer asked: OS, cable, display, or interfering
   software?).* The evidence points at the **macOS display stack
   (SkyLight/DCP wake path), host-side**: the soft trigger reproduces
