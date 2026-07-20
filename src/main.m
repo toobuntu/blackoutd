@@ -11,6 +11,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <IOKit/IOKitLib.h>
 #import <ctype.h>
+#import <dlfcn.h>
 #import <errno.h>
 #import <libproc.h>
 #import <limits.h>
@@ -31,6 +32,7 @@ static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
 static NSString *const kVerbosityKey = @"verbosityLevel";
+static NSString *const kRecoveryKey = @"recoveryStrategy";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
 static NSString *agentPlistPath(void) {
@@ -575,6 +577,8 @@ static NSString *buildReport(void) {
     [r appendFormat:@"daemon log tail : %@\n", state];
   [r appendFormat:@"auto-blackout   : %s\n", autoMode ? "enabled" : "disabled"];
   [r appendFormat:@"verbosity       : %ld\n", (long)verbosity];
+  [r appendFormat:@"recovery        : %@\n",
+                  [defaults stringForKey:kRecoveryKey] ?: @"displaysleep"];
   [r appendFormat:@"bundle-id       : %s\n", kBundleID.UTF8String];
   [r appendFormat:@"lid             : %@\n", clamshellState()];
   [r appendFormat:@"session         : %@\n", sessionLockState()];
@@ -834,6 +838,8 @@ static int printStatus(void) {
          builtInIsOnline() ? "active" : "blacked out");
   printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
   printf("  verbosity        : %ld\n", (long)verbosity);
+  printf("  recovery         : %s\n",
+         ([defaults stringForKey:kRecoveryKey] ?: @"displaysleep").UTF8String);
   return pid > 0 ? 0 : 1;
 }
 
@@ -849,6 +855,45 @@ static int setAutoBlackout(const char *value) {
   [defaults synchronize];
   printf("auto-blackout: %s\n", enable ? "enabled" : "disabled");
   return sendSignalToDaemon(SIGHUP);
+}
+
+// Sets the daemon's post-wake cursor-on-black recovery strategy, persisted
+// in NSUserDefaults and applied live via SIGHUP — same pattern as
+// setVerbosity below. "displaysleep" (the default) runs a display-sleep
+// cycle at wake-settle when the WindowServer hotplug-coalescing marker is
+// present (P20/P29); "none" disables it — required before matrix baseline
+// data collection, which must observe the un-recovered wake.
+static int setRecoveryStrategy(const char *value) {
+  static const char *kRecoveryUsage =
+      "Usage: blackoutd recovery <none|displaysleep>\n";
+  if (value == NULL ||
+      (strcmp(value, "none") != 0 && strcmp(value, "displaysleep") != 0)) {
+    fprintf(stderr, "%s", kRecoveryUsage);
+    return 1;
+  }
+  NSUserDefaults *defaults =
+      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+  [defaults setObject:@(value) forKey:kRecoveryKey];
+  [defaults synchronize];
+  NSString *applied = [defaults stringForKey:kRecoveryKey];
+  pid_t pid = daemonPid();
+  if (pid > 0) {
+    if (kill(pid, SIGHUP) != 0) {
+      if (errno == ESRCH) {
+        printf("recovery: %s (daemon exited before signal delivery; takes "
+               "effect on next start)\n",
+               applied.UTF8String);
+        return 0;
+      }
+      perror("blackoutd: kill SIGHUP");
+      return 1;
+    }
+    printf("recovery: %s (daemon notified)\n", applied.UTF8String);
+  } else {
+    printf("recovery: %s (daemon not running; takes effect on next start)\n",
+           applied.UTF8String);
+  }
+  return 0;
 }
 
 // Sets the daemon's log verbosity level, persisted in NSUserDefaults so it
@@ -958,6 +1003,11 @@ static void printUsage(void) {
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
       "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
       " 2=verbose)\n"
+      "  recovery <S>    Set post-wake cursor-on-black auto-recovery:\n"
+      "                  displaysleep (default) runs a display-sleep cycle\n"
+      "                  when the wake carries the WindowServer marker;\n"
+      "                  none disables (required before repro baseline\n"
+      "                  data collection)\n"
       "  diagnose        Collect a diagnostic bundle for bug reports\n"
       "                  (auto-bounds the window to the last wake; override\n"
       "                  with --minutes N or --start \"T\" --end \"T\";\n"
@@ -968,12 +1018,23 @@ static void printUsage(void) {
       "  daemon stop     Stop the daemon and restore built-in display\n"
       "\n"
       "Experimental (cursor-on-black investigation; maintainer-run):\n"
-      "  recover         Run one display-sleep recovery cycle\n"
-      "                  (--method displaysleep, --dry-run)\n"
+      "  recover         Run one recovery cycle (--method METHOD, --dry-run)\n"
+      "                  Methods: displaysleep — display-sleep cycle (pmset\n"
+      "                  displaysleepnow + caffeinate -u; the validated\n"
+      "                  recovery); extcycle — disable/re-enable the external\n"
+      "                  display via CG (unlocked sessions ONLY — hazardous\n"
+      "                  while locked); fbpower — experimental private\n"
+      "                  IOMobileFramebuffer power-cycle probe (unverified\n"
+      "                  signatures; flicker-free candidate)\n"
       "  repro           Sleep/wake repro with labeled captures + recovery;\n"
       "                  emits a numbered, prefilled run sheet and copies\n"
       "                  bundles to docs/debug/ when run from the repo root\n"
-      "                  (--wake N, --settle S, --recover METHOD,\n"
+      "                  (--wake N [seconds; 0 = manual wake], --settle S,\n"
+      "                  --recover METHOD [as above],\n"
+      "                  --trigger extcycle [pre-sleep software analog of\n"
+      "                  the C1 cable trigger — see the matrix legend],\n"
+      "                  --lock [lock the session just before sleep;\n"
+      "                  keep the Apple Watch off/out of range],\n"
       "                  --group a..e [matrix coverage row, any case],\n"
       "                  --no-copy, --no-prompt, --silent, --dry-run)\n"
       "\n"
@@ -1072,14 +1133,161 @@ static void sayCue(NSString *text, BOOL silent, BOOL dryRun) {
     runStep(@"/usr/bin/say", @[ text ], dryRun);
 }
 
-// Performs one recovery attempt. The only method today is "displaysleep": a
-// programmatic display-sleep cycle (pmset displaysleepnow, then caffeinate -u
-// to re-declare user activity and wake the panel). Flicker is accepted; this
-// supersedes the older "displaysleepnow = flicker dead end" note now that the
-// maintainer confirms it reliably recovers regardless of lock state.
+// Private API (see DisplayController.m for the daemon-side declaration and
+// rationale): enables/disables a display inside a CGDisplayConfigRef
+// transaction. Declared here for the CLI-side extcycle primitive below.
+extern CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef, CGDirectDisplayID,
+                                          bool);
+
+// Returns the first online hardware-backed external display, or
+// kCGNullDirectDisplay if none. Virtual/placeholder displays carry FourCC
+// pseudo-vendor IDs > 0xFFFF (see displayIsHardwareBacked() in
+// DisplayController.m; the vendor heuristic alone suffices here and avoids
+// the deprecated CGDisplayIOServicePort in this file).
+static CGDirectDisplayID firstExternalDisplayID(void) {
+  CGDirectDisplayID displays[8];
+  uint32_t count = 0;
+  CGGetOnlineDisplayList(8, displays, &count);
+  for (uint32_t i = 0; i < count; i++) {
+    if (!CGDisplayIsBuiltin(displays[i]) &&
+        CGDisplayVendorNumber(displays[i]) <= 0xFFFF)
+      return displays[i];
+  }
+  return kCGNullDirectDisplay;
+}
+
+// CLI-side mirror of DisplayController's setDisplay:enabled: transaction
+// (without the daemon's recommit preamble). The resident daemon reacts to
+// the resulting reconfiguration callbacks exactly as it would to a physical
+// unplug/replug: safety-invariant restore on disable, auto-blackout on
+// re-enable.
+static CGError cliSetDisplayEnabled(CGDirectDisplayID display, bool enabled) {
+  CGDisplayConfigRef config;
+  CGError err = CGBeginDisplayConfiguration(&config);
+  if (err != kCGErrorSuccess)
+    return err;
+  err = CGSConfigureDisplayEnabled(config, display, enabled);
+  if (err != kCGErrorSuccess) {
+    CGCancelDisplayConfiguration(config);
+    return err;
+  }
+  return CGCompleteDisplayConfiguration(config, kCGConfigurePermanently);
+}
+
+// The "extcycle" primitive — software analog of the C1 cable trigger and
+// P29's recovery lever (b): disable the external display, wait for the
+// built-in to come back and fully redraw (the daemon's safety invariant
+// restores it; C1's lesson is that replugging before the redraw completes
+// weakens the trigger), then re-enable the external and give it the
+// few-seconds re-attach settle (P20). Serves as both a repro --trigger
+// (provoke cursor-on-black on the next wake) and a --recover method
+// (tear down and rebuild the external's configuration). CG-level: whether
+// it reaches the DCP where the no-op recommit did not is exactly the open
+// question it exists to answer.
+static int performExternalCycle(BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] extcycle: disable external, wait 5 s, re-enable, "
+           "wait 5 s\n");
+    return 0;
+  }
+  CGDirectDisplayID external = firstExternalDisplayID();
+  if (external == kCGNullDirectDisplay) {
+    fprintf(stderr, "blackoutd: extcycle: no external display online\n");
+    return 1;
+  }
+  CGError err = cliSetDisplayEnabled(external, false);
+  if (err != kCGErrorSuccess) {
+    fprintf(stderr, "blackoutd: extcycle: disable failed (CGError %d)\n",
+            (int)err);
+    return 1;
+  }
+  [NSThread sleepForTimeInterval:5.0];
+  err = cliSetDisplayEnabled(external, true);
+  if (err != kCGErrorSuccess) {
+    fprintf(stderr, "blackoutd: extcycle: re-enable failed (CGError %d)\n",
+            (int)err);
+    return 1;
+  }
+  [NSThread sleepForTimeInterval:5.0];
+  return 0;
+}
+
+// Experimental flicker-free recovery candidate (P29): power-cycle only the
+// external framebuffer via private IOMobileFramebuffer.framework calls,
+// resolved with dlsym so the binary carries no link-time dependency. The
+// signatures are reconstructed from public reverse-engineering headers and
+// are UNVERIFIED on macOS 26 — a crash of this CLI invocation is a data
+// point, not a regression. Even a refusal at open answers a standing
+// question (whether a third-party process can reach the IOMFB user client
+// at all — the same gate the HPD-notification detection idea depends on).
+// CLI-only: the daemon's recoveryStrategy accepts only none|displaysleep.
+static int performFramebufferPowerCycle(BOOL dryRun) {
+  if (dryRun) {
+    printf("  [dry-run] fbpower: open external-0 via IOMobileFramebuffer, "
+           "power 0, wait 2 s, power 1, wait 5 s\n");
+    return 0;
+  }
+  void *fw = dlopen("/System/Library/PrivateFrameworks/"
+                    "IOMobileFramebuffer.framework/IOMobileFramebuffer",
+                    RTLD_LAZY);
+  if (!fw) {
+    fprintf(stderr, "blackoutd: fbpower: dlopen failed: %s\n", dlerror());
+    return 1;
+  }
+  typedef int (*BDIOMFBOpenByNameFn)(CFStringRef, void **);
+  typedef int (*BDIOMFBRequestPowerChangeFn)(void *, uint32_t);
+  BDIOMFBOpenByNameFn openByName =
+      (BDIOMFBOpenByNameFn)dlsym(fw, "IOMobileFramebufferOpenByName");
+  BDIOMFBRequestPowerChangeFn requestPower = (BDIOMFBRequestPowerChangeFn)dlsym(
+      fw, "IOMobileFramebufferRequestPowerChange");
+  if (!openByName || !requestPower) {
+    fprintf(stderr,
+            "blackoutd: fbpower: symbol lookup failed (OpenByName=%d "
+            "RequestPowerChange=%d)\n",
+            openByName != NULL, requestPower != NULL);
+    return 1;
+  }
+  void *fb = NULL;
+  // "external-0" is the framebuffer name WindowServer's own open logs show
+  // for the external display on this machine.
+  int rc = openByName(CFSTR("external-0"), &fb);
+  printf("fbpower: OpenByName(external-0) rc=0x%x fb=%p\n", rc, fb);
+  if (rc != 0 || fb == NULL)
+    return 1;
+  // Power values mirror IOMFB's own update_power_state logging (0 = off,
+  // 1 = on); whether this API level uses the same scale is part of what
+  // the probe answers.
+  rc = requestPower(fb, 0);
+  printf("fbpower: RequestPowerChange(0) rc=0x%x\n", rc);
+  [NSThread sleepForTimeInterval:2.0];
+  int rc2 = requestPower(fb, 1);
+  printf("fbpower: RequestPowerChange(1) rc=0x%x\n", rc2);
+  [NSThread sleepForTimeInterval:5.0];
+  return (rc == 0 && rc2 == 0) ? 0 : 1;
+}
+
+// Performs one recovery attempt. Methods:
+//   displaysleep — programmatic display-sleep cycle (pmset displaysleepnow,
+//                  then caffeinate -u to re-declare user activity and wake
+//                  the panel). Flicker is accepted; this supersedes the
+//                  older "displaysleepnow = flicker dead end" note now that
+//                  the matrix confirms it reliably recovers regardless of
+//                  lock state (10/10 through run 60).
+//   extcycle     — external display disable/re-enable cycle (see
+//                  performExternalCycle above). Clears blacks unlocked
+//                  (10/10, runs 69-80) but is hazardous while locked
+//                  (runs 81-85) — never wire it to automatic use.
+//   fbpower      — experimental IOMobileFramebuffer probe (see
+//                  performFramebufferPowerCycle above).
 static int performRecovery(NSString *method, BOOL dryRun) {
+  if ([method isEqualToString:@"extcycle"])
+    return performExternalCycle(dryRun);
+  if ([method isEqualToString:@"fbpower"])
+    return performFramebufferPowerCycle(dryRun);
   if (![method isEqualToString:@"displaysleep"]) {
-    fprintf(stderr, "blackoutd: unknown recovery method '%s'\n",
+    fprintf(stderr,
+            "blackoutd: unknown recovery method '%s' (known: displaysleep, "
+            "extcycle, fbpower)\n",
             method.UTF8String);
     return 1;
   }
@@ -1091,7 +1299,7 @@ static int performRecovery(NSString *method, BOOL dryRun) {
   return runStep(@"/usr/bin/caffeinate", @[ @"-u", @"-t", @"2" ], dryRun);
 }
 
-// blackoutd recover [--method displaysleep] [--dry-run]
+// blackoutd recover [--method displaysleep|extcycle] [--dry-run]
 static int recoverCommand(int argc, const char *argv[]) {
   NSString *method = @"displaysleep";
   BOOL dryRun = NO;
@@ -1266,13 +1474,12 @@ static NSInteger ansIndex(NSDictionary<NSString *, NSString *> *ans,
 // `settleMarker` is sampled ONCE by the caller and passed to every render:
 // re-reading it on the post-prompt rewrite could replace the post-wake
 // marker with one from a later event (e.g. a manual hot-corner recovery).
-static NSString *
-renderRunSheet(NSDate *started, int runNumber, int wake, int settle,
-               NSString *recover, NSString *group, NSString *lidPre,
-               NSString *lidCap, NSString *lockPre, NSString *lockCap,
-               NSString *powerPre, NSString *powerCap, NSString *settleMarker,
-               NSString *postWakeBundle, NSString *postRecoverBundle,
-               NSDictionary<NSString *, NSString *> *ans) {
+static NSString *renderRunSheet(
+    NSDate *started, int runNumber, int wake, int settle, NSString *recover,
+    NSString *trigger, NSString *group, NSString *lidPre, NSString *lidCap,
+    NSString *lockPre, NSString *lockCap, NSString *powerPre,
+    NSString *powerCap, NSString *settleMarker, NSString *postWakeBundle,
+    NSString *postRecoverBundle, NSDictionary<NSString *, NSString *> *ans) {
   NSDateFormatter *stamp = [[NSDateFormatter alloc] init];
   stamp.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
   stamp.dateFormat = @"yyyyMMdd-HHmmss";
@@ -1329,6 +1536,8 @@ renderRunSheet(NSDate *started, int runNumber, int wake, int settle,
                       ? [NSString
                             stringWithFormat:@"scheduled (--wake %d)", wake]
                       : @"manual (--wake 0)"];
+  [s appendFormat:@"  trigger ................ %@\n",
+                  trigger.length ? trigger : @"none"];
   [s appendFormat:@"  recovery applied ....... %@\n",
                   recover.length ? recover : @"none"];
   [s appendFormat:@"  settle ................. %d s\n", settle];
@@ -1593,14 +1802,17 @@ static NSString *copyBundleTo(NSString *dest, NSString *bundle) {
 }
 
 // blackoutd repro [--wake N] [--settle S] [--recover METHOD] [--group G]
-//                 [--no-copy] [--no-prompt] [--silent] [--dry-run]
-// Schedules an auto-wake (sudo — only the schedule needs it), sleeps, then on
-// wake captures a labeled bundle, optionally runs a recovery, and captures
+//                 [--trigger extcycle] [--lock] [--no-copy] [--no-prompt]
+//                 [--silent] [--dry-run]
+// Primes sudo, optionally fires a pre-sleep trigger (the software analog
+// of the C1 cable trigger), schedules an auto-wake (sudo — only the
+// schedule needs it), optionally locks the session, sleeps, then on wake
+// captures a labeled bundle, optionally runs a recovery, and captures
 // again. Built to run blind: it narrates each step via `say`.
 static int reproCommand(int argc, const char *argv[]) {
   int wake = 15, settle = 20;
-  NSString *recover = nil, *group = nil;
-  BOOL silent = NO, dryRun = NO, noCopy = NO, noPrompt = NO;
+  NSString *recover = nil, *group = nil, *trigger = nil;
+  BOOL silent = NO, dryRun = NO, noCopy = NO, noPrompt = NO, lock = NO;
   for (int i = 2; i < argc; i++) {
     const char *opt = argv[i];
     if (strcmp(opt, "--silent") == 0) {
@@ -1611,6 +1823,22 @@ static int reproCommand(int argc, const char *argv[]) {
       noCopy = YES;
     } else if (strcmp(opt, "--no-prompt") == 0) {
       noPrompt = YES;
+    } else if (strcmp(opt, "--lock") == 0) {
+      lock = YES;
+    } else if (strcmp(opt, "--trigger") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "blackoutd: --trigger requires a value\n");
+        return 1;
+      }
+      const char *val = argv[++i];
+      // Validate at parse time: an unknown trigger discovered pre-sleep
+      // would otherwise abort the run after the sudo prompt already fired.
+      if (strcmp(val, "extcycle") != 0) {
+        fprintf(stderr, "blackoutd: unknown trigger '%s' (known: extcycle)\n",
+                val);
+        return 1;
+      }
+      trigger = @(val);
     } else if (strcmp(opt, "--wake") == 0 || strcmp(opt, "--settle") == 0 ||
                strcmp(opt, "--recover") == 0 || strcmp(opt, "--group") == 0) {
       if (i + 1 >= argc) {
@@ -1669,27 +1897,91 @@ static int reproCommand(int argc, const char *argv[]) {
   printf("repro: started %s — build %s (built %s)\n",
          [human stringFromDate:started].UTF8String, BD_BUILD_GIT,
          BD_BUILD_TIME);
-  // Schedule the auto-wake first (only this needs sudo). wake=0 means the
-  // maintainer will wake the machine manually (e.g. by opening the lid).
+  // Prime sudo credentials up front (one interactive prompt at most,
+  // screen lit, nothing captured yet), so the schedule step below never
+  // prompts. Previously the matrix doc asked for a manual `sudo --validate
+  // &&` prefix; building it in removes that failure mode.
+  if (wake > 0) {
+    printf("repro: priming sudo credentials (sudo --validate)\n");
+    if (runStep(@"/usr/bin/sudo", @[ @"--validate" ], dryRun) != 0) {
+      fprintf(stderr, "repro: sudo --validate failed; aborting\n");
+      return 1;
+    }
+  }
+
+  // Pre-sleep trigger, BEFORE the wake is scheduled: the cycle takes
+  // ~12-20 s (two cues, two 5 s settles, CG transactions), which is most
+  // of a --wake 15 lead — scheduling first left the wake time in the past
+  // by the time the machine slept, the cause of every W1 "scheduled wake
+  // failed" run (61-80). A failed trigger aborts: nothing is captured
+  // yet, and a run whose trigger silently misfired would poison the
+  // matrix's C1-vs-soft data.
+  if (trigger.length) {
+    sayCue(@"triggering external cycle", silent, dryRun);
+    int trigRC = performExternalCycle(dryRun);
+    if (trigRC != 0) {
+      fprintf(stderr,
+              "repro: trigger '%s' failed (rc=%d); aborting pre-sleep\n",
+              trigger.UTF8String, trigRC);
+      return 1;
+    }
+  }
+
+  // Lock the session before the conditions read records the lock state.
+  // Same mechanism as the manual group C invocation this replaces: a
+  // ctrl-cmd-q keystroke via System Events (needs Accessibility permission
+  // for the terminal app). Remember to keep the Apple Watch off/out of
+  // range for the run.
+  if (lock) {
+    sayCue(@"locking session", silent, dryRun);
+    NSString *lockScript =
+        @"Application(\"System Events\").keystroke(\"q\", {using:[\"control "
+        @"down\",\"command down\"]})";
+    int lockRC = runStep(@"/usr/bin/osascript",
+                         @[ @"-l", @"JavaScript", @"-e", lockScript ], dryRun);
+    if (lockRC != 0) {
+      fprintf(stderr,
+              "repro: session lock failed (rc=%d); aborting — a run "
+              "recorded as locked must actually be locked\n",
+              lockRC);
+      return 1;
+    }
+    if (!dryRun)
+      [NSThread sleepForTimeInterval:2.0];
+  }
+
+  // Conditions are read twice — just before sleep and again just before
+  // the capture — so the sheet shows both ends of the run; only "did the
+  // lid move DURING sleep" stays a maintainer field (unobservable from
+  // either end). The only interactive prompt (sudo --validate) already
+  // ran, so this reading cannot go stale behind a prompt.
+  NSString *lidPre = clamshellStateShort();
+  NSString *lockPre = sessionLockState();
+  NSString *powerPre = powerSource();
+
+  // Schedule the auto-wake LAST, immediately before sleepnow, so the lead
+  // is consumed only by falling asleep — cue speech, lock, and condition
+  // reads all happen before the clock starts. (The machine takes ~5-10 s
+  // to commit to sleep after sleepnow; a wake time that passes during
+  // that window is silently dropped, which is what made short effective
+  // leads unreliable.) wake=0 means the maintainer will wake the machine
+  // manually (e.g. by opening the lid).
   if (wake > 0) {
     NSDateFormatter *f = [[NSDateFormatter alloc] init];
     f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
     f.dateFormat = @"MM/dd/yy HH:mm:ss";
     NSString *when =
         [f stringFromDate:[NSDate dateWithTimeIntervalSinceNow:wake]];
-    // Probe with --non-interactive first: when credentials are primed
-    // (sudo --validate, per the matrix doc) this never prompts. If they are
-    // not — including policies that disable credential caching entirely
-    // (timestamp_timeout=0), where priming cannot help — fall back to one
-    // interactive prompt. The fallback is safe by construction: this is
-    // repro's first step, before any sleep, with the screen lit; the blind
-    // phase contains no sudo calls.
     printf("repro: scheduling wake at %s (sudo)\n", when.UTF8String);
+    // Non-interactive only when locked (nobody can answer a prompt); the
+    // interactive fallback remains for unlocked runs under policies that
+    // disable credential caching (timestamp_timeout=0), where the
+    // --validate priming cannot help.
     int schedRC =
         runStep(@"/usr/bin/sudo",
                 @[ @"--non-interactive", @"pmset", @"schedule", @"wake", when ],
                 dryRun);
-    if (schedRC != 0 && !dryRun) {
+    if (schedRC != 0 && !dryRun && !lock) {
       fprintf(stderr, "repro: sudo credentials not cached; prompting now "
                       "(pre-sleep)\n");
       schedRC = runStep(@"/usr/bin/sudo",
@@ -1702,18 +1994,69 @@ static int reproCommand(int argc, const char *argv[]) {
     }
   }
 
-  // Conditions are read twice — just before sleep and again just before
-  // the capture — so the sheet shows both ends of the run; only "did the
-  // lid move DURING sleep" stays a maintainer field (unobservable from
-  // either end). Read AFTER the schedule step: a sudo prompt can sit for
-  // minutes, and a pre-prompt reading would be stale.
-  NSString *lidPre = clamshellStateShort();
-  NSString *lockPre = sessionLockState();
-  NSString *powerPre = powerSource();
+  // Register for the sleep/wake notifications BEFORE issuing sleepnow so
+  // neither can be missed. NSWorkspaceDidWakeNotification is the
+  // deterministic wake signal (fires however short the sleep was — a
+  // wall-clock tick-jump heuristic missed sub-5 s sleeps, the shakedown
+  // failure after run 85); the will-sleep observer feeds a 60 s
+  // did-not-sleep guard so a sleepnow that silently fails cannot hang the
+  // run. The wake side has no ceiling on purpose: a manual overnight wake
+  // is a legitimate run shape.
+  __block BOOL sleepSeen = NO, wakeSeen = NO;
+  NSNotificationCenter *wsCenter =
+      NSWorkspace.sharedWorkspace.notificationCenter;
+  id willSleepObs =
+      [wsCenter addObserverForName:NSWorkspaceWillSleepNotification
+                            object:nil
+                             queue:nil
+                        usingBlock:^(NSNotification *__unused note) {
+                          sleepSeen = YES;
+                        }];
+  id didWakeObs =
+      [wsCenter addObserverForName:NSWorkspaceDidWakeNotification
+                            object:nil
+                             queue:nil
+                        usingBlock:^(NSNotification *__unused note) {
+                          wakeSeen = YES;
+                        }];
   sayCue(@"sleeping now", silent, dryRun);
-  if (runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun) != 0)
+  int sleepRC = runStep(@"/usr/bin/pmset", @[ @"sleepnow" ], dryRun);
+  if (sleepRC != 0) {
+    [wsCenter removeObserver:willSleepObs];
+    [wsCenter removeObserver:didWakeObs];
     return 1;
-  // System sleeps here; execution resumes on the scheduled wake.
+  }
+  // System sleeps here. Run the run loop in 1 s slices (delivering the
+  // observers' notifications) until the wake arrives. The tick-jump check
+  // stays as a fallback in case notification delivery ever fails in a
+  // CLI process: a slice that spans > 5 s of wall clock straddled a
+  // sleep.
+  if (!dryRun) {
+    NSDate *sleepCmdAt = NSDate.date;
+    for (;;) {
+      NSDate *tick = NSDate.date;
+      [[NSRunLoop currentRunLoop]
+          runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
+      if (wakeSeen || -[tick timeIntervalSinceNow] > 5.0)
+        break;
+      if (!sleepSeen && -[sleepCmdAt timeIntervalSinceNow] > 60.0) {
+        fprintf(stderr,
+                "repro: no sleep observed within 60 s of sleepnow (or the "
+                "sleep notification was missed); aborting\n");
+        [wsCenter removeObserver:willSleepObs];
+        [wsCenter removeObserver:didWakeObs];
+        return 1;
+      }
+    }
+  }
+  [wsCenter removeObserver:willSleepObs];
+  [wsCenter removeObserver:didWakeObs];
+  // First cue after wake — within ~1 s of the wake instant, so the
+  // eyewitness can anchor the "immediate" observation to it while the
+  // panels first light. The settle countdown starts here, so the capture
+  // is a consistent `settle` seconds post-wake regardless of how long the
+  // machine slept.
+  sayCue(@"awake", silent, dryRun);
   if (!dryRun)
     [NSThread sleepForTimeInterval:settle];
 
@@ -1799,10 +2142,10 @@ static int reproCommand(int argc, const char *argv[]) {
     // Write the blank sheet BEFORE the prompt pass: an unanswered or
     // interrupted pass must still leave the run fully recorded on disk.
     sheetPath = runSheetPath(started, group, &runNumber);
-    NSString *sheet =
-        renderRunSheet(started, runNumber, wake, settle, recover, group, lidPre,
-                       lidCap, lockPre, lockCap, powerPre, powerCap,
-                       settleMarker, postWakeShown, postRecoverShown, nil);
+    NSString *sheet = renderRunSheet(started, runNumber, wake, settle, recover,
+                                     trigger, group, lidPre, lidCap, lockPre,
+                                     lockCap, powerPre, powerCap, settleMarker,
+                                     postWakeShown, postRecoverShown, nil);
     if (writeBundleText(sheet, sheetPath))
       printf("repro: run sheet written to %s\n", sheetPath.UTF8String);
     else {
@@ -1831,9 +2174,9 @@ static int reproCommand(int argc, const char *argv[]) {
       sayCue(@"prompts timed out, sheet left blank", silent, NO);
     } else if (answers.count) {
       NSString *filled = renderRunSheet(
-          started, runNumber, wake, settle, recover, group, lidPre, lidCap,
-          lockPre, lockCap, powerPre, powerCap, settleMarker, postWakeShown,
-          postRecoverShown, answers);
+          started, runNumber, wake, settle, recover, trigger, group, lidPre,
+          lidCap, lockPre, lockCap, powerPre, powerCap, settleMarker,
+          postWakeShown, postRecoverShown, answers);
       if (writeBundleText(filled, sheetPath))
         printf("repro: observations recorded in %s\n", sheetPath.UTF8String);
       else {
@@ -1946,6 +2289,12 @@ int main(int argc, const char *argv[]) {
         return 1;
       }
       return setVerbosity(argv[2]);
+    } else if (strcmp(cmd, "recovery") == 0) {
+      if (argc < 3) {
+        fprintf(stderr, "Usage: blackoutd recovery <none|displaysleep>\n");
+        return 1;
+      }
+      return setRecoveryStrategy(argv[2]);
     }
     // "daemon" with no subcommand falls through to daemon run loop below.
     if (strcmp(cmd, "daemon") != 0) {

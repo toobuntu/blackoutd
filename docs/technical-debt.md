@@ -787,6 +787,21 @@ that list — capture the connection mode (BetterDisplay `get -connectionMode`, 
 a native reader once it exists) *during* the broken state, to distinguish "stuck
 in a bad mode" from "no active mode".
 
+**2026-07-19 update — capture gate met; first surviving detector
+candidate.** Cohort 2 (matrix runs 011+) delivered the required ≥3
+black / ≥3 clean settled `verbosityLevel=2` captures during genuine
+occurrences, satisfying the "Diagnostic data needed" list below via the
+`repro` workflow. The field diff found the first black/clean splitter
+to survive n ≥ 3: a WindowServer hotplug-coalescing log marker, 10/10
+black wakes vs 0/15 clean across both cohorts, supporting hypothesis A
+(link drop during sleep, coalesced on wake). Full diff record,
+mechanism reading, caveats, and next steps under P29 (2026-07-19
+update). **2026-07-20**: the marker stands at 56/56 vs 0/33 across
+runs 1–104, and the detector-gated displaysleep auto-recovery is
+implemented in the daemon (`recoveryStrategy` pref, `blackoutd
+recovery` subcommand) — the acceptance-criteria recovery path for
+hypothesis A/C is landed; see P29 (2026-07-20 update).
+
 **Architecture analysis confirming the gap**:
 
 `recommitDisplayConfiguration` fires from exactly two paths today
@@ -1688,6 +1703,325 @@ fields), and a six-bundle A/B on 2026-06-10/11 found no consistent 0-vs-4
 black/clean split. `DCPPowerState` carries no cursor-on-black signal on
 either controller. `NormalModeActive` and `DCPPowerAssertionCount` remain
 untested as detectors; capture them at the black instant to test.
+
+**Update (2026-07-19) — cohort 2 diff: a WindowServer log marker splits
+black from clean, 10/10 vs 0/15.** Cohort 2 (matrix runs 011+, sheets
+under `docs/debug/repro-matrix/`, v0.4.0 build) satisfied the capture
+gate: settled group A blacks runs 14, 22, 24 (battery, on-condition;
+run 11 also black but on AC) vs cleans runs 12, 13, 15, 16, 18, 20,
+21, 23, 36. Run 17 settled E2 (black, no cursor — a black panel the
+E1-keyed Outcome line scores "no"); run 19 disregarded (maintainer:
+possibly misreported). Field-by-field diff of the post-wake bundles
+under matching conditions:
+
+- `dcp.txt` / `connection-mode.txt`: **byte-identical** across all
+  three on-condition blacks and all nine cleans. This extends the dead
+  `DCPPowerState` verdict to the previously untested fields:
+  `NormalModeActive`, `DCPPowerAssertionCount`, resolution /
+  `DPTimingModeId` / `Transport`, and the advertised ColorElements
+  catalog — none carries any black/clean signal (negative).
+- `config.txt`: differs only in timestamps (negative).
+- `ioreg.txt`: with volatile fields masked (object ids, busy times,
+  retain counts, `IOPowerManagement`, `DebugState`, statistics,
+  `TransferCount`), the external `dcpext@71C00000` subtree of black
+  run 14 is byte-identical to clean runs 13 and 36, and black run 22
+  to clean run 18; the built-in `dcp@31C00000` subtree is identical
+  across all on-condition blacks and cleans. The stalled scanout is
+  not surfaced to ioreg at all — confirms the 2026-06-10 reading
+  (negative).
+- `windowserver.txt`: **positive.** Clipped to each run's own wake
+  window (per the classify-per-wake rule above), the SkyLight line
+  `[ Display:Hotplug ] Replacing existing hotplug event for state
+  "out" with "in", display id: 2` appears exactly once at the wake of
+  every black-panel run — run 14 (11:02:20), run 22 (12:19:31), run 24
+  (12:23:07), plus corroborating run 11 (00:09:39, AC), run 37
+  (14:18:40, group B post-wake), and the E2-variant run 17 (12:06:07)
+  — and zero times in all nine cleans, each of whose logs covers the
+  full wake window. Cohort 1 corroborates: in-window marker on all
+  four blacks (runs 3, 5, 7, 8), on none of the five cleans nor
+  stricken run 9 (run 10's file carries the line 7 minutes *before*
+  its run — outside the window, the same per-wake trap as the 0x133e
+  grep). Combined: **10/10 black-panel wakes vs 0/15 clean**; the
+  n ≥ 3 bar is met on cohort 2 alone.
+
+**Mechanism reading.** The marker means WindowServer still holds an
+unprocessed hotplug "out" for display 2 when the wake "in" arrives,
+and SkyLight coalesces the pair. So on black wakes the external
+dropped its link during sleep (hypothesis A, Alt Mode dropout) and
+WindowServer — seeing continuity — skips the full teardown/re-attach,
+leaving the DCP scanout un-rearmed while every CG/WS-visible field
+looks healthy (the below-WS mechanism above). Clean wakes show no
+coalescing. A secondary, effect-side split points the same way: the
+FuseBoard `updated window N from "occluded" to "visible"` line appears
+≥ 5 times in every clean wake window and never in a black one (windows
+only become visible when the external actually renders).
+
+**Side observations (not detectors).**
+
+- Runs 11 and 37 — the only two blacks whose sheets record an
+  *immediate* E1/B0 wake (no role reversal) — are also the only two
+  captures whose built-in DCP reads `DCPPowerState=4` / assertion 1,
+  with the built-in advertising ColorElements; run 37's post-recover
+  bundle still reads 4, and the clean music-playing runs 38–40 read 0.
+  The on-condition blacks (14, 22, 24; immediate E2/B1) read 0 like
+  every clean. This sub-classes the wake shape, not black vs clean.
+- Disregarded run 19: later runs' log windows show the marker fired at
+  12:08:58, inside run 19's wake window — consistent with its original
+  "black" record, but it stays out of every tally per the maintainer.
+
+**Next steps.** Detection is now plausible with no new private API: at
+`wakeSettleTimerFired`, query the unified log for the marker over the
+last ~60 s (`OSLogStore`, or `log show --last 60s --predicate 'process
+== "WindowServer" AND eventMessage CONTAINS "Replacing existing
+hotplug event"'`; the line logs at Default level, so it is in the
+persistent store without any debug-logging setup; in cohort 2 it fires
+~3.5 s *before* the daemon's settle marker, so it is already on disk
+when the settle timer fires). Marker present ⇒ arm the
+display-power-cycle-class recovery; absent ⇒ do nothing. Caveats: the
+wording is private SkyLight internals and can change across macOS
+releases — treat a missing marker as "unknown", pin the predicate per
+macOS version, and keep the eyewitness matrix as the validation loop.
+Sequence:
+
+1. More group B runs until a second black lands (recovery is 1/1 in
+   cohort 2 — run 37 black ⇒ `--recover displaysleep` ⇒ cleared,
+   post-recover E0/B0 — corroborated by cohort 1's four manual clears,
+   but below the matrix's n ≥ 2 bar); then group C (locked).
+2. Prototype the detector read-only (log the query verdict at settle
+   time, no recovery wiring) and validate it live against ≥ 3 further
+   eyewitness-confirmed blacks and cleans.
+3. Only then wire detector ⇒ recovery, behind a `recoveryStrategy`
+   pref (separate PR, per the matrix's "What we do with the data").
+
+**Update (2026-07-19, later) — extension runs 41–60: marker at 19/19
+vs 0/26; a manual repro lever (C1); recovery question answered.**
+
+- *Marker validated on 20 more runs.* Blacks 49, 51–54, 56–57 (group
+  B) and 58, 60 (group C series): the hotplug-coalescing marker fires
+  in-window on **9/9**; the 11 cleans (41–48, 50, 55, 59) show **0**.
+  Running total **19/19 black vs 0/26 clean** across all recorded
+  runs. The FuseBoard occluded→visible secondary is demoted: the
+  extension breaks its clean split (black run 49 shows 1, locked
+  black run 60 shows 5) — corroborator only, not a detector.
+- *C1 — the cable trigger (first on-demand repro lever).* Unplugging
+  the external's **USB-C end** pre-run (leaving it out until the
+  built-in fully redraws, then replugging) provoked cursor-on-black
+  on the next wake in 8 of 9 tries (blacks 49, 51–54, 56–57, 60;
+  miss 55). Mechanistically consistent with the coalescing story: a
+  fresh physical re-attach immediately before sleep leaves link
+  state that drops again across the sleep boundary. Critically, the
+  C1-miss run 55 shows the pre-run replug alone does **not** plant
+  the marker — the marker still tracks the black, not the cable
+  handling. Run 58's Notes record no C1, but the maintainer later
+  recalled the cable trigger may have been applied there too — do
+  not cite run 58 as a trigger-free natural repro. C1 makes
+  recovery-candidate testing cheap: black on demand, ~3 min per
+  data point.
+- *Recovery: displaysleep is 10/10.* Every black in the extension was
+  cleared end-to-end by `--recover displaysleep` (`pmset
+  displaysleepnow` + `caffeinate -u`, no root), including run 60
+  **while the session stayed locked**. With run 37 that is 10/10
+  programmatic clears plus cohort 1's four manual ones. Group B's
+  question is answered; group C (locked) is 1/1 and stays open until
+  n ≥ 2. The 2026-05-21 "displaysleepnow = flicker dead end" note is
+  fully superseded for the *recovery* path (flicker accepted).
+- *Deterministic detection beyond the log query (survey, untested).*
+  The marker is not a proxy — it is the trace of the exact SkyLight
+  branch that matters (the pending-"out" coalescing decision), and
+  no exported SkyLight symbol surfaces that queue state; a private
+  SkyLight *notification* would sit downstream of the same coalescing
+  and inherit the blind spot (the falsified `0x133e` flag is the
+  public shadow of exactly that). The genuinely deterministic path is
+  to observe the raw hotplug **upstream** of WindowServer:
+  `IOMobileFramebuffer.framework` exports
+  `IOMobileFramebufferEnableHotPlugDetectNotifications` /
+  `IOMobileFramebufferGetHotPlugRunLoopSource` (per-framebuffer HPD
+  events; BetterDisplay links this framework from an ordinary
+  notarized app, so the user client is reachable without special
+  entitlements). blackoutd already opens no IOMFB connection; a
+  read-only spike would open the external framebuffer
+  (`IOMobileFramebufferOpenByName`, name `external-0` per the WS
+  logs) at daemon start, log timestamped HPD events, and let a C1
+  series show whether an HPD-event pattern around the sleep boundary
+  splits black/clean. If it does, detection needs no log query at
+  all. Until then, `OSLogStore` (in-process, structured predicate,
+  no subprocess) is the implementation of record for the marker
+  query — prefer it over spawning `log show`.
+- *Targeted recovery beyond displaysleep (survey, untested).*
+  Candidates, in prototype order: (1)
+  `IOMobileFramebufferRequestPowerChange` on the external framebuffer
+  only — a DCP-level power cycle scoped to one display, no global
+  display sleep, no lock-screen interaction; (2) blackoutd's own
+  primitive, `CGSConfigureDisplayEnabled(external, false→true)` — no
+  new API but CG-level, may not reach the DCP (P29 lever b, still
+  untested); (3) DDC power cycle of the sink (VCP 0xD6 off→on via
+  `IOAVService` I2C, the Lunar/m1ddc path, open source — no RE
+  needed) — the software analog of the physical replug that C1 shows
+  re-arms the link, but sink-side and dependent on the SP2309W's DDC
+  support. Test each as a new `--recover` method against C1 blacks;
+  adopt over displaysleep only if ≥ its reliability. BetterDisplay
+  RE (its `_reinitializeOnWake` implementation) is the fallback if
+  all three miss.
+- *Group C invocation* (osascript lock before `repro`) is recorded in
+  the matrix, with run 58's ordering lesson (lock keystroke chained
+  after `repro` never took effect; its machine-read session field
+  caught it).
+- *Tooling (implemented same day, runtime-untested).* Candidate (2)
+  above — the external disable/re-enable cycle — is now built as
+  `extcycle`, dispatchable both as a recovery (`recover --method
+  extcycle`, `repro --recover extcycle`) and as a pre-sleep trigger
+  (`repro --trigger extcycle`, the software analog of C1: disable,
+  5 s for the built-in restore/redraw, re-enable, 5 s re-attach
+  settle). The sheet's conditions block gains a machine-filled
+  `trigger` line so soft-trigger runs are distinguished from
+  physical C1 runs, and `blackoutd --help` now documents the
+  recover/repro methods. Validation order: (a) soft-trigger A/B —
+  does `--trigger extcycle` reproduce the black like C1? Either
+  answer is informative: yes ⇒ fully software repro, no ⇒ the
+  trigger's essence is physical HPD, itself a mechanism datum;
+  (b) if C1 (or the soft trigger) keeps producing blacks, race
+  `--recover extcycle` against them — does a CG-level cycle clear
+  what the no-op recommit could not?
+
+**Update (2026-07-19, evening) — soft trigger works (18/20); marker
+at 39/39 vs 0/31; extcycle recovery is lock-state-dependent; the bug
+is host-side.** Runs 61–85 (matrix "soft-trigger series" and group C
+extension tables).
+
+- *The repro is now fully software.* `--trigger extcycle` provoked
+  cursor-on-black in **18 of 20** runs (blacks 61–70, 73–80; misses
+  71–72) with **no cable handling and no physical HPD event** — the
+  external only entered powersave during the cycle. Healthy-state
+  sanity: 9/9 manual `recover --method extcycle` cycles ran the same
+  sequence (external drops → built-in lights at native resolution →
+  external powersave → built-in re-mirrors the external's resolution
+  → built-in re-blacks → external returns).
+- *All 20 trigger runs were `W1` (scheduled wake failed, manual
+  Space/trackpad wake) — a repro bug, not a power quirk*: the wake
+  was scheduled before the trigger, whose ~15 s of cueing and
+  settling left the wake time in the past by the time the machine
+  slept. Fixed same evening: `sudo --validate` is now built into
+  repro (no more manual prefix), the trigger runs before the
+  schedule step and the wake time is computed after it, a new
+  **"awake" cue** speaks within ~1 s of the detected wake (the
+  settle countdown now anchors at the wake, not at sleepnow), and a
+  new `--lock` flag replaces the manual osascript lock chain.
+  Silver lining recorded: the W1 runs show the black reproduces on
+  *manual* wakes too — it is not scheduled-wake-specific.
+- *Marker: 20/20 new blacks, 0/5 new cleans — running total 39/39
+  vs 0/31.* Critically, the two trigger-but-clean runs (71, 72)
+  show the trigger's own pre-sleep hotplug pair does **not** plant
+  the marker, and every marker timestamp sits at the wake instant
+  (e.g. run 61: start 20:24:01, marker 20:25:20 at the manual
+  wake), not at the trigger. The detector survives the soft-trigger
+  regime intact.
+- *extcycle as recovery: usable only unlocked.* Unlocked (runs
+  69–80): cleared **10/10** blacks — the first recovery besides the
+  display-sleep class, and evidence that a CG-level teardown/rebuild
+  *can* re-arm the scanout (where the no-op recommit could not).
+  Locked (runs 81–85): it failed on both blacks (81, 83: cleared
+  then **both panels went black**) and **induced** a black external
+  on clean wakes (84, 85); run 84's aftermath left the external
+  absent from CGGetOnlineDisplayList entirely (`extcycle: no
+  external display online`) until the next sleep/wake re-onlined
+  it, and `blackoutd off`/`on` cycles did not restore it after run
+  81. **displaysleep remains the recovery of record** (works locked
+  and unlocked); any future automatic wiring must either gate
+  extcycle on an unlocked session or just use displaysleep.
+- *Shakedown after run 85 (23:01, unnumbered — Ctrl-C'd, no sheet):
+  the tick-loop wake detector was defective and is replaced.* On the
+  reordered build the trigger again produced the black (E2/B1 →
+  E1/B1 → E1/B0, held indefinitely; hot corner recovered), but repro
+  went silent: no "awake" cue, no capture. Root cause: the loop
+  detected a wake only when one 1 s tick spanned > 5 s of wall
+  clock, and with the wake lead consumed by fall-asleep time the
+  actual sleep span can be under 5 s — the scheduled wake most
+  likely fired (the panels lit unprompted) and the detector missed
+  it, spinning forever (it had no ceiling). Reworked same night:
+  repro now registers `NSWorkspaceWillSleepNotification` /
+  `NSWorkspaceDidWakeNotification` observers before `sleepnow` and
+  waits on the did-wake notification in a run loop (deterministic
+  for arbitrarily short sleeps), keeps the tick-jump check only as
+  a fallback, aborts if no will-sleep arrives within 60 s of
+  `sleepnow` (a sleep that never happens must error, not hang; the
+  wake side deliberately has no ceiling — overnight manual wakes
+  are legitimate), and schedules the wake immediately before
+  `sleepnow` so lock/conditions/cue time no longer shaves the
+  sleep span. For the record: the 1 s ticks cannot cause or prevent
+  a wake — sleeping threads hold no power assertions and userspace
+  timers do not program RTC wakes.
+- *Attribution (maintainer asked: OS, cable, display, or interfering
+  software?).* The evidence points at the **macOS display stack
+  (SkyLight/DCP wake path), host-side**: the soft trigger reproduces
+  the black with the cable untouched and no physical HPD (cable and
+  monitor-side link exonerated as necessary conditions); the
+  detector is WindowServer's own hotplug-coalescing bookkeeping; and
+  every recovery that works (hot corner, displaysleep, unlocked
+  extcycle, physical replug) is a host-side pipeline rebuild. The
+  SP2309W/adapter's slow re-attach remains a plausible
+  *frequency* contributor (it shapes when a hotplug pair straddles
+  the wake), and one third-party confound is untested:
+  MonitorControlLite (software brightness shade) was running during
+  all recorded runs. Cheap control series: quit MonitorControlLite
+  (slider at 100%), run ~6 soft-trigger runs — if blacks persist,
+  the confound is retired; Brisync was never running and is
+  irrelevant.
+
+**Update (2026-07-20) — confound retired; auto-recovery implemented.**
+Runs 86–104 (matrix "shakedowns, MCL controls, groups C/D/E" table):
+
+- *Marker all-time tally: 56/56 black vs 0/33 clean* (17 more blacks,
+  2 more cleans; every capture regime — cable, soft trigger, locked,
+  AC, lid).
+- *MonitorControlLite retired as a confound*: 15 runs with MCL quit
+  produced 13 blacks, indistinguishable from before. Attribution
+  stands: a macOS SkyLight/DCP wake-path defect, host-side.
+- *Recovery evidence complete*: locked displaysleep n=5 (runs 60,
+  98–101); group D answered (six AC blacks — not power-dependent);
+  group E's lived scenario (run 104 lid-open wake) reproduced black
+  and recovered. Every programmatic displaysleep recovery across the
+  whole matrix has cleared its black.
+- *Auto-recovery is now wired into the daemon.* At
+  `wakeSettleTimerFired`, when an external is present, the daemon
+  queries the unified log (spawning `log show` over a window opening
+  30 s before the recorded wake — the same unprivileged path
+  `diagnose` uses) for the coalescing marker; if present it runs the
+  displaysleep cycle (`pmset displaysleepnow`, 2 s, `caffeinate -u`)
+  off the main queue. Gated by the new `recoveryStrategy` pref
+  (String, default `displaysleep`; `none` disables; unknown values
+  fall back to none), set via the new `blackoutd recovery
+  <none|displaysleep>` subcommand (SIGHUP reload, P23 pattern) and
+  shown in `status`/`config.txt`. Guards: once-per-wake latch,
+  `_systemSleeping` re-check, marker absence = no action; the
+  display-sleep cycle emits screen (not system) sleep notifications,
+  so it cannot re-arm the wake path and loop. **Matrix data
+  collection must now disable it first** (`blackoutd recovery none`)
+  or captures record the recovered panel — see the matrix how-to.
+- *Flicker-free recovery and BetterDisplay RE remain open* (the
+  displaysleep cycle blinks both panels): candidates stay
+  `IOMobileFramebufferRequestPowerChange` (per-framebuffer, private)
+  and a BD `_reinitializeOnWake` RE pass — behind the now-standing
+  detector, as a follow-up PR. The extcycle recovery is ruled out for
+  automatic use (locked-session hazard, 2026-07-19 evening update).
+  A first probe is in the tree: `recover --method fbpower` (CLI-only,
+  dlsym-resolved, signatures unverified — a crash is a data point).
+  Smoke it against a soft-trigger black; even a refusal at
+  `IOMobileFramebufferOpenByName` is an answer, since the
+  HPD-notification detection idea rides on the same user-client
+  access.
+- *Wake-cue audibility*: the "awake" `say` cue is intermittently
+  inaudible right after wake (audio-device bring-up race; both power
+  sources affected). Detection and captures are unaffected; the
+  Notification Center banner carries the timestamp. Known quirk.
+- *Live validation (runs 106–107).* With `recoveryStrategy
+  displaysleep` active and no repro-side `--recover`, a soft-trigger
+  black wake (run 106) cleared to E0/B0 before the "capturing post
+  wake" cue, and a clean wake (run 107) passed through untouched —
+  and the maintainer perceived **no flicker**: firing the cycle at
+  wake-settle lands it inside the wake transition, before the panels
+  have visibly stabilized. That takes most of the urgency out of the
+  flicker-free follow-up (fbpower probe untried as of run 107); it
+  remains worth one smoke test on principle.
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR

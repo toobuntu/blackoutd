@@ -35,6 +35,15 @@ NS_ASSUME_NONNULL_BEGIN
 ///   killall -HUP blackoutd
 @property(nonatomic, assign) NSInteger verbosityLevel;
 
+/// Post-wake automatic recovery for the cursor-on-black failure
+/// (technical-debt.md P20/P29). At wake-settle time, when the WindowServer
+/// hotplug-coalescing marker is present in this wake's unified-log window,
+/// the daemon runs the configured recovery. Values: "none" (disabled) or
+/// "displaysleep" (display-sleep cycle; the default). Unknown values fall
+/// back to "none". Set via `blackoutd recovery <none|displaysleep>` or
+/// reload via SIGHUP like verbosityLevel.
+@property(nonatomic, copy) NSString *recoveryStrategy;
+
 /// Set to YES during system sleep. Display change events are still logged
 /// but state changes are not acted on until wake.
 @property(nonatomic, assign) BOOL systemSleeping;

@@ -129,6 +129,10 @@ Keys:
 - `autoBlackoutOnExternalConnect` (BOOL, default YES)
 - `blackoutActive` (BOOL) — persisted blackout intent
 - `verbosityLevel` (Integer, default 1; 2 enables `[verbose=2]`-tagged log lines)
+- `recoveryStrategy` (String, default `displaysleep`; `none` disables the
+  post-wake cursor-on-black auto-recovery — set via
+  `blackoutd recovery <none|displaysleep>`; see P20/P29 and
+  `docs/debug/cursor-on-black-matrix.md`)
 
 ## Key technical details
 
@@ -341,8 +345,10 @@ For non-trivial work, an agent should also read:
 
 1. `docs/technical-debt.md` — current priorities and known issues
 2. `ROADMAP.md` — milestone plan (cross-references the P-numbers above)
-3. `docs/decisions/` — accepted ADRs (4 today: Trojan Source, daemon
-   presence, wake-settle timer, merge strategy)
+3. `docs/decisions/` — ADRs 0001–0010 (0009 is `proposed`, the rest
+   accepted). For display work start with 0003 wake-settle timer and
+   0010 cursor-on-black detection/recovery; 0009 is the SP2309W color
+   quirk (repo-foundation has its own, unrelated 0009 on logging)
 4. `CONTRIBUTING.md` — encoding policy, REUSE/SPDX conventions, commit
    and PR conventions
 

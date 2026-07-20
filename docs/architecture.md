@@ -110,6 +110,18 @@ fires reconfiguration callbacks as side effects. A 2-second window
 connect/disconnect events. A safety check at window close catches any real
 events that arrived during the window.
 
+**Detector-gated wake recovery** — Some wakes leave the external display
+black (cursor only) with every CG/WindowServer-visible field healthy — a
+DCP/scanout stall below WindowServer. The one host-visible signal is a
+WindowServer log line (SkyLight coalescing a pending hotplug "out" with
+the wake's "in"; 56/56 black vs 0/33 clean across the empirical matrix).
+At wake-settle, with an external present, the daemon queries the unified
+log for that marker and, when present, runs a display-sleep cycle
+(`pmset displaysleepnow` + `caffeinate -u`) — the recovery validated
+locked and unlocked. Gated by the `recoveryStrategy` preference
+(`blackoutd recovery <none|displaysleep>`). See ADR 0010 and
+technical-debt P20/P29.
+
 ### Companion Project
 
 [displayrecommitd](https://github.com/toobuntu/displayrecommitd/) is a

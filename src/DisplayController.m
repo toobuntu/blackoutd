@@ -201,6 +201,12 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   // invalidateDisplayState). See incidents 14:42 and 17:28 on 2026-04-29
   // in docs/debug/.
   NSInteger _failedActionRetries;
+  // Cursor-on-black wake recovery (P20/P29): timestamp of the last system
+  // wake (bounds the marker query window) and a once-per-wake latch so
+  // settle-timer re-fires (err=1014 retries re-arm it) cannot run the
+  // recovery twice for one wake.
+  NSDate *_lastWakeAt;
+  BOOL _wakeRecoveryAttempted;
 }
 
 - (instancetype)init {
@@ -236,6 +242,23 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   BDVerbosityLevel = verbosityLevel;
   if (changed)
     NSLog(@"[prefs] verbosityLevel=%ld", (long)verbosityLevel);
+}
+
+- (void)setRecoveryStrategy:(NSString *)recoveryStrategy {
+  // Unknown values disable the recovery rather than guessing: a typo in the
+  // pref must not silently pick an action.
+  NSString *normalized = recoveryStrategy;
+  if (![normalized isEqualToString:@"none"] &&
+      ![normalized isEqualToString:@"displaysleep"]) {
+    NSLog(@"[prefs] recoveryStrategy=%@ unknown (known: none, displaysleep); "
+          @"using none",
+          normalized);
+    normalized = @"none";
+  }
+  BOOL changed = ![normalized isEqualToString:_recoveryStrategy];
+  _recoveryStrategy = [normalized copy];
+  if (changed)
+    NSLog(@"[prefs] recoveryStrategy=%@", normalized);
 }
 
 - (BOOL)isBlackedOut {
@@ -329,6 +352,8 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
 // MARK: - Wake Settle Timer (P0 / P2)
 
 - (void)handleSystemWake {
+  _lastWakeAt = NSDate.date;
+  _wakeRecoveryAttempted = NO;
   [self resetWakeSettleTimer];
 }
 
@@ -406,6 +431,136 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
           @"blackout action");
     [self applyEnable:NO];
   }
+  if (hasExternal)
+    [self attemptCursorOnBlackRecovery];
+}
+
+// MARK: - Cursor-on-black wake recovery (P20 / P29)
+
+// The one host-visible signal that separates cursor-on-black wakes from
+// clean ones: SkyLight coalescing a still-pending hotplug "out" with the
+// wake's "in" for the external display. Validated 56/56 black vs 0/33
+// clean across matrix runs 1-104 (docs/debug/cursor-on-black-matrix.md).
+// Private log wording — pinned to macOS 26 behavior; absence is treated as
+// "clean or unknown", never as an error.
+static NSString *const kBDHotplugCoalescedNeedle =
+    @"for state \"out\" with \"in\"";
+
+// Queries the unified log for the coalescing marker between `since` and
+// now, via /usr/bin/log show — the same unprivileged path `diagnose` uses
+// for windowserver.txt. The predicate matches the stable message prefix;
+// the exact out/in direction is confirmed in-process so a future
+// in-with-out sibling line cannot false-positive. Runs off the main queue
+// (the query takes ~1 s). Returns NO on any spawn/read failure.
+static BOOL BDWakeMarkerPresentSince(NSDate *since) {
+  NSDateFormatter *f = [[NSDateFormatter alloc] init];
+  f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+  // Explicit zone and offset: log(1) documents "YYYY-MM-DD HH:MM:SSZZZZZ"
+  // as an accepted --start form, so emit the offset (Z pattern -> "-0400")
+  // rather than relying on the formatter's local-zone default matching
+  // log's local-zone interpretation of an unqualified timestamp.
+  f.timeZone = NSTimeZone.localTimeZone;
+  f.dateFormat = @"yyyy-MM-dd HH:mm:ssZ";
+  NSTask *task = [[NSTask alloc] init];
+  task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/log"];
+  NSString *predicate =
+      @"process == \"WindowServer\" AND eventMessage CONTAINS \"Replacing "
+      @"existing hotplug event\"";
+  task.arguments = @[
+    @"show", @"--style", @"compact", @"--start", [f stringFromDate:since],
+    @"--predicate", predicate
+  ];
+  NSPipe *pipe = [NSPipe pipe];
+  task.standardOutput = pipe;
+  task.standardError = [NSFileHandle fileHandleWithNullDevice];
+  NSError *err = nil;
+  if (![task launchAndReturnError:&err]) {
+    NSLog(@"[wake] recovery marker query failed to launch: %@",
+          err.localizedDescription);
+    return NO;
+  }
+  NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+  [task waitUntilExit];
+  if (task.terminationStatus != 0) {
+    NSLog(@"[wake] recovery marker query exited rc=%d",
+          (int)task.terminationStatus);
+    return NO;
+  }
+  NSString *out = [[NSString alloc] initWithData:data
+                                        encoding:NSUTF8StringEncoding];
+  return [out containsString:kBDHotplugCoalescedNeedle];
+}
+
+// Runs one display-sleep cycle: pmset displaysleepnow (unprivileged), a 2 s
+// pause, then caffeinate -u to re-declare user activity and relight the
+// panels. The one recovery the matrix confirms end-to-end, locked and
+// unlocked (runs 37-104: every programmatic clear). Called off the main
+// queue.
+static void BDRunDisplaySleepCycle(void) {
+  NSTask *sleepTask = [[NSTask alloc] init];
+  sleepTask.executableURL = [NSURL fileURLWithPath:@"/usr/bin/pmset"];
+  sleepTask.arguments = @[ @"displaysleepnow" ];
+  NSError *err = nil;
+  if (![sleepTask launchAndReturnError:&err]) {
+    NSLog(@"[wake] recovery displaysleep failed to launch: %@",
+          err.localizedDescription);
+    return;
+  }
+  [sleepTask waitUntilExit];
+  if (sleepTask.terminationStatus != 0) {
+    NSLog(@"[wake] recovery displaysleep exited rc=%d — skipping wake nudge",
+          (int)sleepTask.terminationStatus);
+    return;
+  }
+  [NSThread sleepForTimeInterval:2.0];
+  NSTask *wakeTask = [[NSTask alloc] init];
+  wakeTask.executableURL = [NSURL fileURLWithPath:@"/usr/bin/caffeinate"];
+  wakeTask.arguments = @[ @"-u", @"-t", @"2" ];
+  if (![wakeTask launchAndReturnError:&err]) {
+    NSLog(@"[wake] recovery caffeinate failed to launch: %@",
+          err.localizedDescription);
+    return;
+  }
+  [wakeTask waitUntilExit];
+  NSLog(@"[wake] recovery=displaysleep cycle complete (pmset rc=%d)",
+        (int)sleepTask.terminationStatus);
+}
+
+// At settle time, decide whether this wake needs the recovery. Gated on the
+// recoveryStrategy pref, once per wake, and on the marker being present in
+// this wake's log window. The display-sleep cycle produces screen (not
+// system) sleep notifications, so it cannot re-arm handleSystemWake and
+// loop; the once-per-wake latch is belt and suspenders.
+- (void)attemptCursorOnBlackRecovery {
+  if (![_recoveryStrategy isEqualToString:@"displaysleep"])
+    return;
+  if (_wakeRecoveryAttempted || !_lastWakeAt)
+    return;
+  _wakeRecoveryAttempted = YES;
+  // Query from shortly before the wake: the marker lands at the wake
+  // instant. 30 s comfortably covers the skew between the marker's log
+  // timestamp and _lastWakeAt (the NSWorkspace notification can trail the
+  // hardware wake by a few seconds) plus log-flush latency, while staying
+  // far inside the >= 2-3 min spacing of consecutive repro wakes — so the
+  // previous wake's marker can never leak into this window.
+  NSDate *since = [_lastWakeAt dateByAddingTimeInterval:-30.0];
+  __weak typeof(self) weakSelf = self;
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    BOOL present = BDWakeMarkerPresentSince(since);
+    if (!present) {
+      NSLog(@"[wake] recovery=displaysleep marker=absent — no action");
+      return;
+    }
+    __strong typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf || strongSelf->_systemSleeping) {
+      NSLog(@"[wake] recovery=displaysleep marker=present but system "
+            @"sleeping — skipped");
+      return;
+    }
+    NSLog(@"[wake] recovery=displaysleep marker=present — issuing "
+          @"display-sleep cycle");
+    BDRunDisplaySleepCycle();
+  });
 }
 
 // MARK: - Private
