@@ -345,10 +345,10 @@ For non-trivial work, an agent should also read:
 
 1. `docs/technical-debt.md` — current priorities and known issues
 2. `ROADMAP.md` — milestone plan (cross-references the P-numbers above)
-3. `docs/decisions/` — accepted ADRs (9 today, numbered through 0010;
-   0009 is cited in docs but not yet written. For display work start
-   with 0003 wake-settle timer and 0010 cursor-on-black
-   detection/recovery)
+3. `docs/decisions/` — ADRs 0001–0010 (0009 is `proposed`, the rest
+   accepted). For display work start with 0003 wake-settle timer and
+   0010 cursor-on-black detection/recovery; 0009 is the SP2309W color
+   quirk (repo-foundation has its own, unrelated 0009 on logging)
 4. `CONTRIBUTING.md` — encoding policy, REUSE/SPDX conventions, commit
    and PR conventions
 
