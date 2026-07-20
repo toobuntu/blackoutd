@@ -31,6 +31,7 @@ static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
 static NSString *const kVerbosityKey = @"verbosityLevel";
+static NSString *const kRecoveryKey = @"recoveryStrategy";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
 static NSString *agentPlistPath(void) {
@@ -575,6 +576,8 @@ static NSString *buildReport(void) {
     [r appendFormat:@"daemon log tail : %@\n", state];
   [r appendFormat:@"auto-blackout   : %s\n", autoMode ? "enabled" : "disabled"];
   [r appendFormat:@"verbosity       : %ld\n", (long)verbosity];
+  [r appendFormat:@"recovery        : %@\n",
+                  [defaults stringForKey:kRecoveryKey] ?: @"displaysleep"];
   [r appendFormat:@"bundle-id       : %s\n", kBundleID.UTF8String];
   [r appendFormat:@"lid             : %@\n", clamshellState()];
   [r appendFormat:@"session         : %@\n", sessionLockState()];
@@ -834,6 +837,8 @@ static int printStatus(void) {
          builtInIsOnline() ? "active" : "blacked out");
   printf("  auto-blackout    : %s\n", autoMode ? "enabled" : "disabled");
   printf("  verbosity        : %ld\n", (long)verbosity);
+  printf("  recovery         : %s\n",
+         ([defaults stringForKey:kRecoveryKey] ?: @"displaysleep").UTF8String);
   return pid > 0 ? 0 : 1;
 }
 
@@ -849,6 +854,45 @@ static int setAutoBlackout(const char *value) {
   [defaults synchronize];
   printf("auto-blackout: %s\n", enable ? "enabled" : "disabled");
   return sendSignalToDaemon(SIGHUP);
+}
+
+// Sets the daemon's post-wake cursor-on-black recovery strategy, persisted
+// in NSUserDefaults and applied live via SIGHUP — same pattern as
+// setVerbosity below. "displaysleep" (the default) runs a display-sleep
+// cycle at wake-settle when the WindowServer hotplug-coalescing marker is
+// present (P20/P29); "none" disables it — required before matrix baseline
+// data collection, which must observe the un-recovered wake.
+static int setRecoveryStrategy(const char *value) {
+  static const char *kRecoveryUsage =
+      "Usage: blackoutd recovery <none|displaysleep>\n";
+  if (value == NULL ||
+      (strcmp(value, "none") != 0 && strcmp(value, "displaysleep") != 0)) {
+    fprintf(stderr, "%s", kRecoveryUsage);
+    return 1;
+  }
+  NSUserDefaults *defaults =
+      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+  [defaults setObject:@(value) forKey:kRecoveryKey];
+  [defaults synchronize];
+  NSString *applied = [defaults stringForKey:kRecoveryKey];
+  pid_t pid = daemonPid();
+  if (pid > 0) {
+    if (kill(pid, SIGHUP) != 0) {
+      if (errno == ESRCH) {
+        printf("recovery: %s (daemon exited before signal delivery; takes "
+               "effect on next start)\n",
+               applied.UTF8String);
+        return 0;
+      }
+      perror("blackoutd: kill SIGHUP");
+      return 1;
+    }
+    printf("recovery: %s (daemon notified)\n", applied.UTF8String);
+  } else {
+    printf("recovery: %s (daemon not running; takes effect on next start)\n",
+           applied.UTF8String);
+  }
+  return 0;
 }
 
 // Sets the daemon's log verbosity level, persisted in NSUserDefaults so it
@@ -958,6 +1002,11 @@ static void printUsage(void) {
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
       "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
       " 2=verbose)\n"
+      "  recovery <S>    Set post-wake cursor-on-black auto-recovery:\n"
+      "                  displaysleep (default) runs a display-sleep cycle\n"
+      "                  when the wake carries the WindowServer marker;\n"
+      "                  none disables (required before repro baseline\n"
+      "                  data collection)\n"
       "  diagnose        Collect a diagnostic bundle for bug reports\n"
       "                  (auto-bounds the window to the last wake; override\n"
       "                  with --minutes N or --start \"T\" --end \"T\";\n"
@@ -2178,6 +2227,12 @@ int main(int argc, const char *argv[]) {
         return 1;
       }
       return setVerbosity(argv[2]);
+    } else if (strcmp(cmd, "recovery") == 0) {
+      if (argc < 3) {
+        fprintf(stderr, "Usage: blackoutd recovery <none|displaysleep>\n");
+        return 1;
+      }
+      return setRecoveryStrategy(argv[2]);
     }
     // "daemon" with no subcommand falls through to daemon run loop below.
     if (strcmp(cmd, "daemon") != 0) {

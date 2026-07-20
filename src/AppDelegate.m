@@ -78,8 +78,9 @@ static NSBundle *BDResourceBundle(void) {
   _displayController.delegate = self;
 
   [self reloadPreferences];
-  NSLog(@"[startup] — verbosityLevel=%ld",
-        (long)_displayController.verbosityLevel);
+  NSLog(@"[startup] — verbosityLevel=%ld recoveryStrategy=%@",
+        (long)_displayController.verbosityLevel,
+        _displayController.recoveryStrategy);
   [self setupMenuBar];
   [self setupSignalHandlers];
   [self setupSleepWakeObservers];
@@ -152,6 +153,9 @@ static NSBundle *BDResourceBundle(void) {
                             ? [_defaults integerForKey:@"verbosityLevel"]
                             : 1;
   _displayController.verbosityLevel = verbosity;
+  NSString *recovery =
+      [_defaults stringForKey:@"recoveryStrategy"] ?: @"displaysleep";
+  _displayController.recoveryStrategy = recovery;
 }
 
 // MARK: - Quitting
