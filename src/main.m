@@ -35,6 +35,59 @@ static NSString *const kVerbosityKey = @"verbosityLevel";
 static NSString *const kRecoveryKey = @"recoveryStrategy";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
+// Test-only isolation seam. Its sole consumer is the project's own test
+// suite; it is not a supported public interface. When
+// BLACKOUTD_TEST_DEFAULTS_SUITE names a valid throwaway suite, the CLI
+// preference helpers read and write that suite instead of the real
+// "blackoutd" suite, and the write-back subcommands (auto / verbosity /
+// recovery) skip signaling the daemon. This lets the CLI harness exercise
+// the accept-paths without mutating the user's real preferences or
+// perturbing the running daemon, which always reads the hardcoded
+// kSuiteName — this seam is deliberately NOT wired into AppDelegate.m.
+// Unset (normal operation) ⇒ identical to targeting kSuiteName directly
+// with the daemon signaled as before.
+static const char *const kTestSuiteEnv = "BLACKOUTD_TEST_DEFAULTS_SUITE";
+
+// Resolved once by initCliDefaults() at startup, then read by the helpers.
+static NSString *gCliSuite = nil;
+static BOOL gCliDefaultsIsolated = NO;
+
+// Validates the test-suite env var and sets the file-statics above. Returns
+// 0 for normal operation and for a valid isolation suite. When the var is
+// present but invalid — not decodable as UTF-8, or equal to the real suite
+// (which would write real/global preferences while skipping the daemon
+// signal, the opposite of isolation) — prints an error and returns a
+// non-zero exit code so main() aborts BEFORE any subcommand writes defaults
+// or signals the daemon. A test can therefore exercise the rejection paths
+// with no real-state side effects.
+static int initCliDefaults(void) {
+  const char *raw = getenv(kTestSuiteEnv);
+  if (raw == NULL || raw[0] == '\0') {
+    gCliSuite = kSuiteName;
+    gCliDefaultsIsolated = NO;
+    return 0;
+  }
+  NSString *name = [NSString stringWithUTF8String:raw];
+  if (name == nil) {
+    fprintf(stderr, "blackoutd: %s is not valid UTF-8; refusing to run\n",
+            kTestSuiteEnv);
+    return 2;
+  }
+  if ([name isEqualToString:kSuiteName]) {
+    fprintf(stderr,
+            "blackoutd: %s must not be the real suite '%s'; refusing to run\n",
+            kTestSuiteEnv, kSuiteName.UTF8String);
+    return 2;
+  }
+  gCliSuite = name;
+  gCliDefaultsIsolated = YES;
+  return 0;
+}
+
+static NSString *cliSuiteName(void) { return gCliSuite ?: kSuiteName; }
+
+static BOOL cliDefaultsIsolated(void) { return gCliDefaultsIsolated; }
+
 static NSString *agentPlistPath(void) {
   return [NSHomeDirectory()
       stringByAppendingPathComponent:
@@ -554,7 +607,7 @@ static NSString *connectionModeReport(void) {
 static NSString *buildReport(void) {
   NSProcessInfo *info = NSProcessInfo.processInfo;
   NSUserDefaults *defaults =
-      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+      [[NSUserDefaults alloc] initWithSuiteName:cliSuiteName()];
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                       ? [defaults boolForKey:kAutoBlackoutKey]
                       : YES;
@@ -823,7 +876,7 @@ static int runDiagnose(int minutes, NSString *start, NSString *end, BOOL quiet,
 static int printStatus(void) {
   pid_t pid = daemonPid();
   NSUserDefaults *defaults =
-      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+      [[NSUserDefaults alloc] initWithSuiteName:cliSuiteName()];
   BOOL autoMode = [defaults objectForKey:kAutoBlackoutKey] != nil
                       ? [defaults boolForKey:kAutoBlackoutKey]
                       : YES;
@@ -850,9 +903,15 @@ static int setAutoBlackout(const char *value) {
   }
   BOOL enable = strcmp(value, "on") == 0;
   NSUserDefaults *defaults =
-      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+      [[NSUserDefaults alloc] initWithSuiteName:cliSuiteName()];
   [defaults setBool:enable forKey:kAutoBlackoutKey];
   [defaults synchronize];
+  if (cliDefaultsIsolated()) {
+    printf("auto-blackout: %s (isolated test suite '%s'; daemon not "
+           "notified)\n",
+           enable ? "enabled" : "disabled", cliSuiteName().UTF8String);
+    return 0;
+  }
   printf("auto-blackout: %s\n", enable ? "enabled" : "disabled");
   return sendSignalToDaemon(SIGHUP);
 }
@@ -872,10 +931,15 @@ static int setRecoveryStrategy(const char *value) {
     return 1;
   }
   NSUserDefaults *defaults =
-      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+      [[NSUserDefaults alloc] initWithSuiteName:cliSuiteName()];
   [defaults setObject:@(value) forKey:kRecoveryKey];
   [defaults synchronize];
   NSString *applied = [defaults stringForKey:kRecoveryKey];
+  if (cliDefaultsIsolated()) {
+    printf("recovery: %s (isolated test suite '%s'; daemon not notified)\n",
+           applied.UTF8String, cliSuiteName().UTF8String);
+    return 0;
+  }
   pid_t pid = daemonPid();
   if (pid > 0) {
     if (kill(pid, SIGHUP) != 0) {
@@ -927,12 +991,17 @@ static int setVerbosity(const char *value) {
   }
 
   NSUserDefaults *defaults =
-      [[NSUserDefaults alloc] initWithSuiteName:kSuiteName];
+      [[NSUserDefaults alloc] initWithSuiteName:cliSuiteName()];
   [defaults setInteger:level forKey:kVerbosityKey];
   [defaults synchronize];
   // Read the persisted value back so the reported number is what the daemon
   // will load on reload, not merely the parsed input.
   long applied = (long)[defaults integerForKey:kVerbosityKey];
+  if (cliDefaultsIsolated()) {
+    printf("verbosity: %ld (isolated test suite '%s'; daemon not notified)\n",
+           applied, cliSuiteName().UTF8String);
+    return 0;
+  }
   pid_t pid = daemonPid();
   if (pid > 0) {
     if (kill(pid, SIGHUP) != 0) {
@@ -2197,6 +2266,12 @@ int main(int argc, const char *argv[]) {
   setvbuf(stderr, NULL, _IONBF, 0);
 
   @autoreleasepool {
+    // Resolve the CLI defaults suite before any subcommand runs; an invalid
+    // test-suite override aborts here, before any write or daemon signal.
+    int suiteRC = initCliDefaults();
+    if (suiteRC != 0)
+      return suiteRC;
+
     if (argc < 2) {
       printUsage();
       return 1;

@@ -55,6 +55,37 @@ These tests require a MacBook with an external display connected via USB-C.
 - [ ] Works on AC power
 - [ ] External does not go black ~30s after wake (the pre-fix failure mode)
 
+## Cursor-on-black auto-recovery (P20/P29)
+
+The CLI argument surface for these commands is covered by
+`spec/integration/cli_spec.rb`; the items below need real hardware, a
+running daemon, and an eyewitness, so they stay manual. Use `blackoutd
+repro` (see `docs/debug/cursor-on-black-matrix.md`) to provoke the black.
+
+- [ ] `blackoutd recovery displaysleep` reports the value and, with the
+      daemon running, notifies it (`status` then shows `recovery :
+      displaysleep`)
+- [ ] `blackoutd recovery none` disables auto-recovery; `status` reflects it
+- [ ] With `recovery displaysleep` and an external attached, a
+      cursor-on-black wake self-clears within a few seconds of settle
+      (daemon log shows `[wake] recovery=displaysleep marker=present`)
+- [ ] With `recovery none`, the same wake stays black (marker logged,
+      no recovery issued) — the control case for data collection
+- [ ] A clean wake logs `marker=absent` and does not cycle the display
+- [ ] `blackoutd recover --method displaysleep` clears a black manually
+- [ ] `blackoutd recover --method extcycle` clears a black in an
+      **unlocked** session (do NOT run while locked — induces blacks;
+      see the matrix group C notes)
+
+## repro harness (maintainer-run)
+
+- [ ] `blackoutd repro --wake 15 --trigger extcycle` provokes the black
+      and the scheduled wake fires (no manual wake needed)
+- [ ] The spoken "awake" cue lands at first light; the run sheet and
+      bundles are written under `docs/debug/`
+- [ ] `--lock` locks the session before sleep; the run stays locked
+      through capture (keep the Apple Watch out of range)
+
 ## Build/Install Cycle
 
 - [ ] `make clean; make; make reinstall` succeeds
