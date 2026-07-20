@@ -796,7 +796,11 @@ to survive n ≥ 3: a WindowServer hotplug-coalescing log marker, 10/10
 black wakes vs 0/15 clean across both cohorts, supporting hypothesis A
 (link drop during sleep, coalesced on wake). Full diff record,
 mechanism reading, caveats, and next steps under P29 (2026-07-19
-update).
+update). **2026-07-20**: the marker stands at 56/56 vs 0/33 across
+runs 1–104, and the detector-gated displaysleep auto-recovery is
+implemented in the daemon (`recoveryStrategy` pref, `blackoutd
+recovery` subcommand) — the acceptance-criteria recovery path for
+hypothesis A/C is landed; see P29 (2026-07-20 update).
 
 **Architecture analysis confirming the gap**:
 
@@ -1962,6 +1966,47 @@ extension tables).
   (slider at 100%), run ~6 soft-trigger runs — if blacks persist,
   the confound is retired; Brisync was never running and is
   irrelevant.
+
+**Update (2026-07-20) — confound retired; auto-recovery implemented.**
+Runs 86–104 (matrix "shakedowns, MCL controls, groups C/D/E" table):
+
+- *Marker all-time tally: 56/56 black vs 0/33 clean* (17 more blacks,
+  2 more cleans; every capture regime — cable, soft trigger, locked,
+  AC, lid).
+- *MonitorControlLite retired as a confound*: 15 runs with MCL quit
+  produced 13 blacks, indistinguishable from before. Attribution
+  stands: a macOS SkyLight/DCP wake-path defect, host-side.
+- *Recovery evidence complete*: locked displaysleep n=5 (runs 60,
+  98–101); group D answered (six AC blacks — not power-dependent);
+  group E's lived scenario (run 104 lid-open wake) reproduced black
+  and recovered. Every programmatic displaysleep recovery across the
+  whole matrix has cleared its black.
+- *Auto-recovery is now wired into the daemon.* At
+  `wakeSettleTimerFired`, when an external is present, the daemon
+  queries the unified log (spawning `log show` over a window opening
+  30 s before the recorded wake — the same unprivileged path
+  `diagnose` uses) for the coalescing marker; if present it runs the
+  displaysleep cycle (`pmset displaysleepnow`, 2 s, `caffeinate -u`)
+  off the main queue. Gated by the new `recoveryStrategy` pref
+  (String, default `displaysleep`; `none` disables; unknown values
+  fall back to none), set via the new `blackoutd recovery
+  <none|displaysleep>` subcommand (SIGHUP reload, P23 pattern) and
+  shown in `status`/`config.txt`. Guards: once-per-wake latch,
+  `_systemSleeping` re-check, marker absence = no action; the
+  display-sleep cycle emits screen (not system) sleep notifications,
+  so it cannot re-arm the wake path and loop. **Matrix data
+  collection must now disable it first** (`blackoutd recovery none`)
+  or captures record the recovered panel — see the matrix how-to.
+- *Flicker-free recovery and BetterDisplay RE remain open* (the
+  displaysleep cycle blinks both panels): candidates stay
+  `IOMobileFramebufferRequestPowerChange` (per-framebuffer, private)
+  and a BD `_reinitializeOnWake` RE pass — behind the now-standing
+  detector, as a follow-up PR. The extcycle recovery is ruled out for
+  automatic use (locked-session hazard, 2026-07-19 evening update).
+- *Wake-cue audibility*: the "awake" `say` cue is intermittently
+  inaudible right after wake (audio-device bring-up race; both power
+  sources affected). Detection and captures are unaffected; the
+  Notification Center banner carries the timestamp. Known quirk.
 
 **Files**: `src/main.m` (the `diagnose` `dcp.txt` / `connection-mode.txt`
 readers); investigation otherwise. Relates to P2, P20, P28, ADR 0003, ADR

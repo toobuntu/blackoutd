@@ -50,6 +50,15 @@ interactive prompt at most, pre-sleep; builds before 2026-07-19
 evening needed a manual `sudo --validate &&` prefix and a separate
 osascript lock command).
 
+> **Daemon auto-recovery vs. data collection.** As of 2026-07-20 the
+> daemon itself runs the displaysleep recovery at wake-settle when the
+> WindowServer marker is present (`recoveryStrategy` pref, default
+> `displaysleep`). **Before collecting matrix data, run
+> `blackoutd recovery none`** — otherwise the daemon clears the black
+> a few seconds after wake and the post-wake capture and eyewitness
+> "settled" states record the recovered panel, not the failure.
+> Restore with `blackoutd recovery displaysleep` afterward.
+
 To emulate the C1 cable trigger in software (no cable handling), add
 `--trigger extcycle`: after scheduling the wake and before sleeping,
 `repro` disables the external display via CG, waits 5 s for the
@@ -480,6 +489,63 @@ merely dark but absent from CGGetOnlineDisplayList. Run 85's
 sleep/wake re-onlined it. An extcycle failure mode can therefore
 drop the external below CG visibility entirely.
 
+### Runs 086–104 — shakedowns, MCL controls, groups C/D/E
+
+All on the notification-based wake build, all `--trigger extcycle`,
+all `--recover displaysleep`, no W1 (the scheduled wake fired on every
+lid-open run). MonitorControlLite was quit for runs 90–104 (`MCL?` =
+running/quit). Runs 87–97 on AC are group **D** (relabeled per the
+maintainer); locked AC runs 98–99 stay group C (D is defined
+unlocked) with AC on record here and in the sheets' power field.
+
+| run | sheet                                                  | grp | power | session  | settled E/B | black? | cleared? | MCL?    |
+|-----|--------------------------------------------------------|-----|-------|----------|-------------|--------|----------|---------|
+| 86  | [run086](repro-matrix/run086-grp-b-20260719-233431.md) | B   | batt  | unlocked | E1/B0       | yes    | yes      | running |
+| 87  | [run087](repro-matrix/run087-grp-d-20260719-235246.md) | D   | AC    | unlocked | E1/B0       | yes    | yes      | running |
+| 88  | [run088](repro-matrix/run088-grp-b-20260719-235545.md) | B   | batt  | unlocked | E1/B0       | yes    | yes      | running |
+| 89  | [run089](repro-matrix/run089-grp-d-20260719-235755.md) | D   | AC    | unlocked | E1/B0       | yes    | yes      | running |
+| 90  | [run090](repro-matrix/run090-grp-d-20260720-000202.md) | D   | AC    | unlocked | E1/B0       | yes    | yes      | quit    |
+| 91  | [run091](repro-matrix/run091-grp-d-20260720-000746.md) | D   | AC    | unlocked | E1/B0       | yes    | yes      | quit    |
+| 92  | [run092](repro-matrix/run092-grp-b-20260720-001020.md) | B   | batt  | unlocked | E1/B0       | yes    | yes      | quit    |
+| 93  | [run093](repro-matrix/run093-grp-b-20260720-001334.md) | B   | batt  | unlocked | E1/B0       | yes    | yes      | quit    |
+| 94  | [run094](repro-matrix/run094-grp-b-20260720-001600.md) | B   | batt  | unlocked | E1/B0       | yes    | yes      | quit    |
+| 95  | [run095](repro-matrix/run095-grp-b-20260720-002033.md) | B   | batt  | unlocked | E1/B0       | yes    | yes      | quit    |
+| 96  | [run096](repro-matrix/run096-grp-d-20260720-002246.md) | D   | AC    | unlocked | E1/B0       | yes    | yes      | quit    |
+| 97  | [run097](repro-matrix/run097-grp-d-20260720-002550.md) | D   | AC    | unlocked | E1/B0       | yes    | yes      | quit    |
+| 98  | [run098](repro-matrix/run098-grp-c-20260720-002935.md) | C   | AC    | locked   | E1/B0       | yes    | yes      | quit    |
+| 99  | [run099](repro-matrix/run099-grp-c-20260720-003235.md) | C   | AC    | locked   | E1/B0       | yes    | yes      | quit    |
+| 100 | [run100](repro-matrix/run100-grp-c-20260720-003513.md) | C   | batt  | locked   | E1/B0       | yes    | yes      | quit    |
+| 101 | [run101](repro-matrix/run101-grp-c-20260720-003736.md) | C   | batt  | locked   | E1/B0       | yes    | yes      | quit    |
+| 102 | [run102](repro-matrix/run102-grp-c-20260720-004031.md) | C   | batt  | locked   | E0/B0       | no     | n/a (R0) | quit    |
+| 103 | [run103](repro-matrix/run103-grp-e-20260720-004529.md) | E   | AC    | unlocked | E0/B0       | no     | n/a (R0) | quit    |
+| 104 | [run104](repro-matrix/run104-grp-e-20260720-004902.md) | E   | batt  | unlocked | E1/B0       | yes    | yes      | quit    |
+
+Verdicts from this block:
+
+- **MonitorControlLite is retired as a confound**: 15 runs with MCL
+  quit produced 13 blacks, indistinguishable from the MCL-running
+  runs. The host-side macOS attribution stands.
+- **Locked displaysleep is n=5** (runs 60, 98, 99, 100, 101 — every
+  locked black cleared). Group C's question is answered: yes,
+  recovery works while locked.
+- **Group D has its answer** (runs 87, 89, 90, 91, 96, 97 — six AC
+  blacks): the failure is not power-dependent, now at n=6 under the
+  scripted trigger (retiring the P29 "AC" open question for good).
+- **Group E**: run 103 (AC, clamshell closed through the scheduled
+  wake) woke *clean* — the external, as the sole active display in
+  clamshell mode, came up rendering; the lid was reopened after wake.
+  Run 104 (battery): the scheduled wake did not fire with the lid
+  closed (expected without AC), and the manual lid-open wake went
+  black (E1), cleared by displaysleep — the lived scenario reproduced
+  and recovered.
+- The **"awake" cue is intermittently inaudible** (heard: 89, 101,
+  102, 103, 104; not heard: 87, 92–95, 100 — both power sources on
+  both lists). Wake detection is fine in every case (captures and
+  sheets landed on schedule); the loss is in post-wake audio-device
+  bring-up racing the `say` call. The Notification Center banner
+  carries the timestamp either way. Known quirk, not queued for a
+  fix.
+
 **Detection result (2026-07-19)**: the field-by-field diff over this
 cohort found a WindowServer log marker that splits black from clean —
 10/10 black wakes vs 0/15 clean across both cohorts, extended to
@@ -488,8 +554,9 @@ run 55 and the locked runs), and to **39/39 vs 0/31** by the
 soft-trigger series 61–85 — where the two trigger-but-clean runs (71,
 72) show the trigger's own pre-sleep hotplug pair does **not** plant
 the marker, and every marker timestamp sits at the wake, not at the
-trigger. See `docs/technical-debt.md` P29 (2026-07-19 updates) for
-the diff record, mechanism reading, and caveats.
+trigger. Runs 86–104 bring the all-time tally to **56/56 black vs
+0/33 clean**. See `docs/technical-debt.md` P29 (2026-07-19/20
+updates) for the diff record, mechanism reading, and caveats.
 
 ## What we do with the data
 

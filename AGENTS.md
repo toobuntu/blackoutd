@@ -129,6 +129,10 @@ Keys:
 - `autoBlackoutOnExternalConnect` (BOOL, default YES)
 - `blackoutActive` (BOOL) — persisted blackout intent
 - `verbosityLevel` (Integer, default 1; 2 enables `[verbose=2]`-tagged log lines)
+- `recoveryStrategy` (String, default `displaysleep`; `none` disables the
+  post-wake cursor-on-black auto-recovery — set via
+  `blackoutd recovery <none|displaysleep>`; see P20/P29 and
+  `docs/debug/cursor-on-black-matrix.md`)
 
 ## Key technical details
 
