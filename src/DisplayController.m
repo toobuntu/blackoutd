@@ -455,7 +455,12 @@ static NSString *const kBDHotplugCoalescedNeedle =
 static BOOL BDWakeMarkerPresentSince(NSDate *since) {
   NSDateFormatter *f = [[NSDateFormatter alloc] init];
   f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-  f.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+  // Explicit zone and offset: log(1) documents "YYYY-MM-DD HH:MM:SSZZZZZ"
+  // as an accepted --start form, so emit the offset (Z pattern -> "-0400")
+  // rather than relying on the formatter's local-zone default matching
+  // log's local-zone interpretation of an unqualified timestamp.
+  f.timeZone = NSTimeZone.localTimeZone;
+  f.dateFormat = @"yyyy-MM-dd HH:mm:ssZ";
   NSTask *task = [[NSTask alloc] init];
   task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/log"];
   NSString *predicate =
@@ -502,6 +507,11 @@ static void BDRunDisplaySleepCycle(void) {
     return;
   }
   [sleepTask waitUntilExit];
+  if (sleepTask.terminationStatus != 0) {
+    NSLog(@"[wake] recovery displaysleep exited rc=%d — skipping wake nudge",
+          (int)sleepTask.terminationStatus);
+    return;
+  }
   [NSThread sleepForTimeInterval:2.0];
   NSTask *wakeTask = [[NSTask alloc] init];
   wakeTask.executableURL = [NSURL fileURLWithPath:@"/usr/bin/caffeinate"];
@@ -528,8 +538,11 @@ static void BDRunDisplaySleepCycle(void) {
     return;
   _wakeRecoveryAttempted = YES;
   // Query from shortly before the wake: the marker lands at the wake
-  // instant, and the previous run's marker is minutes older, outside the
-  // window.
+  // instant. 30 s comfortably covers the skew between the marker's log
+  // timestamp and _lastWakeAt (the NSWorkspace notification can trail the
+  // hardware wake by a few seconds) plus log-flush latency, while staying
+  // far inside the >= 2-3 min spacing of consecutive repro wakes — so the
+  // previous wake's marker can never leak into this window.
   NSDate *since = [_lastWakeAt dateByAddingTimeInterval:-30.0];
   __weak typeof(self) weakSelf = self;
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
