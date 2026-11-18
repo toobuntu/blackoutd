@@ -916,6 +916,37 @@ static int setAutoBlackout(const char *value) {
   return sendSignalToDaemon(SIGHUP);
 }
 
+// Signals the running daemon (if any) to reload preferences after a CLI
+// write-back, printing `summary` followed by the delivery outcome. A daemon
+// that is not running, or that exits between lookup and signal (ESRCH), is
+// not an error: the value is persisted and loads on next start. Under the
+// test isolation seam the daemon is never signaled.
+static int notifyDaemonOfPreferenceChange(NSString *summary) {
+  const char *s = summary.UTF8String;
+  if (cliDefaultsIsolated()) {
+    printf("%s (isolated test suite '%s'; daemon not notified)\n", s,
+           cliSuiteName().UTF8String);
+    return 0;
+  }
+  pid_t pid = daemonPid();
+  if (pid <= 0) {
+    printf("%s (daemon not running; takes effect on next start)\n", s);
+    return 0;
+  }
+  if (kill(pid, SIGHUP) != 0) {
+    if (errno == ESRCH) {
+      printf("%s (daemon exited before signal delivery; takes effect on next "
+             "start)\n",
+             s);
+      return 0;
+    }
+    perror("blackoutd: kill SIGHUP");
+    return 1;
+  }
+  printf("%s (daemon notified)\n", s);
+  return 0;
+}
+
 // Sets the daemon's post-wake cursor-on-black recovery strategy, persisted
 // in NSUserDefaults and applied live via SIGHUP — same pattern as
 // setVerbosity below. "displaysleep" (the default) runs a display-sleep
@@ -935,29 +966,8 @@ static int setRecoveryStrategy(const char *value) {
   [defaults setObject:@(value) forKey:kRecoveryKey];
   [defaults synchronize];
   NSString *applied = [defaults stringForKey:kRecoveryKey];
-  if (cliDefaultsIsolated()) {
-    printf("recovery: %s (isolated test suite '%s'; daemon not notified)\n",
-           applied.UTF8String, cliSuiteName().UTF8String);
-    return 0;
-  }
-  pid_t pid = daemonPid();
-  if (pid > 0) {
-    if (kill(pid, SIGHUP) != 0) {
-      if (errno == ESRCH) {
-        printf("recovery: %s (daemon exited before signal delivery; takes "
-               "effect on next start)\n",
-               applied.UTF8String);
-        return 0;
-      }
-      perror("blackoutd: kill SIGHUP");
-      return 1;
-    }
-    printf("recovery: %s (daemon notified)\n", applied.UTF8String);
-  } else {
-    printf("recovery: %s (daemon not running; takes effect on next start)\n",
-           applied.UTF8String);
-  }
-  return 0;
+  return notifyDaemonOfPreferenceChange(
+      [NSString stringWithFormat:@"recovery: %@", applied]);
 }
 
 // Sets the daemon's log verbosity level, persisted in NSUserDefaults so it
@@ -997,34 +1007,8 @@ static int setVerbosity(const char *value) {
   // Read the persisted value back so the reported number is what the daemon
   // will load on reload, not merely the parsed input.
   long applied = (long)[defaults integerForKey:kVerbosityKey];
-  if (cliDefaultsIsolated()) {
-    printf("verbosity: %ld (isolated test suite '%s'; daemon not notified)\n",
-           applied, cliSuiteName().UTF8String);
-    return 0;
-  }
-  pid_t pid = daemonPid();
-  if (pid > 0) {
-    if (kill(pid, SIGHUP) != 0) {
-      if (errno == ESRCH) {
-        // Benign race: daemon vanished between lookup and signal. Same outcome
-        // as the not-running branch (value persisted, loads on next start), so
-        // report success; non-ESRCH errors fall through to a real failure.
-        printf("verbosity: %ld (daemon exited before signal delivery; "
-               "takes effect on next start)\n",
-               applied);
-        return 0;
-      }
-
-      perror("blackoutd: kill SIGHUP");
-      return 1;
-    }
-    printf("verbosity: %ld (daemon notified)\n", applied);
-  } else {
-    printf("verbosity: %ld (daemon not running; takes effect on next "
-           "start)\n",
-           applied);
-  }
-  return 0;
+  return notifyDaemonOfPreferenceChange(
+      [NSString stringWithFormat:@"verbosity: %ld", applied]);
 }
 
 // launchctl bootout exit code 3 means the service was not loaded (launchctl
