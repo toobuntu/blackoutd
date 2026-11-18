@@ -278,14 +278,14 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   NSLog(@"[state] hasExternal=1 autoBlackout=%d isBlackedOut=0 — initiating "
         @"blackout",
         _autoBlackoutOnExternalConnect);
-  [self applyEnable:NO];
+  [self applyEnable:NO invariantRestore:NO];
   return _isBlackedOut;
 }
 
 - (BOOL)disableBlackout {
   if (!_isBlackedOut)
     return YES;
-  [self applyEnable:YES];
+  [self applyEnable:YES invariantRestore:NO];
   return !_isBlackedOut;
 }
 
@@ -423,13 +423,13 @@ static void displayReconfigCallback(CGDirectDisplayID displayID,
   if (!hasExternal && _isBlackedOut) {
     NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
           @"disabling blackout (post-wake invariant)");
-    [self applyEnable:YES];
+    [self applyEnable:YES invariantRestore:YES];
     return;
   }
   if (_autoBlackoutOnExternalConnect && !_isBlackedOut && hasExternal) {
     NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
           @"blackout action");
-    [self applyEnable:NO];
+    [self applyEnable:NO invariantRestore:NO];
   }
   if (hasExternal)
     [self attemptCursorOnBlackRecovery];
@@ -565,7 +565,7 @@ static void BDRunDisplaySleepCycle(void) {
 
 // MARK: - Private
 
-- (void)applyEnable:(BOOL)enable {
+- (void)applyEnable:(BOOL)enable invariantRestore:(BOOL)invariantRestore {
   _currentAction = enable ? @"restore" : @"blackout";
   NSLog(@"[builtin] id=%u action=%@ result=pending isBlackedOut=%d", _builtInID,
         _currentAction, _isBlackedOut);
@@ -649,7 +649,23 @@ static void BDRunDisplaySleepCycle(void) {
         if (self->_isBlackedOut && ![self hasActiveExternalDisplay]) {
           NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
                 @"disabling blackout (missed during action window)");
-          [self applyEnable:YES];
+          [self applyEnable:YES invariantRestore:YES];
+          return;
+        }
+        // On display wake (lock screen, idle display sleep) macOS can swap
+        // the external for a virtual placeholder for under a second. The
+        // invariant restores the built-in, and the real external's
+        // reconnect callback then lands inside this action window and is
+        // ignored. Re-apply auto-blackout here so the built-in does not
+        // stay lit. Only for invariant restores: a user-requested restore
+        // must not be undone.
+        if (invariantRestore && !self->_isBlackedOut &&
+            self->_autoBlackoutOnExternalConnect &&
+            [self hasActiveExternalDisplay]) {
+          NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — "
+                @"external returned during invariant restore, re-applying "
+                @"blackout");
+          [self applyEnable:NO invariantRestore:NO];
         }
       });
 }
@@ -742,7 +758,7 @@ static void BDRunDisplaySleepCycle(void) {
   if (!hasExternal && _isBlackedOut) {
     NSLog(@"[state] hasExternal=0 isBlackedOut=1 — no external display, "
           @"disabling blackout (invariant)");
-    [self applyEnable:YES];
+    [self applyEnable:YES invariantRestore:YES];
     return;
   }
 
@@ -779,7 +795,7 @@ static void BDRunDisplaySleepCycle(void) {
   if (hasExternal && _autoBlackoutOnExternalConnect && !_isBlackedOut) {
     NSLog(@"[state] hasExternal=1 autoBlackout=1 isBlackedOut=0 — initiating "
           @"blackout action");
-    [self applyEnable:NO];
+    [self applyEnable:NO invariantRestore:NO];
   } else {
     NSLog(@"[state] hasExternal=%d autoBlackout=%d isBlackedOut=%d — no action",
           hasExternal, _autoBlackoutOnExternalConnect, _isBlackedOut);
