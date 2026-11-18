@@ -463,8 +463,23 @@ inside that window are filtered by the safety-invariant short-circuit
 auto-blackout decisions on external **connect** events — is suppressed.
 
 If an external is unplugged and replugged quickly (under 2 s), the connect
-event may be missed entirely. No user has reported this; the pattern is
-uncommon. The design is brittle.
+event may be missed entirely. The design is brittle.
+
+**First real-world trigger (2026-11-18)**: lock → display sleep (no
+system sleep) → wake + Touch ID left the built-in lit. On display wake
+macOS swapped the external for a virtual placeholder (`"unkn"`) for
+~0.8 s; the safety invariant restored the built-in, and the real
+external's `connected` callback landed inside the restore's action
+window and was ignored. With no system wake, the wake-settle timer never
+armed to re-apply auto-blackout. The same swallowed reconnect appears
+after system-triggered restores in the 2026-05-25/26 diag bundles, where
+the wake-settle timer masked it.
+
+**Mitigation**: `applyEnable:invariantRestore:` — restores started by
+the safety invariant re-check at settle and re-apply auto-blackout if a
+hardware external is back. User-requested restores are not re-checked.
+The built-in still lights for ~2 s before re-blacking out. The general
+echo-vs-event fix below remains open.
 
 A secondary efficiency note: the wake-settle timer is rebuilt
 (`dispatch_source_t` create + cancel) on every callback during a wake
