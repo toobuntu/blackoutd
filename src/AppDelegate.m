@@ -12,6 +12,7 @@ static NSString *const kBundleID = @BD_BUNDLE_ID;
 static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
 static NSString *const kBlackoutActiveKey = @"blackoutActive";
+static NSString *const kShowMenuBarItemKey = @"showMenuBarItem";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
 // Localization helper.  Searches for a blackoutd.bundle resource bundle
@@ -42,6 +43,7 @@ static NSBundle *BDResourceBundle(void) {
   NSStatusItem *_statusItem;
   NSMenuItem *_toggleItem;
   NSMenuItem *_autoItem;
+  BOOL _showMenuBarItem;
   NSUserDefaults *_defaults;
   dispatch_source_t _sigusr1Source;
   dispatch_source_t _sigusr2Source;
@@ -156,6 +158,10 @@ static NSBundle *BDResourceBundle(void) {
   NSString *recovery =
       [_defaults stringForKey:@"recoveryStrategy"] ?: @"displaysleep";
   _displayController.recoveryStrategy = recovery;
+  _showMenuBarItem = [_defaults objectForKey:kShowMenuBarItemKey] != nil
+                         ? [_defaults boolForKey:kShowMenuBarItemKey]
+                         : YES;
+  _statusItem.visible = _showMenuBarItem;
 }
 
 // MARK: - Quitting
@@ -174,6 +180,7 @@ static NSBundle *BDResourceBundle(void) {
 - (void)setupMenuBar {
   _statusItem = [NSStatusBar.systemStatusBar
       statusItemWithLength:NSVariableStatusItemLength];
+  _statusItem.visible = _showMenuBarItem;
   [self updateMenuBarIcon];
 
   NSMenu *menu = [[NSMenu alloc] init];

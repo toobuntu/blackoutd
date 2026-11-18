@@ -11,8 +11,9 @@ require "open3"
 # behavior (actual blackout, real sleep/wake recovery, launchctl lifecycle,
 # live display cycling) stays in the manual checklist by design.
 #
-# The write-back subcommands (auto / verbosity / recovery) normally mutate
-# the real "blackoutd" NSUserDefaults suite and SIGHUP the running daemon.
+# The write-back subcommands (auto / verbosity / recovery / menubar)
+# normally mutate the real "blackoutd" NSUserDefaults suite and SIGHUP the
+# running daemon.
 # The accept-path examples here set BLACKOUTD_TEST_DEFAULTS_SUITE to a
 # throwaway suite (the src/main.m test seam): writes divert to that suite and
 # the daemon is not signaled, so these tests never touch the user's real
@@ -83,7 +84,7 @@ RSpec.describe "blackoutd CLI" do
     it "lists every subcommand in the usage text" do
       _out, err, _status = blackoutd
       %w[on off status diagnose recover repro verbosity recovery auto
-         daemon].each do |cmd|
+         menubar daemon].each do |cmd|
         expect(err).to match(/^\s+#{Regexp.escape(cmd)}\b/)
       end
     end
@@ -190,6 +191,50 @@ RSpec.describe "blackoutd CLI" do
         expect(status.exitstatus).to eq(0)
         expect(out).to match(/auto-blackout: disabled .*isolated test suite/)
       end
+    end
+  end
+
+  describe "menubar" do
+    it "rejects a missing argument" do
+      _out, err, status = blackoutd("menubar")
+      expect(status.exitstatus).to eq(1)
+      expect(err).to include("Usage: blackoutd menubar <on|off>")
+    end
+
+    it "rejects an unknown value" do
+      _out, err, status = blackoutd("menubar", "hide")
+      expect(status.exitstatus).to eq(1)
+      expect(err).to include("Usage: blackoutd menubar <on|off>")
+    end
+
+    it "accepts off against an isolated suite" do
+      with_isolated_suite do |suite|
+        out, _err, status =
+          blackoutd("menubar", "off",
+                    env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite })
+        expect(status.exitstatus).to eq(0)
+        expect(out).to match(/menubar: off .*isolated test suite/)
+      end
+    end
+
+    it "accepts on against an isolated suite" do
+      with_isolated_suite do |suite|
+        out, _err, status =
+          blackoutd("menubar", "on",
+                    env: { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite })
+        expect(status.exitstatus).to eq(0)
+        expect(out).to match(/menubar: on .*isolated test suite/)
+      end
+    end
+
+    it "leaves the real blackoutd suite untouched when isolated" do
+      before_val = real_default("showMenuBarItem")
+      with_isolated_suite do |suite|
+        env = { "BLACKOUTD_TEST_DEFAULTS_SUITE" => suite }
+        blackoutd("menubar", "off", env: env)
+        blackoutd("menubar", "on", env: env)
+      end
+      expect(real_default("showMenuBarItem")).to eq(before_val)
     end
   end
 

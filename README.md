@@ -94,6 +94,7 @@ blackoutd on                  Black out built-in display
 blackoutd off                 Restore built-in display
 blackoutd status              Show daemon and display status
 blackoutd auto on|off         Enable/disable auto-blackout on external connect
+blackoutd menubar on|off      Show/hide the menu bar item
 blackoutd verbosity <0|1|2>   Set daemon log verbosity
 blackoutd recovery <none|displaysleep>
                               Set post-wake cursor-on-black auto-recovery
@@ -101,6 +102,10 @@ blackoutd diagnose            Collect a diagnostic bundle for bug reports
 blackoutd daemon start        Start daemon via launchctl
 blackoutd daemon stop         Stop daemon and restore built-in display
 ```
+
+With the menu bar item hidden, everything its menu offers is still available
+from the CLI (`on`, `off`, `auto`, `daemon stop`); `blackoutd menubar on`
+brings it back.
 
 Run `blackoutd` with no arguments for the full list, including the
 experimental `recover` and `repro` tooling used to investigate the

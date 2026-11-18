@@ -33,6 +33,7 @@ static NSString *const kSuiteName = @"blackoutd";
 static NSString *const kAutoBlackoutKey = @"autoBlackoutOnExternalConnect";
 static NSString *const kVerbosityKey = @"verbosityLevel";
 static NSString *const kRecoveryKey = @"recoveryStrategy";
+static NSString *const kShowMenuBarItemKey = @"showMenuBarItem";
 static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 
 // Test-only isolation seam. Its sole consumer is the project's own test
@@ -40,8 +41,8 @@ static NSString *const kAgentLabel = @BD_BUNDLE_ID;
 // BLACKOUTD_TEST_DEFAULTS_SUITE names a valid throwaway suite, the CLI
 // preference helpers read and write that suite instead of the real
 // "blackoutd" suite, and the write-back subcommands (auto / verbosity /
-// recovery) skip signaling the daemon. This lets the CLI harness exercise
-// the accept-paths without mutating the user's real preferences or
+// recovery / menubar) skip signaling the daemon. This lets the CLI harness
+// exercise the accept-paths without mutating the user's real preferences or
 // perturbing the running daemon, which always reads the hardcoded
 // kSuiteName — this seam is deliberately NOT wired into AppDelegate.m.
 // Unset (normal operation) ⇒ identical to targeting kSuiteName directly
@@ -883,6 +884,9 @@ static int printStatus(void) {
   NSInteger verbosity = [defaults objectForKey:kVerbosityKey] != nil
                             ? [defaults integerForKey:kVerbosityKey]
                             : 1;
+  BOOL showMenuBarItem = [defaults objectForKey:kShowMenuBarItemKey] != nil
+                             ? [defaults boolForKey:kShowMenuBarItemKey]
+                             : YES;
   if (pid > 0)
     printf("blackoutd: running (pid %d)\n", pid);
   else
@@ -893,6 +897,7 @@ static int printStatus(void) {
   printf("  verbosity        : %ld\n", (long)verbosity);
   printf("  recovery         : %s\n",
          ([defaults stringForKey:kRecoveryKey] ?: @"displaysleep").UTF8String);
+  printf("  menubar          : %s\n", showMenuBarItem ? "on" : "off");
   return pid > 0 ? 0 : 1;
 }
 
@@ -1011,6 +1016,24 @@ static int setVerbosity(const char *value) {
       [NSString stringWithFormat:@"verbosity: %ld", applied]);
 }
 
+// Shows or hides the daemon's menu bar item, persisted in NSUserDefaults and
+// applied live via SIGHUP. While hidden, every menu action remains available
+// from the CLI (on / off / auto / daemon stop).
+static int setMenuBarItem(const char *value) {
+  if (value == NULL ||
+      (strcmp(value, "on") != 0 && strcmp(value, "off") != 0)) {
+    fprintf(stderr, "Usage: blackoutd menubar <on|off>\n");
+    return 1;
+  }
+  NSUserDefaults *defaults =
+      [[NSUserDefaults alloc] initWithSuiteName:cliSuiteName()];
+  [defaults setBool:strcmp(value, "on") == 0 forKey:kShowMenuBarItemKey];
+  [defaults synchronize];
+  BOOL applied = [defaults boolForKey:kShowMenuBarItemKey];
+  return notifyDaemonOfPreferenceChange(
+      [NSString stringWithFormat:@"menubar: %s", applied ? "on" : "off"]);
+}
+
 // launchctl bootout exit code 3 means the service was not loaded (launchctl
 // maps this to ESRCH). Inconsequential when stopping; suppress it.
 static int bootout(void) {
@@ -1054,6 +1077,7 @@ static void printUsage(void) {
       "  off             Restore built-in display\n"
       "  status          Show daemon and display status (even if not running)\n"
       "  auto on|off     Enable or disable auto-blackout on external connect\n"
+      "  menubar on|off  Show or hide the menu bar item\n"
       "  verbosity <N>   Set daemon log verbosity (0=quiet, 1=normal,"
       " 2=verbose)\n"
       "  recovery <S>    Set post-wake cursor-on-black auto-recovery:\n"
@@ -2354,6 +2378,12 @@ int main(int argc, const char *argv[]) {
         return 1;
       }
       return setRecoveryStrategy(argv[2]);
+    } else if (strcmp(cmd, "menubar") == 0) {
+      if (argc < 3) {
+        fprintf(stderr, "Usage: blackoutd menubar <on|off>\n");
+        return 1;
+      }
+      return setMenuBarItem(argv[2]);
     }
     // "daemon" with no subcommand falls through to daemon run loop below.
     if (strcmp(cmd, "daemon") != 0) {
