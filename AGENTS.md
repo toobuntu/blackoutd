@@ -133,6 +133,7 @@ Keys:
   post-wake cursor-on-black auto-recovery — set via
   `blackoutd recovery <none|displaysleep>`; see P20/P29 and
   `docs/debug/cursor-on-black-matrix.md`)
+- `showMenuBarItem` (BOOL, default YES) — set via `blackoutd menubar <on|off>`
 
 ## Key technical details
 

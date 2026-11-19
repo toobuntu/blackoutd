@@ -25,6 +25,11 @@ These tests require a MacBook with an external display connected via USB-C.
 - [ ] "Auto-blackout on External Connect" toggle works
 - [ ] Toggle applies immediately if external already connected
 - [ ] Disabling auto-blackout restores built-in if currently blacked out
+- [ ] `blackoutd menubar off` hides the menu bar item; `status` shows
+      `menubar : off`
+- [ ] `blackoutd menubar on` brings it back with the icon matching the
+      current blackout state
+- [ ] A hidden item stays hidden across `daemon stop` / `daemon start`
 
 ## Safety Invariant
 
