@@ -300,6 +300,8 @@ on the M2 MacBook Air; specific durations vary by power profile.
       DarkWake in `pmset -g log`) re-blacks out; external survives Alt
       Mode dropout window
 - [ ] Lid-close sleep behaves like `pmset sleepnow`
+- [ ] Lock → display sleep (no system sleep) → wake + Touch ID: built-in
+      returns to blacked out within ~3 s
 
 ## Open work and roadmap
 
